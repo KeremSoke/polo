@@ -1,0 +1,95 @@
+{
+ "marco": "1.28.2",
+ "scenario": {
+  "description": "A user-specified position (USPosition) is honoured.",
+  "name": "place-user-position",
+  "outputs": [
+   [
+    1920,
+    1080
+   ]
+  ],
+  "pointer": [
+   960,
+   540
+  ],
+  "prefs": {
+   "general/compositing-manager": false,
+   "general/num-workspaces": 4,
+   "general/theme": "Menta",
+   "general/titlebar-font": "Noto Sans Bold 10",
+   "general/titlebar-uses-system-font": false
+  },
+  "screen": [
+   1920,
+   1080
+  ],
+  "steps": [
+   {
+    "hints": {},
+    "id": "a",
+    "input": true,
+    "kind": "map",
+    "position": [
+     100,
+     120
+    ],
+    "position_source": "user",
+    "size": [
+     400,
+     300
+    ],
+    "state": [],
+    "transient_for": null,
+    "type": "normal",
+    "user_time": null
+   }
+  ],
+  "struts": []
+ },
+ "snapshots": [
+  {
+   "active": null,
+   "current_workspace": 0,
+   "n_workspaces": 4,
+   "stacking": [],
+   "windows": {}
+  },
+  {
+   "active": "a",
+   "current_workspace": 0,
+   "n_workspaces": 4,
+   "stacking": [
+    "a"
+   ],
+   "windows": {
+    "a": {
+     "client": [
+      100,
+      120,
+      400,
+      300
+     ],
+     "extents": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "frame": [
+      100,
+      120,
+      400,
+      300
+     ],
+     "mapped": true,
+     "state": [
+      "focused"
+     ],
+     "visible": true,
+     "workspace": 0
+    }
+   }
+  }
+ ]
+}

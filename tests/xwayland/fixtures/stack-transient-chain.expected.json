@@ -1,0 +1,531 @@
+{
+ "marco": "1.28.2",
+ "scenario": {
+  "description": "A chain of transients stays ordered above its root.",
+  "name": "stack-transient-chain",
+  "outputs": [
+   [
+    1920,
+    1080
+   ]
+  ],
+  "pointer": [
+   960,
+   540
+  ],
+  "prefs": {
+   "general/compositing-manager": false,
+   "general/num-workspaces": 4,
+   "general/theme": "Menta",
+   "general/titlebar-font": "Noto Sans Bold 10",
+   "general/titlebar-uses-system-font": false
+  },
+  "screen": [
+   1920,
+   1080
+  ],
+  "steps": [
+   {
+    "hints": {},
+    "id": "a",
+    "input": true,
+    "kind": "map",
+    "position": null,
+    "position_source": "program",
+    "size": [
+     900,
+     700
+    ],
+    "state": [],
+    "transient_for": null,
+    "type": "normal",
+    "user_time": null
+   },
+   {
+    "hints": {},
+    "id": "b",
+    "input": true,
+    "kind": "map",
+    "position": null,
+    "position_source": "program",
+    "size": [
+     600,
+     500
+    ],
+    "state": [],
+    "transient_for": "a",
+    "type": "dialog",
+    "user_time": null
+   },
+   {
+    "hints": {},
+    "id": "c",
+    "input": true,
+    "kind": "map",
+    "position": null,
+    "position_source": "program",
+    "size": [
+     300,
+     200
+    ],
+    "state": [],
+    "transient_for": "b",
+    "type": "dialog",
+    "user_time": null
+   },
+   {
+    "hints": {},
+    "id": "other",
+    "input": true,
+    "kind": "map",
+    "position": null,
+    "position_source": "program",
+    "size": [
+     1000,
+     800
+    ],
+    "state": [],
+    "transient_for": null,
+    "type": "normal",
+    "user_time": null
+   },
+   {
+    "at": [
+     5,
+     5
+    ],
+    "button": 1,
+    "id": "a",
+    "kind": "click",
+    "where": "client"
+   }
+  ],
+  "struts": []
+ },
+ "snapshots": [
+  {
+   "active": null,
+   "current_workspace": 0,
+   "n_workspaces": 4,
+   "stacking": [],
+   "windows": {}
+  },
+  {
+   "active": "a",
+   "current_workspace": 0,
+   "n_workspaces": 4,
+   "stacking": [
+    "a"
+   ],
+   "windows": {
+    "a": {
+     "client": [
+      510,
+      190,
+      900,
+      700
+     ],
+     "extents": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "frame": [
+      510,
+      190,
+      900,
+      700
+     ],
+     "mapped": true,
+     "state": [
+      "focused"
+     ],
+     "visible": true,
+     "workspace": 0
+    }
+   }
+  },
+  {
+   "active": "b",
+   "current_workspace": 0,
+   "n_workspaces": 4,
+   "stacking": [
+    "a",
+    "b"
+   ],
+   "windows": {
+    "a": {
+     "client": [
+      510,
+      190,
+      900,
+      700
+     ],
+     "extents": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "frame": [
+      510,
+      190,
+      900,
+      700
+     ],
+     "mapped": true,
+     "state": [],
+     "visible": true,
+     "workspace": 0
+    },
+    "b": {
+     "client": [
+      660,
+      256,
+      600,
+      500
+     ],
+     "extents": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "frame": [
+      660,
+      256,
+      600,
+      500
+     ],
+     "mapped": true,
+     "state": [
+      "focused",
+      "skip_taskbar"
+     ],
+     "visible": true,
+     "workspace": 0
+    }
+   }
+  },
+  {
+   "active": "c",
+   "current_workspace": 0,
+   "n_workspaces": 4,
+   "stacking": [
+    "a",
+    "b",
+    "c"
+   ],
+   "windows": {
+    "a": {
+     "client": [
+      510,
+      190,
+      900,
+      700
+     ],
+     "extents": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "frame": [
+      510,
+      190,
+      900,
+      700
+     ],
+     "mapped": true,
+     "state": [],
+     "visible": true,
+     "workspace": 0
+    },
+    "b": {
+     "client": [
+      660,
+      256,
+      600,
+      500
+     ],
+     "extents": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "frame": [
+      660,
+      256,
+      600,
+      500
+     ],
+     "mapped": true,
+     "state": [
+      "skip_taskbar"
+     ],
+     "visible": true,
+     "workspace": 0
+    },
+    "c": {
+     "client": [
+      810,
+      356,
+      300,
+      200
+     ],
+     "extents": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "frame": [
+      810,
+      356,
+      300,
+      200
+     ],
+     "mapped": true,
+     "state": [
+      "focused",
+      "skip_taskbar"
+     ],
+     "visible": true,
+     "workspace": 0
+    }
+   }
+  },
+  {
+   "active": "other",
+   "current_workspace": 0,
+   "n_workspaces": 4,
+   "stacking": [
+    "a",
+    "b",
+    "c",
+    "other"
+   ],
+   "windows": {
+    "a": {
+     "client": [
+      510,
+      190,
+      900,
+      700
+     ],
+     "extents": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "frame": [
+      510,
+      190,
+      900,
+      700
+     ],
+     "mapped": true,
+     "state": [],
+     "visible": true,
+     "workspace": 0
+    },
+    "b": {
+     "client": [
+      660,
+      256,
+      600,
+      500
+     ],
+     "extents": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "frame": [
+      660,
+      256,
+      600,
+      500
+     ],
+     "mapped": true,
+     "state": [
+      "skip_taskbar"
+     ],
+     "visible": true,
+     "workspace": 0
+    },
+    "c": {
+     "client": [
+      810,
+      356,
+      300,
+      200
+     ],
+     "extents": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "frame": [
+      810,
+      356,
+      300,
+      200
+     ],
+     "mapped": true,
+     "state": [
+      "skip_taskbar"
+     ],
+     "visible": true,
+     "workspace": 0
+    },
+    "other": {
+     "client": [
+      460,
+      140,
+      1000,
+      800
+     ],
+     "extents": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "frame": [
+      460,
+      140,
+      1000,
+      800
+     ],
+     "mapped": true,
+     "state": [
+      "focused"
+     ],
+     "visible": true,
+     "workspace": 0
+    }
+   }
+  },
+  {
+   "active": "other",
+   "current_workspace": 0,
+   "n_workspaces": 4,
+   "stacking": [
+    "a",
+    "b",
+    "c",
+    "other"
+   ],
+   "windows": {
+    "a": {
+     "client": [
+      510,
+      190,
+      900,
+      700
+     ],
+     "extents": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "frame": [
+      510,
+      190,
+      900,
+      700
+     ],
+     "mapped": true,
+     "state": [],
+     "visible": true,
+     "workspace": 0
+    },
+    "b": {
+     "client": [
+      660,
+      256,
+      600,
+      500
+     ],
+     "extents": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "frame": [
+      660,
+      256,
+      600,
+      500
+     ],
+     "mapped": true,
+     "state": [
+      "skip_taskbar"
+     ],
+     "visible": true,
+     "workspace": 0
+    },
+    "c": {
+     "client": [
+      810,
+      356,
+      300,
+      200
+     ],
+     "extents": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "frame": [
+      810,
+      356,
+      300,
+      200
+     ],
+     "mapped": true,
+     "state": [
+      "skip_taskbar"
+     ],
+     "visible": true,
+     "workspace": 0
+    },
+    "other": {
+     "client": [
+      460,
+      140,
+      1000,
+      800
+     ],
+     "extents": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "frame": [
+      460,
+      140,
+      1000,
+      800
+     ],
+     "mapped": true,
+     "state": [
+      "focused"
+     ],
+     "visible": true,
+     "workspace": 0
+    }
+   }
+  }
+ ]
+}

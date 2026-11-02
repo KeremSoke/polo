@@ -1,0 +1,272 @@
+{
+ "marco": "1.28.2",
+ "scenario": {
+  "description": "Without centring, windows too big to tile side by side cascade.",
+  "name": "place-no-center-cascade",
+  "outputs": [
+   [
+    1920,
+    1080
+   ]
+  ],
+  "pointer": [
+   960,
+   540
+  ],
+  "prefs": {
+   "general/center-new-windows": false,
+   "general/compositing-manager": false,
+   "general/num-workspaces": 4,
+   "general/theme": "Menta",
+   "general/titlebar-font": "Noto Sans Bold 10",
+   "general/titlebar-uses-system-font": false
+  },
+  "screen": [
+   1920,
+   1080
+  ],
+  "steps": [
+   {
+    "hints": {},
+    "id": "a",
+    "input": true,
+    "kind": "map",
+    "position": null,
+    "position_source": "program",
+    "size": [
+     1100,
+     700
+    ],
+    "state": [],
+    "transient_for": null,
+    "type": "normal",
+    "user_time": null
+   },
+   {
+    "hints": {},
+    "id": "b",
+    "input": true,
+    "kind": "map",
+    "position": null,
+    "position_source": "program",
+    "size": [
+     1100,
+     700
+    ],
+    "state": [],
+    "transient_for": null,
+    "type": "normal",
+    "user_time": null
+   },
+   {
+    "hints": {},
+    "id": "c",
+    "input": true,
+    "kind": "map",
+    "position": null,
+    "position_source": "program",
+    "size": [
+     1100,
+     700
+    ],
+    "state": [],
+    "transient_for": null,
+    "type": "normal",
+    "user_time": null
+   }
+  ],
+  "struts": []
+ },
+ "snapshots": [
+  {
+   "active": null,
+   "current_workspace": 0,
+   "n_workspaces": 4,
+   "stacking": [],
+   "windows": {}
+  },
+  {
+   "active": "a",
+   "current_workspace": 0,
+   "n_workspaces": 4,
+   "stacking": [
+    "a"
+   ],
+   "windows": {
+    "a": {
+     "client": [
+      409,
+      126,
+      1100,
+      700
+     ],
+     "extents": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "frame": [
+      409,
+      126,
+      1100,
+      700
+     ],
+     "mapped": true,
+     "state": [
+      "focused"
+     ],
+     "visible": true,
+     "workspace": 0
+    }
+   }
+  },
+  {
+   "active": "b",
+   "current_workspace": 0,
+   "n_workspaces": 4,
+   "stacking": [
+    "a",
+    "b"
+   ],
+   "windows": {
+    "a": {
+     "client": [
+      409,
+      126,
+      1100,
+      700
+     ],
+     "extents": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "frame": [
+      409,
+      126,
+      1100,
+      700
+     ],
+     "mapped": true,
+     "state": [],
+     "visible": true,
+     "workspace": 0
+    },
+    "b": {
+     "client": [
+      0,
+      0,
+      1100,
+      700
+     ],
+     "extents": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "frame": [
+      0,
+      0,
+      1100,
+      700
+     ],
+     "mapped": true,
+     "state": [
+      "focused"
+     ],
+     "visible": true,
+     "workspace": 0
+    }
+   }
+  },
+  {
+   "active": "c",
+   "current_workspace": 0,
+   "n_workspaces": 4,
+   "stacking": [
+    "a",
+    "b",
+    "c"
+   ],
+   "windows": {
+    "a": {
+     "client": [
+      409,
+      126,
+      1100,
+      700
+     ],
+     "extents": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "frame": [
+      409,
+      126,
+      1100,
+      700
+     ],
+     "mapped": true,
+     "state": [],
+     "visible": true,
+     "workspace": 0
+    },
+    "b": {
+     "client": [
+      0,
+      0,
+      1100,
+      700
+     ],
+     "extents": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "frame": [
+      0,
+      0,
+      1100,
+      700
+     ],
+     "mapped": true,
+     "state": [],
+     "visible": true,
+     "workspace": 0
+    },
+    "c": {
+     "client": [
+      0,
+      0,
+      1100,
+      700
+     ],
+     "extents": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "frame": [
+      0,
+      0,
+      1100,
+      700
+     ],
+     "mapped": true,
+     "state": [
+      "focused"
+     ],
+     "visible": true,
+     "workspace": 0
+    }
+   }
+  }
+ ]
+}

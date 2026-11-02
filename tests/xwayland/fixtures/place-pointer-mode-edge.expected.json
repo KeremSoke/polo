@@ -1,0 +1,93 @@
+{
+ "marco": "1.28.2",
+ "scenario": {
+  "description": "placement-mode pointer near the top-left corner keeps the window on screen.",
+  "name": "place-pointer-mode-edge",
+  "outputs": [
+   [
+    1920,
+    1080
+   ]
+  ],
+  "pointer": [
+   10,
+   10
+  ],
+  "prefs": {
+   "general/compositing-manager": false,
+   "general/num-workspaces": 4,
+   "general/placement-mode": "pointer",
+   "general/theme": "Menta",
+   "general/titlebar-font": "Noto Sans Bold 10",
+   "general/titlebar-uses-system-font": false
+  },
+  "screen": [
+   1920,
+   1080
+  ],
+  "steps": [
+   {
+    "hints": {},
+    "id": "a",
+    "input": true,
+    "kind": "map",
+    "position": null,
+    "position_source": "program",
+    "size": [
+     300,
+     200
+    ],
+    "state": [],
+    "transient_for": null,
+    "type": "normal",
+    "user_time": null
+   }
+  ],
+  "struts": []
+ },
+ "snapshots": [
+  {
+   "active": null,
+   "current_workspace": 0,
+   "n_workspaces": 4,
+   "stacking": [],
+   "windows": {}
+  },
+  {
+   "active": "a",
+   "current_workspace": 0,
+   "n_workspaces": 4,
+   "stacking": [
+    "a"
+   ],
+   "windows": {
+    "a": {
+     "client": [
+      0,
+      0,
+      300,
+      200
+     ],
+     "extents": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "frame": [
+      0,
+      0,
+      300,
+      200
+     ],
+     "mapped": true,
+     "state": [
+      "focused"
+     ],
+     "visible": true,
+     "workspace": 0
+    }
+   }
+  }
+ ]
+}

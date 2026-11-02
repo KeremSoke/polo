@@ -1,0 +1,172 @@
+{
+ "marco": "1.28.2",
+ "scenario": {
+  "description": "A utility window transient for a parent.",
+  "name": "place-utility-transient",
+  "outputs": [
+   [
+    1920,
+    1080
+   ]
+  ],
+  "pointer": [
+   960,
+   540
+  ],
+  "prefs": {
+   "general/compositing-manager": false,
+   "general/num-workspaces": 4,
+   "general/theme": "Menta",
+   "general/titlebar-font": "Noto Sans Bold 10",
+   "general/titlebar-uses-system-font": false
+  },
+  "screen": [
+   1920,
+   1080
+  ],
+  "steps": [
+   {
+    "hints": {},
+    "id": "parent",
+    "input": true,
+    "kind": "map",
+    "position": null,
+    "position_source": "program",
+    "size": [
+     800,
+     600
+    ],
+    "state": [],
+    "transient_for": null,
+    "type": "normal",
+    "user_time": null
+   },
+   {
+    "hints": {},
+    "id": "tool",
+    "input": true,
+    "kind": "map",
+    "position": null,
+    "position_source": "program",
+    "size": [
+     200,
+     400
+    ],
+    "state": [],
+    "transient_for": "parent",
+    "type": "utility",
+    "user_time": null
+   }
+  ],
+  "struts": []
+ },
+ "snapshots": [
+  {
+   "active": null,
+   "current_workspace": 0,
+   "n_workspaces": 4,
+   "stacking": [],
+   "windows": {}
+  },
+  {
+   "active": "parent",
+   "current_workspace": 0,
+   "n_workspaces": 4,
+   "stacking": [
+    "parent"
+   ],
+   "windows": {
+    "parent": {
+     "client": [
+      560,
+      240,
+      800,
+      600
+     ],
+     "extents": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "frame": [
+      560,
+      240,
+      800,
+      600
+     ],
+     "mapped": true,
+     "state": [
+      "focused"
+     ],
+     "visible": true,
+     "workspace": 0
+    }
+   }
+  },
+  {
+   "active": "parent",
+   "current_workspace": 0,
+   "n_workspaces": 4,
+   "stacking": [
+    "parent",
+    "tool"
+   ],
+   "windows": {
+    "parent": {
+     "client": [
+      560,
+      240,
+      800,
+      600
+     ],
+     "extents": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "frame": [
+      560,
+      240,
+      800,
+      600
+     ],
+     "mapped": true,
+     "state": [
+      "focused"
+     ],
+     "visible": true,
+     "workspace": 0
+    },
+    "tool": {
+     "client": [
+      0,
+      0,
+      200,
+      400
+     ],
+     "extents": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "frame": [
+      0,
+      0,
+      200,
+      400
+     ],
+     "mapped": true,
+     "state": [
+      "skip_pager",
+      "skip_taskbar"
+     ],
+     "visible": true,
+     "workspace": 0
+    }
+   }
+  }
+ ]
+}
