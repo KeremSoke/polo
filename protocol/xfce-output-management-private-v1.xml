@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<protocol name="xfce_output_private_v1">
+  <copyright>
+    Copyright © 2026 Brian Tarricone &lt;brian@tarricone.org&gt;
+
+    Permission is hereby granted, free of charge, to any person
+    obtaining a copy of this software and associated documentation files
+    (the "Software"), to deal in the Software without restriction,
+    including without limitation the rights to use, copy, modify, merge,
+    publish, distribute, sublicense, and/or sell copies of the Software,
+    and to permit persons to whom the Software is furnished to do so,
+    subject to the following conditions:
+
+    The above copyright notice and this permission notice (including the
+    next paragraph) shall be included in all copies or substantial
+    portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+    EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+    NONINFRINGEMENT.  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+    BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+    ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+    CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE.
+  </copyright>
+
+  <interface name="xfce_output_management_manager_private_v1" version="1">
+    <description summary="Xfce output manager extensions">
+      This protocol advertises extensions to the wlr_output_management_v1
+      protocol.
+
+      It is intended to be private to the Xfce desktop implementation, and
+      should not be used by other applications. This protocol may introduce
+      incompatible changes at any time, without warning, and without following
+      normal, accepted guidelines about Wayland protocol versioning.
+
+      This protocol depends on the wlr_output_management_v1 protocol.
+
+      Clients that wish to use it MAY bind to both wlr_output_manager_v1 and
+      xfce_output_management_manager_private_v1, but MUST then ignore any events
+      on wlr_output_manager_v1. This allows for simplicity in the client
+      implementation. For ease of use, the client should immediately release
+      any wlr_output_head_v1 instances received from the wlr_output_manager_v1
+      global, and, if sharing the same wlr_output_head_v1 listener between the
+      two manager instances, take care to avoid confusing head instances between
+      the two managers.
+
+      Clients SHOULD still use the wlr_output_manager_v1 instance to create
+      wlr_output_configuration_v1 objects.
+    </description>
+
+    <request name="stop">
+      <description summary="Stop sending events">
+        Asks the manager to stop sending further events. The manager may
+        continue to send events until sending the next done event, after which
+        it will not send further events.
+
+        The client must not send any requests after this one.
+      </description>
+    </request>
+
+    <event name="head">
+      <description summary="Notifies the client of a new head (second event)">
+        This provides the client with the xfce_output_private_v1 instance
+        associated with an output.
+
+        The client can use the 'name' argument to correlate
+        xfce_output_head_private_v1 and wlr_output_head_v1 instances.
+      </description>
+      <arg name="head" type="new_id" interface="xfce_output_head_private_v1"/>
+      <arg name="name" type="string"/>
+    </event>
+
+    <event name="done">
+      <description summary="Sent all information about current configuration">
+        This indicates that the server has finished sending updates in the
+        current atomic batch of changes.
+
+        The serial is used when calling
+        wlr_output_manager_v1.create_configuration, and should be the same
+        serial received with correlated updates from wlr_output_manager_v1.
+
+        See the documentation for wlr_output_manager_v1.done and
+        wlr_output_configuration_v1.create_configuration for more information.
+      </description>
+      <arg name="serial" type="uint"/>
+    </event>
+
+    <event name="finished">
+      <description summary="The manager is shutting down">
+        This event is emitted when the manager intends to stop sending events
+        permanently.
+      </description>
+    </event>
+
+  </interface>
+
+  <interface name="xfce_output_head_private_v1" version="1">
+    <description summary="An output head with extra information">
+      This describes a single output head, and is an extension interface along
+      side wlr_output_head_v1.
+    </description>
+
+    <event name="edid">
+      <description summary="Advertises the EDID of a device">
+        Emitted on creation of the xfce_output_head_private_v1 instance.
+
+        The EDID data is raw binary data exposed by the monitor's hardware and
+        will need to be parsed in order to be useful.
+
+        Since the EDID will never change during the lifetime of this head
+        object, it is safe to immediately send a release after receiving this
+        event.
+      </description>
+      <arg name="fd" type="fd" summary="A file descriptor that can be mapped into memory"/>
+      <arg name="size" type="uint" summary="The size of the memory region referred to by fd"/>
+    </event>
+
+    <event name="finished">
+      <description summary="The head has disappeared">
+        This event is emitted when the head is no longer available. Clients
+        should stop using it and send the release request.
+      </description>
+    </event>
+
+    <request name="release" type="destructor">
+      <description summary="Release the head instance">
+        This request indicates to the compositor that the client will no longer
+        use this head object.
+      </description>
+    </request>
+  </interface>
+</protocol>
