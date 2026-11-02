@@ -1,0 +1,379 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Polo <polo@invalid>
+Date: Sun, 25 Oct 2026 00:02:28 -0700
+Subject: [PATCH] desktop: allow NULL popup parents
+
+zwlr_layer_surface_v1.get_popup requires the popup to be created with a
+NULL parent (gtk-layer-shell does xdg_surface.get_popup(id, NULL,
+positioner) and then associates the popup with the layer surface), but
+libweston-desktop rejects NULL parents outright, so layer-shell menus
+cannot exist.
+
+Accept a NULL parent in get_popup. The popup then has no desktop parent: it
+is placed at its positioner geometry in global coordinates on commit, and
+popup grabs start without a grab surface and give the keyboard back to
+whatever had it before the grab when they end. The shell that provided the
+parent through its own protocol repositions the popup views relative to the
+real parent, and names that parent with the new
+weston_desktop_surface_set_popup_constraint_parent(): the popup keeps its
+positioner state and is then constrained (flipped, slid, resized) against
+the parent like any other popup, also on reposition.
+
+Polo patch G6.
+---
+ include/libweston/desktop.h   |   3 +
+ libweston/desktop/seat.c      |  67 +++++++++++++----
+ libweston/desktop/xdg-shell.c | 134 ++++++++++++++++++++++++++++------
+ 3 files changed, 166 insertions(+), 38 deletions(-)
+
+diff --git a/include/libweston/desktop.h b/include/libweston/desktop.h
+index 8e348fa..b9f590f 100644
+--- a/include/libweston/desktop.h
++++ b/include/libweston/desktop.h
+@@ -219,6 +219,9 @@ struct weston_size
+ weston_desktop_surface_get_min_size(struct weston_desktop_surface *surface);
+ char *
+ weston_desktop_surface_make_label(struct weston_desktop_surface *surface);
++void
++weston_desktop_surface_set_popup_constraint_parent(struct weston_desktop_surface *surface,
++						   struct weston_surface *parent);
+ struct weston_desktop_surface *
+ weston_desktop_surface_get_parent(struct weston_desktop_surface *surface);
+ void
+diff --git a/libweston/desktop/seat.c b/libweston/desktop/seat.c
+index c0a37ec..658a8f2 100644
+--- a/libweston/desktop/seat.c
++++ b/libweston/desktop/seat.c
+@@ -50,10 +50,13 @@ struct weston_desktop_seat {
+ 		struct wl_list grab_surface_link;
+ 		struct weston_desktop_surface *grab_surface;
+ 		struct wl_listener grab_surface_destroy_listener;
++		struct weston_surface *restore_focus;
++		struct wl_listener restore_focus_destroy_listener;
+ 	} popup_grab;
+ };
+ 
+ static void weston_desktop_seat_popup_grab_end(struct weston_desktop_seat *seat);
++static void popup_grab_clear_restore_focus(struct weston_desktop_seat *seat);
+ 
+ static void
+ weston_desktop_seat_popup_grab_keyboard_key(struct weston_keyboard_grab *grab,
+@@ -331,6 +334,7 @@ weston_desktop_seat_destroy(struct wl_listener *listener, void *data)
+ 	struct weston_desktop_seat *seat =
+ 		wl_container_of(listener, seat, seat_destroy_listener);
+ 
++	popup_grab_clear_restore_focus(seat);
+ 	free(seat);
+ }
+ 
+@@ -398,6 +402,25 @@ weston_desktop_seat_clear_grab_surface(struct weston_desktop_seat *seat)
+ 	seat->popup_grab.grab_surface = NULL;
+ }
+ 
++static void
++popup_grab_clear_restore_focus(struct weston_desktop_seat *seat)
++{
++	if (seat->popup_grab.restore_focus == NULL)
++		return;
++	wl_list_remove(&seat->popup_grab.restore_focus_destroy_listener.link);
++	seat->popup_grab.restore_focus = NULL;
++}
++
++static void
++popup_grab_restore_focus_destroy(struct wl_listener *listener, void *data)
++{
++	struct weston_desktop_seat *seat =
++		wl_container_of(listener, seat,
++				popup_grab.restore_focus_destroy_listener);
++
++	popup_grab_clear_restore_focus(seat);
++}
++
+ static void
+ popup_grab_grab_surface_destroy(struct wl_listener *listener, void *data)
+ {
+@@ -455,16 +478,26 @@ weston_desktop_seat_popup_grab_start(struct weston_desktop_seat *seat,
+ 
+ 	if (keyboard != NULL &&
+ 	    keyboard->grab->interface != &weston_desktop_seat_keyboard_popup_grab_interface) {
+-		struct weston_surface *parent_surface;
++		struct weston_surface *focus = keyboard->focus;
+ 
+ 		weston_keyboard_start_grab(keyboard, &seat->popup_grab.keyboard);
+-		weston_desktop_seat_set_grab_surface(seat, parent);
+ 
+-		parent_surface = weston_desktop_surface_get_surface(parent);
+-		seat->popup_grab.grab_surface_destroy_listener.notify =
+-			popup_grab_grab_surface_destroy;
+-		wl_signal_add(&parent_surface->destroy_signal,
+-			      &seat->popup_grab.grab_surface_destroy_listener);
++		if (parent == NULL && focus != NULL) {
++			seat->popup_grab.restore_focus = focus;
++			seat->popup_grab.restore_focus_destroy_listener.notify =
++				popup_grab_restore_focus_destroy;
++			wl_signal_add(&focus->destroy_signal,
++				      &seat->popup_grab.restore_focus_destroy_listener);
++		} else if (parent != NULL) {
++			struct weston_surface *parent_surface;
++
++			weston_desktop_seat_set_grab_surface(seat, parent);
++			parent_surface = weston_desktop_surface_get_surface(parent);
++			seat->popup_grab.grab_surface_destroy_listener.notify =
++				popup_grab_grab_surface_destroy;
++			wl_signal_add(&parent_surface->destroy_signal,
++				      &seat->popup_grab.grab_surface_destroy_listener);
++		}
+ 	}
+ 
+ 	if (pointer != NULL &&
+@@ -498,16 +531,22 @@ weston_desktop_seat_popup_grab_end(struct weston_desktop_seat *seat)
+ 
+ 	if (keyboard != NULL &&
+ 	    keyboard->grab->interface == &weston_desktop_seat_keyboard_popup_grab_interface) {
+-		struct weston_desktop_surface *grab_desktop_surface;
+-		struct weston_surface *grab_surface;
+-
+ 		weston_keyboard_end_grab(keyboard);
+ 
+-		grab_desktop_surface = seat->popup_grab.grab_surface;
+-		grab_surface =
+-			weston_desktop_surface_get_surface(grab_desktop_surface);
+-		weston_keyboard_set_focus(keyboard, grab_surface);
++		if (seat->popup_grab.grab_surface != NULL) {
++			struct weston_desktop_surface *grab_desktop_surface;
++			struct weston_surface *grab_surface;
++
++			grab_desktop_surface = seat->popup_grab.grab_surface;
++			grab_surface =
++				weston_desktop_surface_get_surface(grab_desktop_surface);
++			weston_keyboard_set_focus(keyboard, grab_surface);
++		} else if (seat->popup_grab.restore_focus != NULL) {
++			weston_keyboard_set_focus(keyboard,
++						  seat->popup_grab.restore_focus);
++		}
+ 	}
++	popup_grab_clear_restore_focus(seat);
+ 
+ 	if (pointer != NULL &&
+ 	    pointer->grab->interface == &weston_desktop_seat_pointer_popup_grab_interface)
+diff --git a/libweston/desktop/xdg-shell.c b/libweston/desktop/xdg-shell.c
+index e02d8b5..56e66e8 100644
+--- a/libweston/desktop/xdg-shell.c
++++ b/libweston/desktop/xdg-shell.c
+@@ -28,6 +28,7 @@
+ 
+ #include <stdbool.h>
+ #include <assert.h>
++#include <string.h>
+ 
+ #include <wayland-server.h>
+ 
+@@ -133,6 +134,10 @@ struct weston_desktop_xdg_popup {
+ 	struct weston_desktop_seat *seat;
+ 	struct weston_geometry geometry;
+ 
++	struct weston_desktop_xdg_positioner positioner;
++	struct weston_surface *constraint_parent;
++	struct wl_listener constraint_parent_destroy_listener;
++
+ 	bool pending_reposition;
+ 	uint32_t pending_reposition_token;
+ };
+@@ -559,10 +564,21 @@ weston_desktop_xdg_positioner_get_geometry(struct weston_desktop_xdg_positioner
+ 	    XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_NONE)
+ 		return geometry;
+ 
+-	surface = weston_desktop_surface_get_surface(parent);
++	if (parent != NULL) {
++		surface = weston_desktop_surface_get_surface(parent);
++	} else {
++		struct weston_desktop_xdg_popup *popup =
++			weston_desktop_surface_get_implementation_data(dsurface);
++
++		surface = popup ? popup->constraint_parent : NULL;
++		if (surface == NULL)
++			return geometry;
++	}
+ 	wl_list_for_each(parent_view, &surface->views, surface_link) {
+ 		struct weston_output *output = parent_view->output;
+ 
++		if (output == NULL)
++			continue;
+ 		constrain_to_output(dsurface, parent_view,
+ 				    output, &geometry, positioner);
+ 	}
+@@ -570,6 +586,49 @@ weston_desktop_xdg_positioner_get_geometry(struct weston_desktop_xdg_positioner
+ 	return geometry;
+ }
+ 
++static void
++popup_constraint_parent_destroyed(struct wl_listener *listener, void *data)
++{
++	struct weston_desktop_xdg_popup *popup =
++		wl_container_of(listener, popup,
++				constraint_parent_destroy_listener);
++
++	wl_list_remove(&popup->constraint_parent_destroy_listener.link);
++	popup->constraint_parent = NULL;
++}
++
++WL_EXPORT void
++weston_desktop_surface_set_popup_constraint_parent(struct weston_desktop_surface *dsurface,
++						   struct weston_surface *parent)
++{
++	struct weston_surface *wsurface =
++		weston_desktop_surface_get_surface(dsurface);
++	struct weston_desktop_xdg_popup *popup;
++	struct weston_desktop_xdg_positioner positioner;
++
++	if (wsurface->role_name == NULL ||
++	    strcmp(wsurface->role_name, "xdg_popup") != 0)
++		return;
++	popup = weston_desktop_surface_get_implementation_data(dsurface);
++	if (popup->parent != NULL)
++		return;
++
++	if (popup->constraint_parent != NULL)
++		wl_list_remove(&popup->constraint_parent_destroy_listener.link);
++	popup->constraint_parent = parent;
++	if (parent != NULL) {
++		popup->constraint_parent_destroy_listener.notify =
++			popup_constraint_parent_destroyed;
++		wl_signal_add(&parent->destroy_signal,
++			      &popup->constraint_parent_destroy_listener);
++	}
++
++	positioner = popup->positioner;
++	popup->geometry =
++		weston_desktop_xdg_positioner_get_geometry(&positioner,
++							   dsurface, NULL);
++}
++
+ static void
+ weston_desktop_xdg_positioner_protocol_set_size(struct wl_client *wl_client,
+ 						struct wl_resource *resource,
+@@ -1303,7 +1362,8 @@ weston_desktop_xdg_popup_protocol_grab(struct wl_client *wl_client,
+ 	}
+ 
+ 	topmost = weston_desktop_seat_popup_grab_get_topmost_surface(seat);
+-	if (topmost != NULL && topmost != popup->parent->desktop_surface) {
++	if (popup->parent != NULL &&
++	    topmost != NULL && topmost != popup->parent->desktop_surface) {
+ 		struct weston_desktop_client *client =
+ 			weston_desktop_surface_get_client(dsurface);
+ 		struct wl_resource *client_resource =
+@@ -1318,7 +1378,8 @@ weston_desktop_xdg_popup_protocol_grab(struct wl_client *wl_client,
+ 
+ 	popup->seat = seat;
+ 	weston_desktop_surface_popup_grab(popup->base.desktop_surface,
+-					  popup->parent->desktop_surface,
++					  popup->parent != NULL ?
++					  popup->parent->desktop_surface : NULL,
+ 					  popup->seat, serial);
+ }
+ 
+@@ -1357,7 +1418,9 @@ weston_desktop_xdg_popup_protocol_reposition(struct wl_client *wl_client,
+ 		return;
+ 	}
+ 
+-	parent_dsurface = popup->parent->desktop_surface;
++	parent_dsurface = popup->parent != NULL ? popup->parent->desktop_surface : NULL;
++	popup->positioner = *positioner;
++	popup->positioner.resource = NULL;
+ 	popup->geometry =
+ 		weston_desktop_xdg_positioner_get_geometry(positioner,
+ 							   dsurface,
+@@ -1417,7 +1480,21 @@ weston_desktop_xdg_popup_update_position(struct weston_desktop_surface *dsurface
+ 	struct weston_desktop_surface *parent_dsurface;
+ 	struct weston_coord_surface offset;
+ 
+-	parent_dsurface = popup->parent->desktop_surface;
++	parent_dsurface = popup->parent != NULL ? popup->parent->desktop_surface : NULL;
++	if (parent_dsurface == NULL) {
++		/* zwlr_layer_surface_v1.get_popup supplies the real parent. Start at
++		 * the raw positioner geometry; the shell positions the view from there. */
++		struct weston_surface *wsurface =
++			weston_desktop_surface_get_surface(dsurface);
++		struct weston_view *view;
++		struct weston_coord_global pos;
++
++		pos.c = weston_coord(popup->geometry.x, popup->geometry.y);
++		wl_list_for_each(view, &wsurface->views, surface_link)
++			weston_view_set_position(view, pos);
++		return;
++	}
++
+ 	offset = weston_coord_surface(popup->geometry.x,
+ 				      popup->geometry.y,
+ 				      popup->parent->surface);
+@@ -1440,6 +1519,11 @@ weston_desktop_xdg_popup_destroy(struct weston_desktop_xdg_popup *popup)
+ 	struct weston_desktop_client *client =
+ 		weston_desktop_surface_get_client(popup->base.desktop_surface);
+ 
++	if (popup->constraint_parent != NULL) {
++		wl_list_remove(&popup->constraint_parent_destroy_listener.link);
++		popup->constraint_parent = NULL;
++	}
++
+ 	if (!weston_desktop_surface_get_grab(popup->base.desktop_surface))
+ 		return;
+ 
+@@ -1712,20 +1796,16 @@ weston_desktop_xdg_surface_protocol_get_popup(struct wl_client *wl_client,
+ 	wsurface = weston_desktop_surface_get_surface(dsurface);
+ 	popup = weston_desktop_surface_get_implementation_data(dsurface);
+ 
+-	/* Popup parents are allowed to be non-null, but only if a parent is
+-	 * specified 'using some other protocol' before committing. Since we
+-	 * don't support such a protocol yet, clients cannot legitimately
+-	 * create a popup with a non-null parent. */
+-	if (!parent_resource) {
+-		wl_resource_post_error(resource,
+-				       XDG_WM_BASE_ERROR_INVALID_POPUP_PARENT,
+-				       "popup parent must be non-null");
+-		return;
++	/* zwlr_layer_surface_v1.get_popup sets the parent before the first commit,
++	 * so a null XDG parent is valid here. The shell handles the relationship. */
++	if (parent_resource) {
++		parent_surface = wl_resource_get_user_data(parent_resource);
++		parent = weston_desktop_surface_get_implementation_data(parent_surface);
++	} else {
++		parent_surface = NULL;
++		parent = NULL;
+ 	}
+ 
+-	parent_surface = wl_resource_get_user_data(parent_resource);
+-	parent = weston_desktop_surface_get_implementation_data(parent_surface);
+-
+ 	if (!is_positioner_valid(positioner)) {
+ 		wl_resource_post_error(resource,
+ 				       XDG_WM_BASE_ERROR_INVALID_POSITIONER,
+@@ -1748,18 +1830,22 @@ weston_desktop_xdg_surface_protocol_get_popup(struct wl_client *wl_client,
+ 	popup->base.role = WESTON_DESKTOP_XDG_SURFACE_ROLE_POPUP;
+ 	popup->parent = parent;
+ 
++	popup->positioner = *positioner;
++	popup->positioner.resource = NULL;
+ 	popup->geometry =
+ 		weston_desktop_xdg_positioner_get_geometry(positioner,
+ 							   dsurface,
+ 							   parent_surface);
+ 
+-	offset = weston_coord_surface(popup->geometry.x,
+-				      popup->geometry.y,
+-				      popup->parent->surface);
+-	weston_desktop_surface_set_relative_to(popup->base.desktop_surface,
+-					       parent_surface,
+-					       offset,
+-					       true);
++	if (parent_surface) {
++		offset = weston_coord_surface(popup->geometry.x,
++					      popup->geometry.y,
++					      popup->parent->surface);
++		weston_desktop_surface_set_relative_to(popup->base.desktop_surface,
++						       parent_surface,
++						       offset,
++						       true);
++	}
+ }
+ 
+ static bool

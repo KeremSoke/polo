@@ -1,0 +1,201 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Polo <polo@invalid>
+Date: Sun, 25 Oct 2026 00:02:28 -0700
+Subject: [PATCH] desktop: popup constraint area hook and spec-conformant
+ flips
+
+Shells cannot choose the area popups are constrained to: libweston always
+uses the whole output, so a menu of a window near a panel can end up under
+the panel. Add an optional weston_desktop_api.get_popup_constraint_area
+callback, called with the output's geometry for the shell to shrink (for
+example to the work area, as GTK3 does on X11).
+
+Also follow xdg_positioner for flips: if the flipped position is constrained
+as well, keep the position from before the flip. libweston flipped
+unconditionally.
+
+Polo patch G7.
+---
+ include/libweston/desktop.h           |  4 +++
+ libweston/desktop/internal.h          |  6 ++++
+ libweston/desktop/libweston-desktop.c | 17 +++++++++++
+ libweston/desktop/xdg-shell.c         | 43 ++++++++++++++++-----------
+ 4 files changed, 52 insertions(+), 18 deletions(-)
+
+diff --git a/include/libweston/desktop.h b/include/libweston/desktop.h
+index b9f590f..a86df6f 100644
+--- a/include/libweston/desktop.h
++++ b/include/libweston/desktop.h
+@@ -125,6 +125,10 @@ struct weston_desktop_api {
+ 	void (*get_position)(struct weston_desktop_surface *surface,
+ 			     int32_t *x, int32_t *y,
+ 			     void *user_data);
++	void (*get_popup_constraint_area)(struct weston_desktop_surface *popup,
++					  struct weston_output *output,
++					  struct weston_geometry *area,
++					  void *user_data);
+ };
+ 
+ void
+diff --git a/libweston/desktop/internal.h b/libweston/desktop/internal.h
+index 1170021..42e42b4 100644
+--- a/libweston/desktop/internal.h
++++ b/libweston/desktop/internal.h
+@@ -91,6 +91,12 @@ weston_desktop_api_get_position(struct weston_desktop *desktop,
+ 				struct weston_desktop_surface *surface,
+ 				int32_t *x, int32_t *y);
+ 
++void
++weston_desktop_api_get_popup_constraint_area(struct weston_desktop *desktop,
++					     struct weston_desktop_surface *popup,
++					     struct weston_output *output,
++					     struct weston_geometry *area);
++
+ struct weston_desktop_seat *
+ weston_desktop_seat_from_seat(struct weston_seat *wseat);
+ 
+diff --git a/libweston/desktop/libweston-desktop.c b/libweston/desktop/libweston-desktop.c
+index c1d82e6..3df9bb6 100644
+--- a/libweston/desktop/libweston-desktop.c
++++ b/libweston/desktop/libweston-desktop.c
+@@ -284,3 +284,20 @@ weston_desktop_api_get_position(struct weston_desktop *desktop,
+ 
+ 	desktop->api.get_position(surface, x, y, desktop->user_data);
+ }
++
++void
++weston_desktop_api_get_popup_constraint_area(struct weston_desktop *desktop,
++					     struct weston_desktop_surface *popup,
++					     struct weston_output *output,
++					     struct weston_geometry *area)
++{
++	*area = (struct weston_geometry) {
++		.x = output->pos.c.x,
++		.y = output->pos.c.y,
++		.width = output->width,
++		.height = output->height,
++	};
++	if (desktop->api.get_popup_constraint_area)
++		desktop->api.get_popup_constraint_area(popup, output, area,
++						       desktop->user_data);
++}
+diff --git a/libweston/desktop/xdg-shell.c b/libweston/desktop/xdg-shell.c
+index 56e66e8..2ef24df 100644
+--- a/libweston/desktop/xdg-shell.c
++++ b/libweston/desktop/xdg-shell.c
+@@ -395,11 +395,11 @@ local_geometry_to_global(struct weston_geometry *geometry,
+ static bool
+ is_geometry_satisfied(struct weston_view *parent_view,
+ 		      struct weston_geometry *geometry,
+-		      struct weston_output *output,
++		      const struct weston_geometry *area,
+ 		      struct weston_geometry *intersection)
+ {
+ 	struct weston_geometry global_geometry;
+-	struct weston_geometry output_geometry;
++	struct weston_geometry output_geometry = *area;
+ 	struct weston_geometry global_intersection;
+ 	struct weston_coord_surface surface_coord;
+ 	struct weston_coord_global tmp_g;
+@@ -407,13 +407,6 @@ is_geometry_satisfied(struct weston_view *parent_view,
+ 
+ 	local_geometry_to_global(geometry, parent_view, &global_geometry);
+ 
+-	output_geometry = (struct weston_geometry) {
+-		.x = output->pos.c.x,
+-		.y = output->pos.c.y,
+-		.width = output->width,
+-		.height = output->height,
+-	};
+-
+ 	is_satisfied = is_constraint_satisfied(&global_geometry,
+ 					       &output_geometry,
+ 					       &global_intersection);
+@@ -439,7 +432,7 @@ is_geometry_satisfied(struct weston_view *parent_view,
+ static void
+ try_flip_position(struct weston_desktop_surface *surface,
+ 		  struct weston_view *parent_view,
+-		  struct weston_output *output,
++		  const struct weston_geometry *area,
+ 		  struct weston_geometry *geometry,
+ 		  struct weston_desktop_xdg_positioner *positioner,
+ 		  enum xdg_positioner_constraint_adjustment constraint_adjustment)
+@@ -460,9 +453,18 @@ try_flip_position(struct weston_desktop_surface *surface,
+ 	}
+ 
+ 	flipped_geometry = process_positioner(&flipped_positioner);
+-	is_geometry_satisfied(parent_view, &flipped_geometry, output,
++	is_geometry_satisfied(parent_view, &flipped_geometry, area,
+ 			      &flipped_intersection);
+ 
++	/* xdg_positioner keeps the original placement if the flipped one is constrained too. */
++	if ((constraint_adjustment ==
++	     XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_FLIP_X &&
++	     flipped_intersection.width != flipped_geometry.width) ||
++	    (constraint_adjustment ==
++	     XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_FLIP_Y &&
++	     flipped_intersection.height != flipped_geometry.height))
++		return;
++
+ 	if (constraint_adjustment ==
+ 	    XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_FLIP_X) {
+ 		*positioner = flipped_positioner;
+@@ -481,16 +483,21 @@ constrain_to_output(struct weston_desktop_surface *surface,
+ 		    struct weston_geometry *geometry,
+ 		    struct weston_desktop_xdg_positioner *positioner)
+ {
++	struct weston_desktop_xdg_surface *xdg_surface =
++		weston_desktop_surface_get_implementation_data(surface);
+ 	struct weston_geometry global_geometry;
++	struct weston_geometry area;
+ 	int output_x2;
+ 	int output_y2;
+ 	struct weston_geometry intersection;
+ 
++	weston_desktop_api_get_popup_constraint_area(xdg_surface->desktop,
++						     surface, output, &area);
+ 	local_geometry_to_global(geometry, parent_view, &global_geometry);
+-	output_x2 = output->pos.c.x + output->width;
+-	output_y2 = output->pos.c.y + output->height;
++	output_x2 = area.x + area.width;
++	output_y2 = area.y + area.height;
+ 
+-	if (is_geometry_satisfied(parent_view, geometry, output, &intersection))
++	if (is_geometry_satisfied(parent_view, geometry, &area, &intersection))
+ 		return;
+ 
+ 	if (geometry->width != intersection.width &&
+@@ -498,7 +505,7 @@ constrain_to_output(struct weston_desktop_surface *surface,
+ 	     XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_FLIP_X)) {
+ 		try_flip_position(surface,
+ 				  parent_view,
+-				  output,
++				  &area,
+ 				  geometry,
+ 				  positioner,
+ 				  XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_FLIP_X);
+@@ -508,13 +515,13 @@ constrain_to_output(struct weston_desktop_surface *surface,
+ 	     XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_FLIP_Y)) {
+ 		try_flip_position(surface,
+ 				  parent_view,
+-				  output,
++				  &area,
+ 				  geometry,
+ 				  positioner,
+ 				  XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_FLIP_Y);
+ 	}
+ 
+-	if (is_geometry_satisfied(parent_view, geometry, output, &intersection))
++	if (is_geometry_satisfied(parent_view, geometry, &area, &intersection))
+ 		return;
+ 
+ 	if (positioner->constraint_adjustment &
+@@ -534,7 +541,7 @@ constrain_to_output(struct weston_desktop_surface *surface,
+ 			geometry->y -= geometry->height - intersection.height;
+ 	}
+ 
+-	if (is_geometry_satisfied(parent_view, geometry, output, &intersection))
++	if (is_geometry_satisfied(parent_view, geometry, &area, &intersection))
+ 		return;
+ 
+ 	if (positioner->constraint_adjustment &
