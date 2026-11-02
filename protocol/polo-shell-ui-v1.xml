@@ -1,0 +1,275 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<protocol name="polo_shell_ui_v1">
+  <copyright>
+    Copyright 2026 Kerem Soke
+    SPDX-License-Identifier: GPL-3.0-or-later
+  </copyright>
+
+  <description summary="Polo's GTK helper">
+    polo-shell-ui draws the GTK chrome Marco drew in its own process: the
+    Alt-Tab popup, the window menu, OSDs and dialogs, and it resolves GTK
+    theme colours for the theme engine. Polo decides what is shown and
+    where; polo-shell-ui only draws it and reports what the user chose.
+
+    The global is offered only to the polo-shell-ui process Polo started
+    over its own socket pair. Surfaces are zwlr_layer_shell_v1 overlays;
+    positions are logical coordinates relative to the given output.
+  </description>
+
+  <interface name="polo_shell_ui_v1" version="1">
+    <request name="destroy" type="destructor"/>
+
+    <enum name="error">
+      <entry name="already_bound" value="0"
+             summary="a second polo_shell_ui_v1 was bound"/>
+      <entry name="invalid_color_table" value="1"
+             summary="the colour table has the wrong size"/>
+    </enum>
+
+    <enum name="switcher_entry_flags" bitfield="true">
+      <description summary="Marco's MetaTabEntry flags"/>
+      <entry name="blank" value="1"/>
+      <entry name="hidden" value="2" summary="minimised"/>
+      <entry name="demands_attention" value="4"/>
+    </enum>
+
+    <event name="switcher_entry">
+      <description summary="one entry of the next show_switcher">
+        Sent for each entry, in order, before show_switcher.
+      </description>
+      <arg name="id" type="uint"/>
+      <arg name="title" type="string"/>
+      <arg name="app_id" type="string" allow-null="true"/>
+      <arg name="flags" type="uint" enum="switcher_entry_flags"/>
+    </event>
+
+    <event name="switcher_thumbnail">
+      <description summary="a window picture for an entry">
+        Sent after the entry's switcher_entry, before show_switcher, when
+        compositing-fast-alt-tab is off: width × height pixels, Cairo
+        ARGB32 (premultiplied, native endian), stride width × 4, already
+        scaled as Marco's get_window_surface scales it. The entry's icon
+        goes in its bottom right corner.
+      </description>
+      <arg name="id" type="uint"/>
+      <arg name="pixels" type="fd"/>
+      <arg name="width" type="int"/>
+      <arg name="height" type="int"/>
+    </event>
+
+    <event name="switcher_icon_name">
+      <description summary="a stock icon an entry's window asked for">
+        Sent after the entry's switcher_entry. Use it if the theme has it.
+      </description>
+      <arg name="id" type="uint"/>
+      <arg name="name" type="string"/>
+    </event>
+
+    <event name="switcher_icon_pixels">
+      <description summary="pixels an entry's window asked for">
+        Sent after the entry's switcher_entry: size × size pixels, Cairo ARGB32,
+        stride size × 4. Used when no stock icon of the entry's applies.
+      </description>
+      <arg name="id" type="uint"/>
+      <arg name="pixels" type="fd"/>
+      <arg name="size" type="int"/>
+    </event>
+
+    <event name="show_switcher">
+      <description summary="show the entries sent since the last show_switcher">
+        meta_ui_tab_popup_new () and _set_showing (): centred on the
+        output's work area, with columns (alt-tab-max-columns),
+        expand_to_fit (alt-tab-expand-to-fit-title) and icon_size
+        (icon-size). A new show_switcher replaces the popup.
+      </description>
+      <arg name="output" type="object" interface="wl_output" allow-null="true"/>
+      <arg name="selected" type="uint" summary="entry id"/>
+      <arg name="columns" type="uint"/>
+      <arg name="expand_to_fit" type="uint"/>
+      <arg name="icon_size" type="uint"/>
+    </event>
+
+    <event name="update_selected">
+      <arg name="selected" type="uint" summary="entry id"/>
+    </event>
+
+    <event name="hide_switcher"/>
+
+    <event name="workspace_switcher_entry">
+      <description summary="one cell of the workspace popup's grid">
+        Sent in grid order before show_workspace_switcher, and again before
+        update_workspace_switcher, when it empties the cell's windows. A
+        blank cell has id 0.
+      </description>
+      <arg name="id" type="uint"/>
+      <arg name="title" type="string"/>
+      <arg name="blank" type="uint"/>
+    </event>
+
+    <event name="workspace_switcher_window">
+      <description summary="a window to draw in a cell, bottom to top"/>
+      <arg name="id" type="uint"/>
+      <arg name="x" type="int"/>
+      <arg name="y" type="int"/>
+      <arg name="width" type="int"/>
+      <arg name="height" type="int"/>
+      <arg name="focused" type="uint"/>
+      <arg name="app_id" type="string" allow-null="true"/>
+    </event>
+
+    <event name="show_workspace_switcher">
+      <description summary="meta_screen_ensure_workspace_popup ()">
+        The switcher popup with the workspace grid; hide_switcher hides it
+        and switcher_select reports presses on a cell.
+      </description>
+      <arg name="output" type="object" interface="wl_output" allow-null="true"/>
+      <arg name="selected" type="uint"/>
+      <arg name="columns" type="uint"/>
+      <arg name="active" type="uint" summary="the active workspace's id"/>
+      <arg name="screen_width" type="int"/>
+      <arg name="screen_height" type="int"/>
+      <arg name="output_width" type="int"/>
+      <arg name="output_height" type="int"/>
+      <arg name="icon_size" type="uint"/>
+    </event>
+
+    <event name="update_workspace_switcher">
+      <arg name="selected" type="uint"/>
+      <arg name="active" type="uint"/>
+    </event>
+
+    <request name="switcher_select">
+      <description summary="meta_ui_tab_popup_mouse_press ()">
+        Button 1 went down, or moved while down, on an entry. Polo answers
+        with update_selected.
+      </description>
+      <arg name="id" type="uint"/>
+    </request>
+
+    <enum name="menu_op" bitfield="true">
+      <description summary="Marco's MetaMenuOp"/>
+      <entry name="none" value="0"/>
+      <entry name="delete" value="0x1"/>
+      <entry name="minimize" value="0x2"/>
+      <entry name="unmaximize" value="0x4"/>
+      <entry name="maximize" value="0x8"/>
+      <entry name="unshade" value="0x10"/>
+      <entry name="shade" value="0x20"/>
+      <entry name="unstick" value="0x40"/>
+      <entry name="stick" value="0x80"/>
+      <entry name="workspaces" value="0x100"/>
+      <entry name="move" value="0x200"/>
+      <entry name="resize" value="0x400"/>
+      <entry name="above" value="0x800"/>
+      <entry name="unabove" value="0x1000"/>
+      <entry name="move_left" value="0x2000"/>
+      <entry name="move_right" value="0x4000"/>
+      <entry name="move_up" value="0x8000"/>
+      <entry name="move_down" value="0x10000"/>
+      <entry name="recover" value="0x20000"/>
+    </enum>
+
+    <event name="window_menu_workspace">
+      <description summary="a workspace name for the next show_window_menu"/>
+      <arg name="index" type="uint"/>
+      <arg name="name" type="string"/>
+    </event>
+
+    <event name="show_window_menu">
+      <description summary="meta_window_menu_new () and _popup ()">
+        ops and insensitive are as in Marco; active_workspace is
+        0xffffffff for a window on all workspaces. The menu answers with
+        exactly one menu_action, with op none when it closes without a
+        choice.
+      </description>
+      <arg name="window_id" type="uint"/>
+      <arg name="output" type="object" interface="wl_output" allow-null="true"/>
+      <arg name="x" type="int"/>
+      <arg name="y" type="int"/>
+      <arg name="ops" type="uint" enum="menu_op"/>
+      <arg name="insensitive" type="uint" enum="menu_op"/>
+      <arg name="active_workspace" type="uint"/>
+      <arg name="n_workspaces" type="uint"/>
+      <arg name="time" type="uint" summary="input time in ms: GTK's activate time for the popup"/>
+    </event>
+
+    <event name="hide_window_menu">
+      <description summary="close the menu without an action">
+        The menu still answers with menu_action op none.
+      </description>
+      <arg name="window_id" type="uint"/>
+    </event>
+
+    <request name="menu_action">
+      <description summary="the MetaWindowMenuFunc callback"/>
+      <arg name="window_id" type="uint"/>
+      <arg name="op" type="uint" enum="menu_op"/>
+      <arg name="workspace" type="int"/>
+    </request>
+
+    <enum name="osd_kind">
+      <entry name="workspace" value="0"/>
+      <entry name="volume" value="1"/>
+      <entry name="brightness" value="2"/>
+      <entry name="message" value="3"/>
+    </enum>
+
+    <event name="show_osd">
+      <arg name="kind" type="uint" enum="osd_kind"/>
+      <arg name="output" type="object" interface="wl_output" allow-null="true"/>
+      <arg name="text" type="string" allow-null="true"/>
+      <arg name="value" type="int" summary="0 to 100, or -1 for none"/>
+    </event>
+
+    <enum name="dialog_kind">
+      <entry name="not_responding" value="0"/>
+      <entry name="rename_workspace" value="1"/>
+      <entry name="end_session" value="2"/>
+      <entry name="message" value="3"/>
+    </enum>
+
+    <event name="show_dialog">
+      <description summary="show a dialog">
+        payload is the kind's text: the window title, the workspace name,
+        and so on. The dialog answers with exactly one dialog_response.
+      </description>
+      <arg name="dialog_id" type="uint"/>
+      <arg name="kind" type="uint" enum="dialog_kind"/>
+      <arg name="output" type="object" interface="wl_output" allow-null="true"/>
+      <arg name="payload" type="string" allow-null="true"/>
+    </event>
+
+    <event name="hide_dialog">
+      <description summary="close a dialog that no longer applies">
+        The dialog still answers, with response -1.
+      </description>
+      <arg name="dialog_id" type="uint"/>
+    </event>
+
+    <request name="dialog_surface">
+      <description summary="the toplevel that shows a dialog">
+        Sent before the dialog's toplevel is first committed, so Polo can
+        make it transient for the window it is about, as zenity's
+        WINDOWID does under Marco.
+      </description>
+      <arg name="dialog_id" type="uint"/>
+      <arg name="surface" type="object" interface="wl_surface"/>
+    </request>
+
+    <request name="dialog_response">
+      <arg name="dialog_id" type="uint"/>
+      <arg name="response" type="int" summary="the dialog's GtkResponseType"/>
+      <arg name="text" type="string" allow-null="true"/>
+    </request>
+
+    <request name="color_table">
+      <description summary="the GTK colours Marco's theme engine reads">
+        gtk:fg, bg, light, dark, mid, text, base and text_aa for the five
+        GtkStateType states, in that order (component-major): 40 RGBA
+        colours as 160 native-endian floats. Sent at bind and whenever the
+        GTK theme changes.
+      </description>
+      <arg name="colors" type="array"/>
+    </request>
+  </interface>
+</protocol>
