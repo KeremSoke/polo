@@ -1,0 +1,823 @@
+--- a/libweston/compositor.c
++++ b/libweston/compositor.c
+@@ -95,6 +95,7 @@
+ 
+ #include <libweston/commit-timing.h>
+ #include <libweston/fifo.h>
++#include "linux-drm-syncobj.h"
+ #include "weston-log-internal.h"
+ 
+ /**
+@@ -3187,7 +3188,9 @@
+ 	struct wl_resource *resource = buffer_release->resource;
+ 	int release_fence_fd = buffer_release->fence_fd;
+ 
+-	if (release_fence_fd >= 0) {
++	if (buffer_release->released) {
++		buffer_release->released(buffer_release);
++	} else if (release_fence_fd >= 0) {
+ 		zwp_linux_buffer_release_v1_send_fenced_release(
+ 			resource, release_fence_fd);
+ 	} else {
+@@ -5300,6 +5303,10 @@
+ 		return;
+ 	}
+ 
++	if (surface->syncobj_resource &&
++	    !weston_drm_syncobj_surface_commit(surface))
++		return;
++
+ 	if (surface->pending.acquire_fence_fd >= 0) {
+ 		assert(surface->synchronization_resource);
+ 
+--- a/libweston/surface-state.c
++++ b/libweston/surface-state.c
+@@ -31,6 +31,7 @@
+ #include <libweston/libweston.h>
+ #include <libweston/commit-timing.h>
+ #include <libweston/fifo.h>
++#include "linux-drm-syncobj.h"
+ #include "libweston-internal.h"
+ 
+ #include "backend.h"
+@@ -150,6 +151,7 @@
+ 	state->buffer_viewport.surface.width = -1;
+ 
+ 	state->acquire_fence_fd = -1;
++	state->syncobj_acquire = NULL;
+ 
+ 	state->desired_protection = WESTON_HDCP_DISABLE;
+ 	state->protection_mode = WESTON_SURFACE_PROTECTION_MODE_RELAXED;
+@@ -192,6 +194,8 @@
+ 				BUFFER_WILL_NOT_BE_ACCESSED);
+ 
+ 	fd_clear(&state->acquire_fence_fd);
++	weston_drm_syncobj_acquire_destroy(state->syncobj_acquire);
++	state->syncobj_acquire = NULL;
+ 	weston_buffer_release_reference(&state->buffer_release_ref, NULL);
+ 
+ 	weston_color_profile_unref(state->color_profile);
+@@ -382,6 +386,13 @@
+ 	struct weston_view *view;
+ 	enum weston_surface_status status = state->status;
+ 
++	/* A state merged into its parent may skip the readiness check. Without a
++	 * fence, it cannot wait here. */
++	if (state->syncobj_acquire && !weston_drm_syncobj_state_ready(surface, state)) {
++		weston_drm_syncobj_acquire_destroy(state->syncobj_acquire);
++		state->syncobj_acquire = NULL;
++	}
++
+ 	assert(!surface->compositor->latched);
+ 
+ 	surface->flow.id = state->flow.id;
+@@ -689,6 +700,9 @@
+ 		/* zwp_surface_synchronization_v1.set_acquire_fence */
+ 		fd_move(&dst->acquire_fence_fd,
+ 			&src->acquire_fence_fd);
++		weston_drm_syncobj_acquire_destroy(dst->syncobj_acquire);
++		dst->syncobj_acquire = src->syncobj_acquire;
++		src->syncobj_acquire = NULL;
+ 		/* zwp_surface_synchronization_v1.get_release */
+ 		weston_buffer_release_move(&dst->buffer_release_ref,
+ 					   &src->buffer_release_ref);
+@@ -857,6 +871,9 @@
+ weston_surface_state_ready(struct weston_surface *surface,
+ 			   struct weston_surface_state *state)
+ {
++	if (!weston_drm_syncobj_state_ready(surface, state))
++		return false;
++
+ 	if (!weston_fifo_surface_state_ready(surface, state))
+ 		return false;
+ 
+--- a/libweston/meson.build
++++ b/libweston/meson.build
+@@ -32,6 +32,7 @@
+ 	'id-number-allocator.c',
+ 	'input.c',
+ 	'linux-dmabuf.c',
++	'linux-drm-syncobj.c',
+ 	'linux-explicit-synchronization.c',
+ 	'linux-sync-file.c',
+ 	'log.c',
+@@ -60,6 +61,8 @@
+ 	fifo_v1_server_protocol_h,
+ 	linux_dmabuf_unstable_v1_protocol_c,
+ 	linux_dmabuf_unstable_v1_server_protocol_h,
++	linux_drm_syncobj_v1_protocol_c,
++	linux_drm_syncobj_v1_server_protocol_h,
+ 	linux_explicit_synchronization_unstable_v1_protocol_c,
+ 	linux_explicit_synchronization_unstable_v1_server_protocol_h,
+ 	input_method_unstable_v1_protocol_c,
+--- a/include/libweston/libweston.h
++++ b/include/libweston/libweston.h
+@@ -1717,6 +1717,8 @@
+ 
+ 	struct wl_list transaction_queue_list; /* weston_transaction_queue::link */
+ 
++	struct weston_drm_syncobj *drm_syncobj;
++
+ 	/** commit_timing_v1 - target repaint time for content updates for
+ 	 *  surfaces with no output
+ 	 */
+@@ -1814,6 +1816,8 @@
+ 	/* The fence fd, if any, associated with this release. If the fence fd
+ 	 * is -1 then this is considered an immediate release. */
+ 	int fence_fd;
++	/* If set, called instead of sending the release events. */
++	void (*released)(struct weston_buffer_release *buffer_release);
+ };
+ 
+ struct weston_buffer_release_reference {
+@@ -2039,6 +2043,9 @@
+ 	/* wp_tearing_control_v1 */
+ 	bool may_tear;
+ 
++	/* wp_linux_drm_syncobj_surface_v1.set_acquire_point */
++	struct weston_drm_syncobj_acquire *syncobj_acquire;
++
+ 	/* wp_fifo_v1 */
+ 	bool fifo_barrier;
+ 	bool fifo_wait;
+@@ -2195,6 +2202,7 @@
+ 
+ 	/* zwp_surface_synchronization_v1 resource for this surface */
+ 	struct wl_resource *synchronization_resource;
++	struct wl_resource *syncobj_resource;
+ 	int acquire_fence_fd;
+ 	struct weston_buffer_release_reference buffer_release_ref;
+ 
+@@ -2609,6 +2617,12 @@
+ void
+ weston_compositor_get_time(struct timespec *time);
+ 
++bool
++weston_compositor_enable_drm_syncobj(struct weston_compositor *compositor);
++
++void
++weston_compositor_disable_drm_syncobj(struct weston_compositor *compositor);
++
+ void
+ weston_compositor_destroy(struct weston_compositor *ec);
+ 
+--- a/protocol/meson.build
++++ b/protocol/meson.build
+@@ -27,6 +27,7 @@
+ 	[ 'ivi-application', 'internal' ],
+ 	[ 'ivi-hmi-controller', 'internal' ],
+ 	[ 'linux-dmabuf', 'unstable', 'v1' ],
++	[ 'linux-drm-syncobj', 'staging', 'v1' ],
+ 	[ 'linux-explicit-synchronization', 'unstable', 'v1' ],
+ 	[ 'presentation-time', 'stable' ],
+ 	[ 'pointer-constraints', 'unstable', 'v1' ],
+--- /dev/null
++++ b/libweston/linux-drm-syncobj.c
+@@ -0,0 +1,595 @@
++/*
++ * Copyright 2026 Kerem Soke
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining
++ * a copy of this software and associated documentation files (the
++ * "Software"), to deal in the Software without restriction, including
++ * without limitation the rights to use, copy, modify, merge, publish,
++ * distribute, sublicense, and/or sell copies of the Software, and to
++ * permit persons to whom the Software is furnished to do so, subject to
++ * the following conditions:
++ *
++ * The above copyright notice and this permission notice (including the
++ * next paragraph) shall be included in all copies or substantial
++ * portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
++ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ * NONINFRINGEMENT.  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
++ * BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
++ * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
++ * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
++ * SOFTWARE.
++ */
++
++#include "config.h"
++
++#include <errno.h>
++#include <fcntl.h>
++#include <inttypes.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/eventfd.h>
++#include <unistd.h>
++
++#include <xf86drm.h>
++
++#include <libweston/libweston.h>
++
++#include "libweston-internal.h"
++#include "linux-drm-syncobj-v1-server-protocol.h"
++#include "linux-drm-syncobj.h"
++#include "linux-explicit-synchronization-unstable-v1-server-protocol.h"
++#include "shared/fd-util.h"
++#include "shared/xalloc.h"
++
++struct weston_drm_syncobj {
++	struct weston_compositor *compositor;
++	struct wl_global *global;
++	int drm_fd;
++	int refs;
++};
++
++struct timeline {
++	struct weston_drm_syncobj *syncobj;
++	uint32_t handle;
++	int refs;
++};
++
++struct syncobj_surface {
++	struct wl_resource *resource;
++	struct weston_surface *surface;
++	struct wl_listener surface_destroy;
++	struct timeline *acquire_timeline, *release_timeline;
++	uint64_t acquire_point, release_point;
++};
++
++struct weston_drm_syncobj_acquire {
++	struct weston_compositor *compositor;
++	struct timeline *timeline;
++	uint64_t point;
++	int event_fd;
++	struct wl_event_source *source;
++};
++
++struct release {
++	struct weston_buffer_release base;
++	struct timeline *timeline;
++	uint64_t point;
++};
++
++static void
++syncobj_unref(struct weston_drm_syncobj *syncobj)
++{
++	if (--syncobj->refs > 0)
++		return;
++	close(syncobj->drm_fd);
++	free(syncobj);
++}
++
++static struct timeline *
++timeline_ref(struct timeline *timeline)
++{
++	timeline->refs++;
++	return timeline;
++}
++
++static void
++timeline_unref(struct timeline *timeline)
++{
++	if (!timeline || --timeline->refs > 0)
++		return;
++	drmSyncobjDestroy(timeline->syncobj->drm_fd, timeline->handle);
++	syncobj_unref(timeline->syncobj);
++	free(timeline);
++}
++
++/* ---- Release ------------------------------------------------------------- */
++
++static void
++release_signal(struct weston_buffer_release *base)
++{
++	struct release *release = wl_container_of(base, release, base);
++	struct timeline *timeline = release->timeline;
++	int drm_fd = timeline->syncobj->drm_fd;
++	uint32_t temporary = 0;
++	bool attached = false;
++
++	if (base->fence_fd >= 0 && drmSyncobjCreate(drm_fd, 0, &temporary) == 0) {
++		attached = drmSyncobjImportSyncFile(drm_fd, temporary,
++						    base->fence_fd) == 0 &&
++			drmSyncobjTransfer(drm_fd, timeline->handle, release->point,
++					   temporary, 0, 0) == 0;
++		drmSyncobjDestroy(drm_fd, temporary);
++	}
++	/* Do not leave the client waiting forever if that fails. */
++	if (!attached)
++		drmSyncobjTimelineSignal(drm_fd, &timeline->handle, &release->point, 1);
++}
++
++static void
++release_resource_destroyed(struct wl_resource *resource)
++{
++	struct release *release = wl_resource_get_user_data(resource);
++
++	fd_clear(&release->base.fence_fd);
++	timeline_unref(release->timeline);
++	free(release);
++}
++
++static bool
++attach_release(struct weston_surface *surface, struct syncobj_surface *object)
++{
++	struct wl_client *client = wl_resource_get_client(object->resource);
++	struct release *release = xzalloc(sizeof *release);
++
++	/* The server assigns this resource ID, so it is not sent to the client.
++	 * weston_buffer_release_reference listens to it. */
++	release->base.resource = wl_resource_create(
++		client, &zwp_linux_buffer_release_v1_interface, 1, 0);
++	if (!release->base.resource) {
++		free(release);
++		wl_client_post_no_memory(client);
++		return false;
++	}
++	release->base.fence_fd = -1;
++	release->base.released = release_signal;
++	release->timeline = timeline_ref(object->release_timeline);
++	release->point = object->release_point;
++	wl_resource_set_implementation(release->base.resource, NULL, release,
++				       release_resource_destroyed);
++	weston_buffer_release_reference(&surface->pending.buffer_release_ref,
++					&release->base);
++	return true;
++}
++
++/* ---- Acquire ------------------------------------------------------------- */
++
++void
++weston_drm_syncobj_acquire_destroy(struct weston_drm_syncobj_acquire *acquire)
++{
++	if (!acquire)
++		return;
++	if (acquire->source)
++		wl_event_source_remove(acquire->source);
++	if (acquire->event_fd >= 0)
++		close(acquire->event_fd);
++	timeline_unref(acquire->timeline);
++	free(acquire);
++}
++
++static int
++acquire_available(int fd, uint32_t mask, void *data)
++{
++	struct weston_drm_syncobj_acquire *acquire = data;
++	struct weston_compositor *compositor = acquire->compositor;
++	uint64_t count;
++
++	if (read(fd, &count, sizeof count) < 0 && errno != EAGAIN)
++		weston_log("drm_syncobj: reading the eventfd: %s\n", strerror(errno));
++	/* The next call can free this acquire and its source. */
++	weston_compositor_apply_transactions(compositor);
++	return 0;
++}
++
++static bool
++acquire_has_fence(struct weston_drm_syncobj_acquire *acquire)
++{
++	struct timeline *timeline = acquire->timeline;
++
++	return drmSyncobjTimelineWait(timeline->syncobj->drm_fd, &timeline->handle,
++				      &acquire->point, 1, 0,
++				      DRM_SYNCOBJ_WAIT_FLAGS_WAIT_AVAILABLE,
++				      NULL) == 0;
++}
++
++static int
++acquire_export(struct weston_drm_syncobj_acquire *acquire)
++{
++	struct timeline *timeline = acquire->timeline;
++	int drm_fd = timeline->syncobj->drm_fd;
++	uint32_t temporary;
++	int fence_fd = -1;
++
++	if (drmSyncobjCreate(drm_fd, 0, &temporary) < 0)
++		return -1;
++	if (drmSyncobjTransfer(drm_fd, temporary, 0, timeline->handle,
++			       acquire->point, 0) < 0 ||
++	    drmSyncobjExportSyncFile(drm_fd, temporary, &fence_fd) < 0)
++		fence_fd = -1;
++	drmSyncobjDestroy(drm_fd, temporary);
++	return fence_fd;
++}
++
++bool
++weston_drm_syncobj_state_ready(struct weston_surface *surface,
++			       struct weston_surface_state *state)
++{
++	struct weston_drm_syncobj_acquire *acquire = state->syncobj_acquire;
++
++	if (!acquire)
++		return true;
++	if (acquire_has_fence(acquire)) {
++		fd_update(&state->acquire_fence_fd, acquire_export(acquire));
++		if (state->acquire_fence_fd < 0)
++			weston_log("drm_syncobj: exporting an acquire point failed\n");
++		state->syncobj_acquire = NULL;
++		weston_drm_syncobj_acquire_destroy(acquire);
++		return true;
++	}
++	if (acquire->source)
++		return false;
++
++	struct timeline *timeline = acquire->timeline;
++	struct wl_display *display = surface->compositor->wl_display;
++
++	acquire->event_fd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
++	if (acquire->event_fd >= 0 &&
++	    drmSyncobjEventfd(timeline->syncobj->drm_fd, timeline->handle,
++			      acquire->point, acquire->event_fd,
++			      DRM_SYNCOBJ_WAIT_FLAGS_WAIT_AVAILABLE) == 0)
++		acquire->source = wl_event_loop_add_fd(
++			wl_display_get_event_loop(display), acquire->event_fd,
++			WL_EVENT_READABLE, acquire_available, acquire);
++	if (!acquire->source) {
++		/* Showing the buffer early beats never showing it. */
++		weston_log("drm_syncobj: cannot wait for an acquire point\n");
++		state->syncobj_acquire = NULL;
++		weston_drm_syncobj_acquire_destroy(acquire);
++		return true;
++	}
++	return false;
++}
++
++/* ---- wp_linux_drm_syncobj_surface_v1 -------------------------------------- */
++
++static void
++surface_clear_points(struct syncobj_surface *object)
++{
++	timeline_unref(object->acquire_timeline);
++	timeline_unref(object->release_timeline);
++	object->acquire_timeline = NULL;
++	object->release_timeline = NULL;
++}
++
++bool
++weston_drm_syncobj_surface_commit(struct weston_surface *surface)
++{
++	struct syncobj_surface *object =
++		wl_resource_get_user_data(surface->syncobj_resource);
++	struct weston_buffer *buffer = surface->pending.buffer_ref.buffer;
++	struct wl_resource *resource = object->resource;
++	uint32_t id = wl_resource_get_id(surface->resource);
++	struct weston_drm_syncobj_acquire *acquire;
++
++	if (!buffer) {
++		if (object->acquire_timeline || object->release_timeline) {
++			wl_resource_post_error(resource,
++					       WP_LINUX_DRM_SYNCOBJ_SURFACE_V1_ERROR_NO_BUFFER,
++					       "wl_surface@%" PRIu32 " has timeline points and no buffer",
++					       id);
++			return false;
++		}
++		return true;
++	}
++	if (!object->acquire_timeline) {
++		wl_resource_post_error(resource,
++				       WP_LINUX_DRM_SYNCOBJ_SURFACE_V1_ERROR_NO_ACQUIRE_POINT,
++				       "wl_surface@%" PRIu32 " has no acquire point", id);
++		return false;
++	}
++	if (!object->release_timeline) {
++		wl_resource_post_error(resource,
++				       WP_LINUX_DRM_SYNCOBJ_SURFACE_V1_ERROR_NO_RELEASE_POINT,
++				       "wl_surface@%" PRIu32 " has no release point", id);
++		return false;
++	}
++	if (buffer->type != WESTON_BUFFER_DMABUF) {
++		wl_resource_post_error(resource,
++				       WP_LINUX_DRM_SYNCOBJ_SURFACE_V1_ERROR_UNSUPPORTED_BUFFER,
++				       "wl_surface@%" PRIu32 " buffer is not a dmabuf", id);
++		return false;
++	}
++	if (object->acquire_timeline == object->release_timeline &&
++	    object->acquire_point >= object->release_point) {
++		wl_resource_post_error(resource,
++				       WP_LINUX_DRM_SYNCOBJ_SURFACE_V1_ERROR_CONFLICTING_POINTS,
++				       "wl_surface@%" PRIu32 " acquire is not before release", id);
++		return false;
++	}
++	if (!attach_release(surface, object))
++		return false;
++
++	acquire = xzalloc(sizeof *acquire);
++	acquire->compositor = surface->compositor;
++	acquire->timeline = timeline_ref(object->acquire_timeline);
++	acquire->point = object->acquire_point;
++	acquire->event_fd = -1;
++	weston_drm_syncobj_acquire_destroy(surface->pending.syncobj_acquire);
++	surface->pending.syncobj_acquire = acquire;
++	surface_clear_points(object);
++	return true;
++}
++
++static void
++surface_destroy(struct wl_client *client, struct wl_resource *resource)
++{
++	wl_resource_destroy(resource);
++}
++
++static void
++surface_set_point(struct wl_resource *resource, struct wl_resource *timeline_resource,
++		  uint32_t hi, uint32_t lo, bool is_acquire)
++{
++	struct syncobj_surface *object = wl_resource_get_user_data(resource);
++	struct timeline *timeline = wl_resource_get_user_data(timeline_resource);
++	uint64_t point = (uint64_t)hi << 32 | lo;
++
++	if (!object->surface) {
++		wl_resource_post_error(resource,
++				       WP_LINUX_DRM_SYNCOBJ_SURFACE_V1_ERROR_NO_SURFACE,
++				       "the wl_surface was destroyed");
++		return;
++	}
++	timeline_ref(timeline);
++	if (is_acquire) {
++		timeline_unref(object->acquire_timeline);
++		object->acquire_timeline = timeline;
++		object->acquire_point = point;
++	} else {
++		timeline_unref(object->release_timeline);
++		object->release_timeline = timeline;
++		object->release_point = point;
++	}
++}
++
++static void
++surface_set_acquire_point(struct wl_client *client, struct wl_resource *resource,
++			  struct wl_resource *timeline, uint32_t hi, uint32_t lo)
++{
++	surface_set_point(resource, timeline, hi, lo, true);
++}
++
++static void
++surface_set_release_point(struct wl_client *client, struct wl_resource *resource,
++			  struct wl_resource *timeline, uint32_t hi, uint32_t lo)
++{
++	surface_set_point(resource, timeline, hi, lo, false);
++}
++
++static const struct wp_linux_drm_syncobj_surface_v1_interface surface_impl = {
++	.destroy = surface_destroy,
++	.set_acquire_point = surface_set_acquire_point,
++	.set_release_point = surface_set_release_point,
++};
++
++static void
++object_surface_destroyed(struct wl_listener *listener, void *data)
++{
++	struct syncobj_surface *object =
++		wl_container_of(listener, object, surface_destroy);
++
++	wl_list_remove(&object->surface_destroy.link);
++	wl_list_init(&object->surface_destroy.link);
++	object->surface->syncobj_resource = NULL;
++	object->surface = NULL;
++}
++
++static void
++surface_resource_destroyed(struct wl_resource *resource)
++{
++	struct syncobj_surface *object = wl_resource_get_user_data(resource);
++
++	if (object->surface)
++		object->surface->syncobj_resource = NULL;
++	wl_list_remove(&object->surface_destroy.link);
++	surface_clear_points(object);
++	free(object);
++}
++
++/* ---- wp_linux_drm_syncobj_timeline_v1 ------------------------------------- */
++
++static void
++timeline_destroy(struct wl_client *client, struct wl_resource *resource)
++{
++	wl_resource_destroy(resource);
++}
++
++static const struct wp_linux_drm_syncobj_timeline_v1_interface timeline_impl = {
++	.destroy = timeline_destroy,
++};
++
++static void
++timeline_resource_destroyed(struct wl_resource *resource)
++{
++	timeline_unref(wl_resource_get_user_data(resource));
++}
++
++/* ---- wp_linux_drm_syncobj_manager_v1 -------------------------------------- */
++
++static void
++manager_destroy(struct wl_client *client, struct wl_resource *resource)
++{
++	wl_resource_destroy(resource);
++}
++
++static void
++manager_get_surface(struct wl_client *client, struct wl_resource *resource,
++		    uint32_t id, struct wl_resource *surface_resource)
++{
++	struct weston_surface *surface = wl_resource_get_user_data(surface_resource);
++	struct syncobj_surface *object;
++
++	if (surface->syncobj_resource) {
++		wl_resource_post_error(resource,
++				       WP_LINUX_DRM_SYNCOBJ_MANAGER_V1_ERROR_SURFACE_EXISTS,
++				       "the surface already has a syncobj object");
++		return;
++	}
++	object = xzalloc(sizeof *object);
++	object->surface = surface;
++	object->resource = wl_resource_create(
++		client, &wp_linux_drm_syncobj_surface_v1_interface, 1, id);
++	if (!object->resource) {
++		free(object);
++		wl_client_post_no_memory(client);
++		return;
++	}
++	object->surface_destroy.notify = object_surface_destroyed;
++	wl_signal_add(&surface->destroy_signal, &object->surface_destroy);
++	surface->syncobj_resource = object->resource;
++	wl_resource_set_implementation(object->resource, &surface_impl, object,
++				       surface_resource_destroyed);
++}
++
++static void
++manager_import_timeline(struct wl_client *client, struct wl_resource *resource,
++			uint32_t id, int32_t fd)
++{
++	struct weston_drm_syncobj *syncobj = wl_resource_get_user_data(resource);
++	struct timeline *timeline;
++	uint32_t handle;
++	int result = drmSyncobjFDToHandle(syncobj->drm_fd, fd, &handle);
++
++	close(fd);
++	if (result < 0) {
++		wl_resource_post_error(resource,
++				       WP_LINUX_DRM_SYNCOBJ_MANAGER_V1_ERROR_INVALID_TIMELINE,
++				       "the fd is not a DRM syncobj");
++		return;
++	}
++	timeline = xzalloc(sizeof *timeline);
++	timeline->syncobj = syncobj;
++	timeline->handle = handle;
++	timeline->refs = 1;
++	syncobj->refs++;
++
++	struct wl_resource *object = wl_resource_create(
++		client, &wp_linux_drm_syncobj_timeline_v1_interface, 1, id);
++
++	if (!object) {
++		timeline_unref(timeline);
++		wl_client_post_no_memory(client);
++		return;
++	}
++	wl_resource_set_implementation(object, &timeline_impl, timeline,
++				       timeline_resource_destroyed);
++}
++
++static const struct wp_linux_drm_syncobj_manager_v1_interface manager_impl = {
++	.destroy = manager_destroy,
++	.get_surface = manager_get_surface,
++	.import_timeline = manager_import_timeline,
++};
++
++static void
++manager_bind(struct wl_client *client, void *data, uint32_t version, uint32_t id)
++{
++	struct wl_resource *resource = wl_resource_create(
++		client, &wp_linux_drm_syncobj_manager_v1_interface, 1, id);
++
++	if (!resource) {
++		wl_client_post_no_memory(client);
++		return;
++	}
++	wl_resource_set_implementation(resource, &manager_impl, data, NULL);
++}
++
++/* Syncobj FDs work on any DRM device. Use the first render node that supports
++ * timelines and eventfds. */
++static int
++open_render_node(void)
++{
++	drmDevicePtr devices[16];
++	int count = drmGetDevices2(0, devices, 16);
++	int found = -1;
++
++	for (int i = 0; i < count && found < 0; i++) {
++		uint64_t timeline = 0;
++		uint32_t handle;
++		int fd, event_fd;
++
++		if (!(devices[i]->available_nodes & (1 << DRM_NODE_RENDER)))
++			continue;
++		fd = open(devices[i]->nodes[DRM_NODE_RENDER], O_RDWR | O_CLOEXEC);
++		if (fd < 0)
++			continue;
++		event_fd = eventfd(0, EFD_CLOEXEC);
++		if (drmGetCap(fd, DRM_CAP_SYNCOBJ_TIMELINE, &timeline) == 0 && timeline &&
++		    event_fd >= 0 && drmSyncobjCreate(fd, 0, &handle) == 0) {
++			if (drmSyncobjEventfd(fd, handle, 1, event_fd,
++					      DRM_SYNCOBJ_WAIT_FLAGS_WAIT_AVAILABLE) == 0)
++				found = fd;
++			drmSyncobjDestroy(fd, handle);
++		}
++		if (event_fd >= 0)
++			close(event_fd);
++		if (found < 0)
++			close(fd);
++	}
++	if (count > 0)
++		drmFreeDevices(devices, count);
++	return found;
++}
++
++/** Enable wp_linux_drm_syncobj_manager_v1 when supported.
++ *
++ * This needs renderer support for acquire fences and a render node with
++ * timeline syncobjs and eventfds.
++ *
++ * \return true if enabled
++ */
++WL_EXPORT bool
++weston_compositor_enable_drm_syncobj(struct weston_compositor *compositor)
++{
++	struct weston_drm_syncobj *syncobj;
++	int drm_fd;
++
++	if (!(compositor->capabilities & WESTON_CAP_EXPLICIT_SYNC))
++		return false;
++	drm_fd = open_render_node();
++	if (drm_fd < 0)
++		return false;
++	syncobj = xzalloc(sizeof *syncobj);
++	syncobj->compositor = compositor;
++	syncobj->drm_fd = drm_fd;
++	syncobj->refs = 1;
++	syncobj->global = wl_global_create(compositor->wl_display,
++					   &wp_linux_drm_syncobj_manager_v1_interface,
++					   1, syncobj, manager_bind);
++	compositor->drm_syncobj = syncobj;
++	return true;
++}
++
++WL_EXPORT void
++weston_compositor_disable_drm_syncobj(struct weston_compositor *compositor)
++{
++	struct weston_drm_syncobj *syncobj = compositor->drm_syncobj;
++
++	if (!syncobj)
++		return;
++	compositor->drm_syncobj = NULL;
++	wl_global_destroy(syncobj->global);
++	syncobj_unref(syncobj);
++}
+--- /dev/null
++++ b/libweston/linux-drm-syncobj.h
+@@ -0,0 +1,49 @@
++/*
++ * Copyright 2026 Kerem Soke
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining
++ * a copy of this software and associated documentation files (the
++ * "Software"), to deal in the Software without restriction, including
++ * without limitation the rights to use, copy, modify, merge, publish,
++ * distribute, sublicense, and/or sell copies of the Software, and to
++ * permit persons to whom the Software is furnished to do so, subject to
++ * the following conditions:
++ *
++ * The above copyright notice and this permission notice (including the
++ * next paragraph) shall be included in all copies or substantial
++ * portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
++ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ * NONINFRINGEMENT.  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
++ * BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
++ * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
++ * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
++ * SOFTWARE.
++ */
++
++#ifndef WESTON_LINUX_DRM_SYNCOBJ_H
++#define WESTON_LINUX_DRM_SYNCOBJ_H
++
++#include <stdbool.h>
++
++struct weston_surface;
++struct weston_surface_state;
++struct weston_drm_syncobj_acquire;
++
++/* Handles wl_surface.commit by moving pending points into the pending state.
++ * Returns false after posting a protocol error. */
++bool
++weston_drm_syncobj_surface_commit(struct weston_surface *surface);
++
++/* Returns true once the acquire point has a fence, stored in
++ * acquire_fence_fd. Until then, a fence appearing applies transactions. */
++bool
++weston_drm_syncobj_state_ready(struct weston_surface *surface,
++			       struct weston_surface_state *state);
++
++void
++weston_drm_syncobj_acquire_destroy(struct weston_drm_syncobj_acquire *acquire);
++
++#endif
