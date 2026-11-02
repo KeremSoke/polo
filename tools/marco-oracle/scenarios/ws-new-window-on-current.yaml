@@ -1,0 +1,4 @@
+description: A window mapped after switching opens on the current workspace.
+steps:
+  - switch_workspace: {workspace: 2}
+  - map: {id: a, size: [400, 300]}

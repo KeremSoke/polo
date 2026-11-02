@@ -1,0 +1,6 @@
+description: A fullscreen window that loses focus to a new window drops below the panel.
+struts: [{edge: top, thickness: 24}]
+steps:
+  - map: {id: a, size: [400, 300]}
+  - request_state: {id: a, state: fullscreen}
+  - map: {id: b, size: [400, 300]}

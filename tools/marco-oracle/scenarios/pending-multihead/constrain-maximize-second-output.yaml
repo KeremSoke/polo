@@ -1,0 +1,6 @@
+description: Maximizing on the second output fills that output only.
+outputs: [[1920, 1080], [1280, 1024]]
+pointer: [2500, 500]
+steps:
+  - map: {id: a, size: [400, 300]}
+  - request_state: {id: a, state: [maximized_vert, maximized_horz]}

@@ -1,0 +1,4 @@
+description: An aspect ratio of exactly 1:1 forces a square window.
+steps:
+  - map: {id: a, size: [400, 300], hints: {aspect: [[1, 1], [1, 1]]}}
+  - configure: {id: a, size: [500, 350]}

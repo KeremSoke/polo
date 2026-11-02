@@ -1,0 +1,5 @@
+description: A bound tile-to-side-w action tiles the window to the left half.
+prefs: {window-keybindings/tile-to-side-w: <Super>Left}
+steps:
+  - map: {id: a, size: [400, 300]}
+  - key: {combo: <Super>Left}

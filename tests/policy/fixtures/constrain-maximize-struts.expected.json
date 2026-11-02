@@ -1,0 +1,334 @@
+{
+ "marco": "1.28.2",
+ "scenario": {
+  "description": "Maximizing with top and bottom panels fills exactly the work area.",
+  "name": "constrain-maximize-struts",
+  "outputs": [
+   [
+    1920,
+    1080
+   ]
+  ],
+  "pointer": [
+   960,
+   540
+  ],
+  "prefs": {
+   "general/compositing-manager": false,
+   "general/num-workspaces": 4,
+   "general/theme": "Menta",
+   "general/titlebar-font": "Noto Sans Bold 10",
+   "general/titlebar-uses-system-font": false
+  },
+  "screen": [
+   1920,
+   1080
+  ],
+  "steps": [
+   {
+    "hints": {},
+    "id": "a",
+    "input": true,
+    "kind": "map",
+    "position": null,
+    "position_source": "program",
+    "size": [
+     400,
+     300
+    ],
+    "state": [],
+    "transient_for": null,
+    "type": "normal",
+    "user_time": null
+   },
+   {
+    "action": "add",
+    "id": "a",
+    "kind": "request_state",
+    "state": [
+     "maximized_vert",
+     "maximized_horz"
+    ]
+   }
+  ],
+  "struts": [
+   {
+    "edge": "top",
+    "id": "dock-top-0",
+    "output": 0,
+    "thickness": 24
+   },
+   {
+    "edge": "bottom",
+    "id": "dock-bottom-1",
+    "output": 0,
+    "thickness": 24
+   }
+  ]
+ },
+ "snapshots": [
+  {
+   "active": null,
+   "current_workspace": 0,
+   "n_workspaces": 4,
+   "stacking": [
+    "dock-top-0",
+    "dock-bottom-1"
+   ],
+   "windows": {
+    "dock-bottom-1": {
+     "client": [
+      0,
+      1056,
+      1920,
+      24
+     ],
+     "extents": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "frame": [
+      0,
+      1056,
+      1920,
+      24
+     ],
+     "mapped": true,
+     "state": [
+      "focused",
+      "skip_pager",
+      "skip_taskbar",
+      "sticky"
+     ],
+     "visible": true,
+     "workspace": -1
+    },
+    "dock-top-0": {
+     "client": [
+      0,
+      0,
+      1920,
+      24
+     ],
+     "extents": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "frame": [
+      0,
+      0,
+      1920,
+      24
+     ],
+     "mapped": true,
+     "state": [
+      "focused",
+      "skip_pager",
+      "skip_taskbar",
+      "sticky"
+     ],
+     "visible": true,
+     "workspace": -1
+    }
+   }
+  },
+  {
+   "active": "a",
+   "current_workspace": 0,
+   "n_workspaces": 4,
+   "stacking": [
+    "a",
+    "dock-top-0",
+    "dock-bottom-1"
+   ],
+   "windows": {
+    "a": {
+     "client": [
+      760,
+      405,
+      400,
+      300
+     ],
+     "extents": [
+      1,
+      1,
+      31,
+      1
+     ],
+     "frame": [
+      759,
+      374,
+      402,
+      332
+     ],
+     "mapped": true,
+     "state": [
+      "focused"
+     ],
+     "visible": true,
+     "workspace": 0
+    },
+    "dock-bottom-1": {
+     "client": [
+      0,
+      1056,
+      1920,
+      24
+     ],
+     "extents": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "frame": [
+      0,
+      1056,
+      1920,
+      24
+     ],
+     "mapped": true,
+     "state": [
+      "focused",
+      "skip_pager",
+      "skip_taskbar",
+      "sticky"
+     ],
+     "visible": true,
+     "workspace": -1
+    },
+    "dock-top-0": {
+     "client": [
+      0,
+      0,
+      1920,
+      24
+     ],
+     "extents": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "frame": [
+      0,
+      0,
+      1920,
+      24
+     ],
+     "mapped": true,
+     "state": [
+      "focused",
+      "skip_pager",
+      "skip_taskbar",
+      "sticky"
+     ],
+     "visible": true,
+     "workspace": -1
+    }
+   }
+  },
+  {
+   "active": "a",
+   "current_workspace": 0,
+   "n_workspaces": 4,
+   "stacking": [
+    "a",
+    "dock-top-0",
+    "dock-bottom-1"
+   ],
+   "windows": {
+    "a": {
+     "client": [
+      0,
+      55,
+      1920,
+      1001
+     ],
+     "extents": [
+      0,
+      0,
+      31,
+      0
+     ],
+     "frame": [
+      0,
+      24,
+      1920,
+      1032
+     ],
+     "mapped": true,
+     "state": [
+      "focused",
+      "maximized_horz",
+      "maximized_vert"
+     ],
+     "visible": true,
+     "workspace": 0
+    },
+    "dock-bottom-1": {
+     "client": [
+      0,
+      1056,
+      1920,
+      24
+     ],
+     "extents": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "frame": [
+      0,
+      1056,
+      1920,
+      24
+     ],
+     "mapped": true,
+     "state": [
+      "focused",
+      "skip_pager",
+      "skip_taskbar",
+      "sticky"
+     ],
+     "visible": true,
+     "workspace": -1
+    },
+    "dock-top-0": {
+     "client": [
+      0,
+      0,
+      1920,
+      24
+     ],
+     "extents": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "frame": [
+      0,
+      0,
+      1920,
+      24
+     ],
+     "mapped": true,
+     "state": [
+      "focused",
+      "skip_pager",
+      "skip_taskbar",
+      "sticky"
+     ],
+     "visible": true,
+     "workspace": -1
+    }
+   }
+  }
+ ]
+}

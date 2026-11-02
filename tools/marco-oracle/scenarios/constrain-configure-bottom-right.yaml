@@ -1,0 +1,4 @@
+description: A client moving its window past the bottom-right corner.
+steps:
+  - map: {id: a, size: [400, 300]}
+  - configure: {id: a, position: [1900, 1060]}

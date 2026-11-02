@@ -1,0 +1,7 @@
+description: In sloppy mode, the pointer entering a window focuses it; the root keeps focus.
+prefs: {center-new-windows: false, focus-mode: sloppy}
+steps:
+  - map: {id: a, size: [500, 400]}
+  - map: {id: b, size: [500, 400]}
+  - pointer: {id: a}
+  - pointer: {to: [1900, 1060]}

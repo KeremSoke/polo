@@ -1,0 +1,6 @@
+description: A panel on the second output only affects windows placed there.
+outputs: [[1920, 1080], [1280, 1024]]
+pointer: [2500, 500]
+struts: [{edge: top, thickness: 30, output: 1}]
+steps:
+  - map: {id: a, size: [400, 300]}

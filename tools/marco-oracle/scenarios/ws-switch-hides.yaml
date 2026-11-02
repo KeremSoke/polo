@@ -1,0 +1,4 @@
+description: Switching workspace hides the windows of the old one.
+steps:
+  - map: {id: a, size: [400, 300]}
+  - switch_workspace: {workspace: 1}

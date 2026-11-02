@@ -1,0 +1,5 @@
+description: New windows stack on top in mapping order.
+steps:
+  - map: {id: a, size: [400, 300]}
+  - map: {id: b, size: [400, 300]}
+  - map: {id: c, size: [400, 300]}

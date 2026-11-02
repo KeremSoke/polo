@@ -1,0 +1,7 @@
+description: A chain of transients stays ordered above its root.
+steps:
+  - map: {id: a, size: [900, 700]}
+  - map: {id: b, size: [600, 500], type: dialog, transient_for: a}
+  - map: {id: c, size: [300, 200], type: dialog, transient_for: b}
+  - map: {id: other, size: [1000, 800]}
+  - click: {id: a, at: [5, 5]}

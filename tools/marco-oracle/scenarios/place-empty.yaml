@@ -1,0 +1,3 @@
+description: One normal window on an empty 1920x1080 screen (automatic placement, centred).
+steps:
+  - map: {id: a, size: [400, 300]}

@@ -1,0 +1,4 @@
+description: Panels on all four edges shrink the work area on every side.
+struts: [{edge: top, thickness: 24}, {edge: bottom, thickness: 30}, {edge: left, thickness: 40}, {edge: right, thickness: 50}]
+steps:
+  - map: {id: a, size: [400, 300]}

@@ -1,0 +1,6 @@
+description: MATE's default top and bottom panels, first-fit placement.
+prefs: {center-new-windows: false}
+struts: [{edge: top, thickness: 24}, {edge: bottom, thickness: 24}]
+steps:
+  - map: {id: a, size: [800, 600]}
+  - map: {id: b, size: [800, 600]}

@@ -1,0 +1,5 @@
+description: Two outputs; with the pointer on the first, windows open there.
+outputs: [[1920, 1080], [1280, 1024]]
+pointer: [900, 500]
+steps:
+  - map: {id: a, size: [400, 300]}

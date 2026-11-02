@@ -1,0 +1,8 @@
+description: Closing the focused window focuses the previously focused one.
+prefs: {center-new-windows: false}
+steps:
+  - map: {id: a, size: [500, 400]}
+  - map: {id: b, size: [500, 400]}
+  - map: {id: c, size: [500, 400]}
+  - click: {id: a}
+  - destroy: {id: a}

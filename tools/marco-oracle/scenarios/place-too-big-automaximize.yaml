@@ -1,0 +1,3 @@
+description: A window larger than the work area is maximized after placement.
+steps:
+  - map: {id: a, size: [2400, 1400]}

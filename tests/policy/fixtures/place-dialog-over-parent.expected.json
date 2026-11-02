@@ -1,0 +1,171 @@
+{
+ "marco": "1.28.2",
+ "scenario": {
+  "description": "A dialog transient for its parent is centred over the parent.",
+  "name": "place-dialog-over-parent",
+  "outputs": [
+   [
+    1920,
+    1080
+   ]
+  ],
+  "pointer": [
+   960,
+   540
+  ],
+  "prefs": {
+   "general/center-new-windows": false,
+   "general/compositing-manager": false,
+   "general/num-workspaces": 4,
+   "general/theme": "Menta",
+   "general/titlebar-font": "Noto Sans Bold 10",
+   "general/titlebar-uses-system-font": false
+  },
+  "screen": [
+   1920,
+   1080
+  ],
+  "steps": [
+   {
+    "hints": {},
+    "id": "parent",
+    "input": true,
+    "kind": "map",
+    "position": null,
+    "position_source": "program",
+    "size": [
+     800,
+     600
+    ],
+    "state": [],
+    "transient_for": null,
+    "type": "normal",
+    "user_time": null
+   },
+   {
+    "hints": {},
+    "id": "dialog",
+    "input": true,
+    "kind": "map",
+    "position": null,
+    "position_source": "program",
+    "size": [
+     300,
+     150
+    ],
+    "state": [],
+    "transient_for": "parent",
+    "type": "dialog",
+    "user_time": null
+   }
+  ],
+  "struts": []
+ },
+ "snapshots": [
+  {
+   "active": null,
+   "current_workspace": 0,
+   "n_workspaces": 4,
+   "stacking": [],
+   "windows": {}
+  },
+  {
+   "active": "parent",
+   "current_workspace": 0,
+   "n_workspaces": 4,
+   "stacking": [
+    "parent"
+   ],
+   "windows": {
+    "parent": {
+     "client": [
+      158,
+      180,
+      800,
+      600
+     ],
+     "extents": [
+      1,
+      1,
+      31,
+      1
+     ],
+     "frame": [
+      157,
+      149,
+      802,
+      632
+     ],
+     "mapped": true,
+     "state": [
+      "focused"
+     ],
+     "visible": true,
+     "workspace": 0
+    }
+   }
+  },
+  {
+   "active": "dialog",
+   "current_workspace": 0,
+   "n_workspaces": 4,
+   "stacking": [
+    "parent",
+    "dialog"
+   ],
+   "windows": {
+    "dialog": {
+     "client": [
+      408,
+      361,
+      300,
+      150
+     ],
+     "extents": [
+      1,
+      1,
+      31,
+      1
+     ],
+     "frame": [
+      407,
+      330,
+      302,
+      182
+     ],
+     "mapped": true,
+     "state": [
+      "focused",
+      "skip_taskbar"
+     ],
+     "visible": true,
+     "workspace": 0
+    },
+    "parent": {
+     "client": [
+      158,
+      180,
+      800,
+      600
+     ],
+     "extents": [
+      1,
+      1,
+      31,
+      1
+     ],
+     "frame": [
+      157,
+      149,
+      802,
+      632
+     ],
+     "mapped": true,
+     "state": [],
+     "visible": true,
+     "workspace": 0
+    }
+   }
+  }
+ ]
+}

@@ -1,0 +1,9 @@
+description: A fullscreen window that loses focus drops below the panel.
+outputs: [[1920, 1080], [1280, 1024]]
+struts: [{edge: top, thickness: 24}]
+pointer: [900, 500]
+steps:
+  - map: {id: a, size: [400, 300]}
+  - request_state: {id: a, state: fullscreen}
+  - pointer: {to: [2500, 500]}
+  - map: {id: b, size: [400, 300]}

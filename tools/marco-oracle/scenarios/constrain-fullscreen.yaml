@@ -1,0 +1,5 @@
+description: Fullscreen covers the whole output, including panels.
+struts: [{edge: top, thickness: 24}]
+steps:
+  - map: {id: a, size: [400, 300]}
+  - request_state: {id: a, state: fullscreen}

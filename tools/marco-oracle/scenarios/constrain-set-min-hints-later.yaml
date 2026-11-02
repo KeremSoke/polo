@@ -1,0 +1,5 @@
+description: Raising the minimum size of a mapped window takes effect on the next configure.
+steps:
+  - map: {id: a, size: [400, 300]}
+  - set_hints: {id: a, hints: {min: [600, 500]}}
+  - configure: {id: a, size: [400, 300]}

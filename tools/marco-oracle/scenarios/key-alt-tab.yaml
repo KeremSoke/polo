@@ -1,0 +1,6 @@
+description: Alt+Tab switches focus to the previously focused window.
+prefs: {center-new-windows: false}
+steps:
+  - map: {id: a, size: [500, 400]}
+  - map: {id: b, size: [500, 400]}
+  - key: {combo: <Alt>Tab}

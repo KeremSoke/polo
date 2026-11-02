@@ -1,0 +1,4 @@
+description: A client asking for a size larger than the screen.
+steps:
+  - map: {id: a, size: [400, 300]}
+  - configure: {id: a, size: [3000, 2000]}

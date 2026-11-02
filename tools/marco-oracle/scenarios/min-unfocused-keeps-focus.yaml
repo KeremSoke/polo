@@ -1,0 +1,7 @@
+description: Minimizing a window without focus leaves focus alone; activating it restores it.
+prefs: {center-new-windows: false}
+steps:
+  - map: {id: a, size: [500, 400]}
+  - map: {id: b, size: [500, 400]}
+  - minimize: {id: a}
+  - activate: {id: a, source: pager, time: now}

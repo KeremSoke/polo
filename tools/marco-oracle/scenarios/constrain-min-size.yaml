@@ -1,0 +1,3 @@
+description: A window mapped smaller than its minimum size grows to the minimum.
+steps:
+  - map: {id: a, size: [100, 100], hints: {min: [300, 200]}}

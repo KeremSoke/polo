@@ -1,0 +1,4 @@
+description: focus-new-windows smart with a fresh user time focuses the new window.
+steps:
+  - map: {id: a, size: [400, 300]}
+  - map: {id: b, size: [300, 200], user_time: now}

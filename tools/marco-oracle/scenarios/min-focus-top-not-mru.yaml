@@ -1,0 +1,9 @@
+description: Minimizing the focused window focuses the top of the stack, not the next in the MRU.
+prefs: {center-new-windows: false, raise-on-click: false}
+steps:
+  - map: {id: a, size: [500, 400]}
+  - map: {id: b, size: [500, 400]}
+  - map: {id: c, size: [500, 400]}
+  - click: {id: b}
+  - click: {id: a}
+  - minimize: {id: a}

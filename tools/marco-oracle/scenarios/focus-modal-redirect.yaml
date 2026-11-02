@@ -1,0 +1,6 @@
+description: Clicking the parent of a modal dialog focuses the dialog.
+prefs: {center-new-windows: false}
+steps:
+  - map: {id: parent, size: [800, 600]}
+  - map: {id: modal, size: [300, 150], type: modal_dialog, transient_for: parent}
+  - click: {id: parent, at: [10, 10]}

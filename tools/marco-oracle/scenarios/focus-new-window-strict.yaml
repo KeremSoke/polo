@@ -1,0 +1,6 @@
+description: focus-new-windows strict with a stale user time does not focus the new window.
+prefs: {focus-new-windows: strict}
+steps:
+  - map: {id: a, size: [400, 300]}
+  - click: {id: a}
+  - map: {id: b, size: [300, 200], user_time: 1}

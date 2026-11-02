@@ -1,0 +1,9 @@
+description: Alt-Tab skips minimized windows until the unminimized ones run out.
+prefs: {center-new-windows: false}
+steps:
+  - map: {id: a, size: [500, 400]}
+  - map: {id: b, size: [500, 400]}
+  - map: {id: c, size: [500, 400]}
+  - minimize: {id: b}
+  - key: {combo: <Alt>Tab}
+  - key: {combo: <Alt>Tab}

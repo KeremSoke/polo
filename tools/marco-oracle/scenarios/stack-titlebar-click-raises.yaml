@@ -1,0 +1,6 @@
+description: Clicking a titlebar raises even with raise-on-click off.
+prefs: {center-new-windows: false, raise-on-click: false}
+steps:
+  - map: {id: a, size: [500, 400]}
+  - map: {id: b, size: [500, 400]}
+  - click: {id: a, where: titlebar}

@@ -1,0 +1,4 @@
+description: A utility window transient for a parent.
+steps:
+  - map: {id: parent, size: [800, 600]}
+  - map: {id: tool, size: [200, 400], type: utility, transient_for: parent}

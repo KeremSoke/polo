@@ -1,0 +1,7 @@
+description: With only minimized windows behind it, Alt-Tab restores and focuses one.
+prefs: {center-new-windows: false}
+steps:
+  - map: {id: a, size: [500, 400]}
+  - map: {id: b, size: [500, 400]}
+  - minimize: {id: b}
+  - key: {combo: <Alt>Tab}

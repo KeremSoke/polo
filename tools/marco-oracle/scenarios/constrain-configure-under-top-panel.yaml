@@ -1,0 +1,5 @@
+description: A client moving its titlebar under a top panel.
+struts: [{edge: top, thickness: 24}]
+steps:
+  - map: {id: a, size: [400, 300]}
+  - configure: {id: a, position: [200, 0]}

@@ -1,0 +1,150 @@
+{
+ "marco": "1.28.2",
+ "scenario": {
+  "description": "Terminal-like resize increments (base 10x10, 7x13 cells) round the size.",
+  "name": "constrain-increments",
+  "outputs": [
+   [
+    1920,
+    1080
+   ]
+  ],
+  "pointer": [
+   960,
+   540
+  ],
+  "prefs": {
+   "general/compositing-manager": false,
+   "general/num-workspaces": 4,
+   "general/theme": "Menta",
+   "general/titlebar-font": "Noto Sans Bold 10",
+   "general/titlebar-uses-system-font": false
+  },
+  "screen": [
+   1920,
+   1080
+  ],
+  "steps": [
+   {
+    "hints": {
+     "base": [
+      10,
+      10
+     ],
+     "inc": [
+      7,
+      13
+     ],
+     "min": [
+      17,
+      23
+     ]
+    },
+    "id": "term",
+    "input": true,
+    "kind": "map",
+    "position": null,
+    "position_source": "program",
+    "size": [
+     400,
+     300
+    ],
+    "state": [],
+    "transient_for": null,
+    "type": "normal",
+    "user_time": null
+   },
+   {
+    "id": "term",
+    "kind": "configure",
+    "position": null,
+    "size": [
+     503,
+     401
+    ]
+   }
+  ],
+  "struts": []
+ },
+ "snapshots": [
+  {
+   "active": null,
+   "current_workspace": 0,
+   "n_workspaces": 4,
+   "stacking": [],
+   "windows": {}
+  },
+  {
+   "active": "term",
+   "current_workspace": 0,
+   "n_workspaces": 4,
+   "stacking": [
+    "term"
+   ],
+   "windows": {
+    "term": {
+     "client": [
+      762,
+      407,
+      395,
+      296
+     ],
+     "extents": [
+      1,
+      1,
+      31,
+      1
+     ],
+     "frame": [
+      761,
+      376,
+      397,
+      328
+     ],
+     "mapped": true,
+     "state": [
+      "focused"
+     ],
+     "visible": true,
+     "workspace": 0
+    }
+   }
+  },
+  {
+   "active": "term",
+   "current_workspace": 0,
+   "n_workspaces": 4,
+   "stacking": [
+    "term"
+   ],
+   "windows": {
+    "term": {
+     "client": [
+      762,
+      407,
+      500,
+      400
+     ],
+     "extents": [
+      1,
+      1,
+      31,
+      1
+     ],
+     "frame": [
+      761,
+      376,
+      502,
+      432
+     ],
+     "mapped": true,
+     "state": [
+      "focused"
+     ],
+     "visible": true,
+     "workspace": 0
+    }
+   }
+  }
+ ]
+}

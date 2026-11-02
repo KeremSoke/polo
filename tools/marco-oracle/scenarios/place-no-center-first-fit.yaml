@@ -1,0 +1,6 @@
+description: Without centring, three windows are placed by Marco's first-fit tiling.
+prefs: {center-new-windows: false}
+steps:
+  - map: {id: a, size: [500, 400]}
+  - map: {id: b, size: [500, 400]}
+  - map: {id: c, size: [500, 400]}

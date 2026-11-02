@@ -1,0 +1,4 @@
+description: A client moving its window far off the top-left is kept with its titlebar visible.
+steps:
+  - map: {id: a, size: [400, 300]}
+  - configure: {id: a, position: [-1000, -1000]}

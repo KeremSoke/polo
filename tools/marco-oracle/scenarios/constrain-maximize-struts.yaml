@@ -1,0 +1,5 @@
+description: Maximizing with top and bottom panels fills exactly the work area.
+struts: [{edge: top, thickness: 24}, {edge: bottom, thickness: 24}]
+steps:
+  - map: {id: a, size: [400, 300]}
+  - request_state: {id: a, state: [maximized_vert, maximized_horz]}

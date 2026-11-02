@@ -1,0 +1,9 @@
+description: Without centring, six 600x400 windows fill the screen by first fit, then cascade.
+prefs: {center-new-windows: false}
+steps:
+  - map: {id: a, size: [600, 400]}
+  - map: {id: b, size: [600, 400]}
+  - map: {id: c, size: [600, 400]}
+  - map: {id: d, size: [600, 400]}
+  - map: {id: e, size: [600, 400]}
+  - map: {id: f, size: [600, 400]}

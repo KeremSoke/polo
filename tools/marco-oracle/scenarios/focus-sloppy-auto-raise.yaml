@@ -1,0 +1,7 @@
+description: Sloppy focus with auto-raise raises the window after the delay.
+prefs: {center-new-windows: false, focus-mode: sloppy, auto-raise: true, auto-raise-delay: 100}
+steps:
+  - map: {id: a, size: [500, 400]}
+  - map: {id: b, size: [500, 400]}
+  - pointer: {id: a}
+  - wait: {ms: 400}

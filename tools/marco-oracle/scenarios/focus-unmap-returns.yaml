@@ -1,0 +1,5 @@
+description: Unmapping (withdrawing) the focused window moves focus on.
+steps:
+  - map: {id: a, size: [500, 400]}
+  - map: {id: b, size: [300, 200]}
+  - unmap: {id: b}

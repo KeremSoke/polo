@@ -1,0 +1,5 @@
+description: Without centring, a window denied focus avoids covering the focused window.
+prefs: {center-new-windows: false}
+steps:
+  - map: {id: a, size: [800, 600]}
+  - map: {id: b, size: [400, 300], user_time: 0}

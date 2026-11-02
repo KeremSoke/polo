@@ -1,0 +1,3 @@
+description: A window mapped larger than its maximum size shrinks to the maximum.
+steps:
+  - map: {id: a, size: [900, 900], hints: {max: [500, 400]}}

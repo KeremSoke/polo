@@ -1,0 +1,4 @@
+description: A window mapped with _NET_WM_USER_TIME 0 does not take focus.
+steps:
+  - map: {id: a, size: [400, 300]}
+  - map: {id: b, size: [300, 200], user_time: 0}

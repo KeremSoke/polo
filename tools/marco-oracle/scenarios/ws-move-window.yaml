@@ -1,0 +1,5 @@
+description: Moving a window to another workspace hides it here.
+steps:
+  - map: {id: a, size: [400, 300]}
+  - map: {id: b, size: [400, 300]}
+  - move_to_workspace: {id: b, workspace: 3}

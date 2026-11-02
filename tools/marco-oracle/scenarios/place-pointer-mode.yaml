@@ -1,0 +1,5 @@
+description: placement-mode pointer centres a new window on the pointer.
+prefs: {placement-mode: pointer}
+pointer: [400, 300]
+steps:
+  - map: {id: a, size: [300, 200]}

@@ -1,0 +1,5 @@
+description: placement-mode pointer near the top-left corner keeps the window on screen.
+prefs: {placement-mode: pointer}
+pointer: [10, 10]
+steps:
+  - map: {id: a, size: [300, 200]}

@@ -1,0 +1,5 @@
+description: A dialog transient for its parent is centred over the parent.
+prefs: {center-new-windows: false}
+steps:
+  - map: {id: parent, size: [800, 600]}
+  - map: {id: dialog, size: [300, 150], type: dialog, transient_for: parent}

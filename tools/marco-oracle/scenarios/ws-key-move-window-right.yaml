@@ -1,0 +1,4 @@
+description: Ctrl+Shift+Alt+Right moves the focused window one workspace right.
+steps:
+  - map: {id: a, size: [400, 300]}
+  - key: {combo: <Control><Shift><Alt>Right}

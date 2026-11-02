@@ -1,0 +1,4 @@
+description: The default Ctrl+Alt+Right binding switches to the next workspace.
+steps:
+  - map: {id: a, size: [400, 300]}
+  - key: {combo: <Control><Alt>Right}

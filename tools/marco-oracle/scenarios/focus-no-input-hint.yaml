@@ -1,0 +1,4 @@
+description: A window whose WM_HINTS say no input is not focused on map.
+steps:
+  - map: {id: a, size: [400, 300]}
+  - map: {id: b, size: [300, 200], input: false}

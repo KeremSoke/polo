@@ -1,0 +1,4 @@
+description: A window whose maximum size is small cannot be maximized.
+steps:
+  - map: {id: a, size: [400, 300], hints: {max: [500, 400]}}
+  - request_state: {id: a, state: [maximized_vert, maximized_horz]}

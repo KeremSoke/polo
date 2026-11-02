@@ -1,0 +1,3 @@
+description: A user position far off screen is pulled back on screen.
+steps:
+  - map: {id: a, size: [400, 300], position: [3000, 3000], position_source: user}

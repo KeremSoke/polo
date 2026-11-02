@@ -1,0 +1,7 @@
+description: In mouse mode, the pointer leaving to the root removes focus.
+prefs: {center-new-windows: false, focus-mode: mouse}
+steps:
+  - map: {id: a, size: [500, 400]}
+  - map: {id: b, size: [500, 400]}
+  - pointer: {id: a}
+  - pointer: {to: [1900, 1060]}

@@ -1,0 +1,4 @@
+description: num-workspaces 2 gives two workspaces.
+prefs: {num-workspaces: 2}
+steps:
+  - map: {id: a, size: [400, 300]}

@@ -1,0 +1,5 @@
+description: A desktop window (like Caja's) stays below everything.
+steps:
+  - map: {id: desktop, size: [1920, 1080], type: desktop, position: [0, 0]}
+  - map: {id: a, size: [400, 300]}
+  - click: {id: desktop, at: [10, 10]}

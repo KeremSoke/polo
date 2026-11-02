@@ -1,0 +1,8 @@
+description: Switching away and back focuses the window that had focus there.
+prefs: {center-new-windows: false}
+steps:
+  - map: {id: a, size: [500, 400]}
+  - map: {id: b, size: [500, 400]}
+  - click: {id: a}
+  - switch_workspace: {workspace: 1}
+  - switch_workspace: {workspace: 0}

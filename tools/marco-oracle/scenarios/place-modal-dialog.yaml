@@ -1,0 +1,4 @@
+description: A modal dialog transient for its parent.
+steps:
+  - map: {id: parent, size: [800, 600]}
+  - map: {id: modal, size: [320, 180], type: modal_dialog, transient_for: parent}

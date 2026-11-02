@@ -1,0 +1,4 @@
+description: Centring respects a 48 px left dock.
+struts: [{edge: left, thickness: 48}]
+steps:
+  - map: {id: a, size: [400, 300]}

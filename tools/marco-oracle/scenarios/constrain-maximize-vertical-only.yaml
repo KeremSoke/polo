@@ -1,0 +1,4 @@
+description: Maximizing vertically keeps the width and x position.
+steps:
+  - map: {id: a, size: [400, 300]}
+  - request_state: {id: a, state: maximized_vert}

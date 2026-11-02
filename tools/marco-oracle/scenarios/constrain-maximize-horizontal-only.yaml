@@ -1,0 +1,4 @@
+description: Maximizing horizontally keeps the height and y position.
+steps:
+  - map: {id: a, size: [400, 300]}
+  - request_state: {id: a, state: maximized_horz}

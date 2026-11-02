@@ -1,0 +1,4 @@
+description: A sticky window stays visible on every workspace.
+steps:
+  - map: {id: a, size: [400, 300], state: [sticky]}
+  - switch_workspace: {workspace: 1}

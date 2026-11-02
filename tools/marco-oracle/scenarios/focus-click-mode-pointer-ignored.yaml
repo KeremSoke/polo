@@ -1,0 +1,6 @@
+description: In click mode, moving the pointer over a window does not focus it.
+prefs: {center-new-windows: false}
+steps:
+  - map: {id: a, size: [500, 400]}
+  - map: {id: b, size: [500, 400]}
+  - pointer: {id: a}

@@ -1,0 +1,6 @@
+description: Fullscreen on the second output covers only that output.
+outputs: [[1920, 1080], [1280, 1024]]
+pointer: [2500, 500]
+steps:
+  - map: {id: a, size: [400, 300]}
+  - request_state: {id: a, state: fullscreen}

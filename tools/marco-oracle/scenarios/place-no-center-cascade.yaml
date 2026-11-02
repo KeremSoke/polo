@@ -1,0 +1,6 @@
+description: Without centring, windows too big to tile side by side cascade.
+prefs: {center-new-windows: false}
+steps:
+  - map: {id: a, size: [1100, 700]}
+  - map: {id: b, size: [1100, 700]}
+  - map: {id: c, size: [1100, 700]}

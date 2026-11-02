@@ -1,0 +1,7 @@
+description: An application activation with an old timestamp marks the window instead of focusing it.
+prefs: {center-new-windows: false}
+steps:
+  - map: {id: a, size: [500, 400]}
+  - map: {id: b, size: [500, 400]}
+  - click: {id: b}
+  - activate: {id: a, source: application, time: 1}

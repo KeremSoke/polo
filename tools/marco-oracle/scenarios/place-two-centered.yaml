@@ -1,0 +1,4 @@
+description: Two windows with center-new-windows (default) both centre on the work area, overlapping.
+steps:
+  - map: {id: a, size: [600, 400]}
+  - map: {id: b, size: [400, 300]}

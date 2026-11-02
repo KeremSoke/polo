@@ -1,0 +1,5 @@
+description: A bound move-to-center action centres the focused window.
+prefs: {center-new-windows: false, window-keybindings/move-to-center: <Super>c}
+steps:
+  - map: {id: a, size: [400, 300]}
+  - key: {combo: <Super>c}

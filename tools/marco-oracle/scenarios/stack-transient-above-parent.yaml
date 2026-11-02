@@ -1,0 +1,8 @@
+description: Raising a parent keeps its dialog above it.
+prefs: {center-new-windows: false}
+steps:
+  - map: {id: other, size: [900, 700]}
+  - map: {id: parent, size: [600, 500]}
+  - map: {id: dialog, size: [300, 150], type: dialog, transient_for: parent}
+  - click: {id: other}
+  - click: {id: parent, at: [10, 10]}

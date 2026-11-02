@@ -1,0 +1,6 @@
+description: A window marked below stays below normal windows, even when clicked.
+prefs: {center-new-windows: false}
+steps:
+  - map: {id: a, size: [500, 400]}
+  - map: {id: b, size: [500, 400], state: [below]}
+  - click: {id: b}

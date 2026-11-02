@@ -1,0 +1,4 @@
+description: A dock window keeps the position its client chose.
+steps:
+  - map: {id: dock, size: [1920, 40], type: dock, position: [0, 1040]}
+  - map: {id: a, size: [400, 300]}

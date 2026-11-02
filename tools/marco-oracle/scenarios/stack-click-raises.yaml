@@ -1,0 +1,6 @@
+description: Clicking a lower window raises and focuses it (raise-on-click).
+prefs: {center-new-windows: false}
+steps:
+  - map: {id: a, size: [500, 400]}
+  - map: {id: b, size: [500, 400]}
+  - click: {id: a}

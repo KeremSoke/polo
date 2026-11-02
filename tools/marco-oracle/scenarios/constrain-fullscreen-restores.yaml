@@ -1,0 +1,5 @@
+description: Leaving fullscreen restores the previous geometry.
+steps:
+  - map: {id: a, size: [400, 300], position: [200, 150], position_source: user}
+  - request_state: {id: a, state: fullscreen}
+  - request_state: {id: a, action: remove, state: fullscreen}

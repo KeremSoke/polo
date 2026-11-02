@@ -1,0 +1,4 @@
+description: Maximizing fills the screen minus decorations.
+steps:
+  - map: {id: a, size: [400, 300]}
+  - request_state: {id: a, state: [maximized_vert, maximized_horz]}

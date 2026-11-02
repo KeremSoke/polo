@@ -1,0 +1,5 @@
+description: Docks stay above normal windows.
+struts: [{edge: top, thickness: 24}]
+steps:
+  - map: {id: a, size: [400, 300]}
+  - map: {id: b, size: [400, 300]}

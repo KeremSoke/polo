@@ -1,0 +1,4 @@
+description: A window marked above stays above newer normal windows.
+steps:
+  - map: {id: a, size: [400, 300], state: [above]}
+  - map: {id: b, size: [400, 300]}

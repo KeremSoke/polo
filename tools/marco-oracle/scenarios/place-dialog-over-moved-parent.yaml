@@ -1,0 +1,4 @@
+description: A dialog is centred over a parent that the client positioned off-centre.
+steps:
+  - map: {id: parent, size: [600, 400], position: [100, 100], position_source: user}
+  - map: {id: dialog, size: [300, 150], type: dialog, transient_for: parent}

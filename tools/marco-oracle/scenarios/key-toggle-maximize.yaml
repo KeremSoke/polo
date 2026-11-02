@@ -1,0 +1,5 @@
+description: The default Alt+F10 binding toggles maximization.
+steps:
+  - map: {id: a, size: [400, 300]}
+  - key: {combo: <Alt>F10}
+  - key: {combo: <Alt>F10}

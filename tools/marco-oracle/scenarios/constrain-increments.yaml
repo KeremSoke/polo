@@ -1,0 +1,4 @@
+description: Terminal-like resize increments (base 10x10, 7x13 cells) round the size.
+steps:
+  - map: {id: term, size: [400, 300], hints: {base: [10, 10], inc: [7, 13], min: [17, 23]}}
+  - configure: {id: term, size: [503, 401]}

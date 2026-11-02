@@ -1,0 +1,6 @@
+description: placement-mode manual starts an interactive placement that a click ends.
+prefs: {placement-mode: manual}
+pointer: [600, 500]
+steps:
+  - map: {id: a, size: [300, 200]}
+  - click: {id: a}
