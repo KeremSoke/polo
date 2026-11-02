@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist gettext-domain="polo">
+  <schema id="org.mate.polo.session" path="/org/mate/polo/session/">
+    <key name="phase-timeout" type="i">
+      <range min="1" max="300"/>
+      <default>10</default>
+      <summary>Session phase timeout</summary>
+      <description>Seconds to wait for the applications of a session phase before starting the next phase.</description>
+    </key>
+    <key name="trusted-components" type="as">
+      <default>['mate-panel', 'caja', 'mate-screensaver', 'mate-settings-daemon', 'mate-clipboard', 'rojo', 'xdg-desktop-portal-wlr', 'polkit-mate-authentication-agent-1', 'ibus-daemon', 'fcitx5']</default>
+      <summary>Trusted session components</summary>
+      <description>Desktop ids or program names that may use privileged protocols, beside the required components.</description>
+    </key>
+    <key name="x11-components" type="as">
+      <default>['mate-settings-daemon', 'mate-power-manager', 'mate-screensaver']</default>
+      <summary>Session components that need X</summary>
+      <description>Desktop ids or program names started with GDK_BACKEND=x11, because they call X directly.</description>
+    </key>
+  </schema>
+</schemalist>
