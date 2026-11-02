@@ -1,0 +1,191 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<protocol name="polo_test_v1">
+  <copyright>
+    Copyright 2026 Kerem Soke
+    SPDX-License-Identifier: GPL-3.0-or-later
+  </copyright>
+
+  <description summary="test-only control of Polo">
+    Lets integration tests inspect Polo's window model and inject input.
+    Compiled only with -Dtest-protocol=true and advertised only when Polo
+    runs with --test-mode. Never part of a release build.
+
+    Window state is reported from Polo's own model (the Vala side), so
+    tests check policy decisions rather than libweston internals.
+  </description>
+
+  <interface name="polo_test_v1" version="5">
+    <request name="destroy" type="destructor"/>
+
+    <request name="get_window_info">
+      <description summary="ask for a window_info or window_unknown event">
+        Polo answers with exactly one window_info or window_unknown event
+        for this surface.
+      </description>
+      <arg name="surface" type="object" interface="wl_surface"/>
+    </request>
+
+    <event name="window_info">
+      <description summary="what Polo's model knows about a window">
+        Geometry is the window geometry (xdg_surface.set_window_geometry)
+        in global logical coordinates. layer is a PoloBackendLayerKind,
+        stack_index counts from the bottom of that layer, workspace is -1
+        until workspaces exist, state is a Polo.WindowState bit mask and
+        focused is 1 when the window has keyboard focus.
+      </description>
+      <arg name="surface" type="object" interface="wl_surface"/>
+      <arg name="x" type="int"/>
+      <arg name="y" type="int"/>
+      <arg name="width" type="int"/>
+      <arg name="height" type="int"/>
+      <arg name="layer" type="int"/>
+      <arg name="stack_index" type="int"/>
+      <arg name="workspace" type="int"/>
+      <arg name="state" type="uint"/>
+      <arg name="focused" type="uint"/>
+    </event>
+
+    <event name="window_unknown">
+      <arg name="surface" type="object" interface="wl_surface"/>
+    </event>
+
+    <request name="move_pointer">
+      <description summary="move the seat's pointer to a global position"/>
+      <arg name="x" type="int"/>
+      <arg name="y" type="int"/>
+    </request>
+
+    <request name="button">
+      <arg name="button" type="uint" summary="evdev button code"/>
+      <arg name="state" type="uint" enum="wl_pointer.button_state"/>
+    </request>
+
+    <request name="key">
+      <arg name="key" type="uint" summary="evdev key code"/>
+      <arg name="state" type="uint" enum="wl_keyboard.key_state"/>
+    </request>
+    <request name="output_connected">
+      <arg name="index" type="uint"/>
+      <arg name="connected" type="uint"/>
+    </request>
+    <request name="configure_output">
+      <arg name="index" type="uint"/>
+      <arg name="scale" type="int"/>
+      <arg name="transform" type="int"/>
+      <arg name="x" type="int"/>
+      <arg name="y" type="int"/>
+    </request>
+    <request name="disable_output">
+      <description summary="switch an output off without disconnecting it">
+        Like a layout that turns the monitor off. A later configure_output
+        enables it again; re-enabling it previously triggered a crash.
+      </description>
+      <arg name="index" type="uint"/>
+    </request>
+
+    <request name="get_layer_surface_info" since="2">
+      <description summary="ask for a layer_surface_info or layer_surface_unknown event">
+        Polo answers with exactly one layer_surface_info or
+        layer_surface_unknown event for this surface. Position is the
+        surface's view origin in global logical coordinates, size the
+        actual surface size and layer the zwlr_layer_shell_v1.layer value.
+      </description>
+      <arg name="surface" type="object" interface="wl_surface"/>
+    </request>
+
+    <event name="layer_surface_info" since="2">
+      <arg name="surface" type="object" interface="wl_surface"/>
+      <arg name="x" type="int"/>
+      <arg name="y" type="int"/>
+      <arg name="width" type="int"/>
+      <arg name="height" type="int"/>
+      <arg name="layer" type="int"/>
+      <arg name="mapped" type="uint"/>
+    </event>
+
+    <event name="layer_surface_unknown" since="2">
+      <arg name="surface" type="object" interface="wl_surface"/>
+    </event>
+
+    <request name="set_setting" since="3">
+      <description summary="write a GSettings key">
+        Polo writes value, a GVariant in text form, to key of schema, and
+        then answers with a setting event. Only when GSettings uses the
+        memory backend; otherwise nothing is written and the value in the
+        event is empty.
+      </description>
+      <arg name="schema" type="string"/>
+      <arg name="key" type="string"/>
+      <arg name="value" type="string"/>
+    </request>
+
+    <request name="gesture" since="5">
+      <description summary="a touchpad gesture, as libinput reports it">
+        Kind: 0 swipe, 1 pinch, 2 hold. Phase: 0 begin, 1 update, 2 end.
+      </description>
+      <arg name="kind" type="uint"/>
+      <arg name="phase" type="uint"/>
+      <arg name="fingers" type="uint"/>
+      <arg name="dx" type="fixed"/>
+      <arg name="dy" type="fixed"/>
+      <arg name="scale" type="fixed"/>
+      <arg name="rotation" type="fixed"/>
+      <arg name="cancelled" type="int"/>
+    </request>
+
+    <request name="get_setting" since="3">
+      <description summary="ask for a setting event"/>
+      <arg name="schema" type="string"/>
+      <arg name="key" type="string"/>
+    </request>
+
+    <event name="setting" since="3">
+      <description summary="a key's value, in GVariant text form">
+        Empty when the key or schema does not exist or cannot be written.
+      </description>
+      <arg name="schema" type="string"/>
+      <arg name="key" type="string"/>
+      <arg name="value" type="string"/>
+    </event>
+
+    <request name="shell_ui_samples" since="4">
+      <description summary="send one of each polo_shell_ui_v1 event">
+        Polo sends, if polo-shell-ui is bound: switcher_entry 1 "One"
+        (app_id "one") and 2 "Two" (no app_id, hidden), show_switcher on
+        output 0 selecting 2, update_selected 1, hide_switcher,
+        window_menu_workspace 0 "Workspace 1" and 1 "Workspace 2",
+        show_window_menu 7 on output 0 at 10,20 with ops 0x3ffff,
+        insensitive 0x2 (minimize), active workspace 1 of 2,
+        hide_window_menu 7, show_osd workspace on output 0 "Workspace 2"
+        value -1, show_dialog 3 not_responding on output 0 "Hung", and
+        hide_dialog 3.
+      </description>
+    </request>
+
+    <request name="shell_ui_dialog" since="4">
+      <description summary="show a polo-shell-ui dialog on output 0">
+        polo_shell_ui_v1.show_dialog with this id, kind and payload; its
+        response comes back as shell_ui_request.
+      </description>
+      <arg name="dialog_id" type="uint"/>
+      <arg name="kind" type="uint"/>
+      <arg name="payload" type="string"/>
+    </request>
+
+    <event name="shell_ui_bound" since="4">
+      <description summary="polo-shell-ui bound polo_shell_ui_v1"/>
+      <arg name="pid" type="int"/>
+    </event>
+
+    <event name="shell_ui_unbound" since="4"/>
+
+    <event name="shell_ui_request" since="4">
+      <description summary="a request polo-shell-ui sent">
+        "menu_action WINDOW OP WORKSPACE", "dialog_response ID RESPONSE
+        TEXT" (TEXT "(null)" when absent) or "color_table FIRST LAST",
+        the first and last floats printed with %g.
+      </description>
+      <arg name="text" type="string"/>
+    </event>
+  </interface>
+</protocol>

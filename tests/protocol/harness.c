@@ -1,0 +1,939 @@
+/*
+ * Copyright 2026 Kerem Soke
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+#include <errno.h>
+#include <fcntl.h>
+#include <signal.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/mman.h>
+#include <sys/wait.h>
+#include <time.h>
+#include <unistd.h>
+
+#include <linux/input.h>
+
+#include "harness.h"
+
+static struct harness *current;
+
+void
+harness_fail(const char *file, int line, const char *cond, const char *fmt, ...)
+{
+	va_list ap;
+
+	fprintf(stderr, "%s:%d: check failed: %s: ", file, line, cond);
+	va_start(ap, fmt);
+	vfprintf(stderr, fmt, ap);
+	va_end(ap);
+	fputc('\n', stderr);
+
+	if (current && current->pid > 0) {
+		kill(current->pid, SIGKILL);
+		waitpid(current->pid, NULL, 0);
+	}
+	exit(1);
+}
+
+static void
+sleep_ms(int ms)
+{
+	struct timespec ts = { ms / 1000, (ms % 1000) * 1000000L };
+
+	nanosleep(&ts, NULL);
+}
+
+/* ---- Input listeners ---------------------------------------------------- */
+
+static void
+pointer_enter(void *data, struct wl_pointer *p, uint32_t serial,
+	      struct wl_surface *surface, wl_fixed_t x, wl_fixed_t y)
+{
+	struct harness *h = data;
+
+	h->pointer_focus = surface;
+	h->pointer_enter_serial = serial;
+}
+
+static void
+pointer_leave(void *data, struct wl_pointer *p, uint32_t serial,
+	      struct wl_surface *surface)
+{
+	struct harness *h = data;
+
+	h->pointer_focus = NULL;
+}
+
+static void
+pointer_motion(void *data, struct wl_pointer *p, uint32_t time, wl_fixed_t x,
+	       wl_fixed_t y)
+{
+	struct harness *h = data;
+
+	h->motions++;
+}
+
+static void
+pointer_button(void *data, struct wl_pointer *p, uint32_t serial, uint32_t time,
+	       uint32_t button, uint32_t state)
+{
+	struct harness *h = data;
+
+	h->last_button_serial = serial;
+	if (state == WL_POINTER_BUTTON_STATE_PRESSED)
+		h->button_presses++;
+	else
+		h->button_releases++;
+}
+
+static void
+pointer_axis(void *data, struct wl_pointer *p, uint32_t time, uint32_t axis,
+	     wl_fixed_t value)
+{
+}
+
+static void
+pointer_frame(void *data, struct wl_pointer *p)
+{
+}
+
+static void
+pointer_axis_source(void *data, struct wl_pointer *p, uint32_t source)
+{
+}
+
+static void
+pointer_axis_stop(void *data, struct wl_pointer *p, uint32_t time,
+		  uint32_t axis)
+{
+}
+
+static void
+pointer_axis_discrete(void *data, struct wl_pointer *p, uint32_t axis,
+		      int32_t discrete)
+{
+}
+
+static void
+pointer_axis_value120(void *data, struct wl_pointer *p, uint32_t axis,
+		      int32_t value120)
+{
+}
+
+static void
+pointer_axis_relative_direction(void *data, struct wl_pointer *p, uint32_t axis,
+				uint32_t direction)
+{
+}
+
+static const struct wl_pointer_listener pointer_listener = {
+	.enter = pointer_enter,
+	.leave = pointer_leave,
+	.motion = pointer_motion,
+	.button = pointer_button,
+	.axis = pointer_axis,
+	.frame = pointer_frame,
+	.axis_source = pointer_axis_source,
+	.axis_stop = pointer_axis_stop,
+	.axis_discrete = pointer_axis_discrete,
+	.axis_value120 = pointer_axis_value120,
+	.axis_relative_direction = pointer_axis_relative_direction,
+};
+
+static void
+keyboard_keymap(void *data, struct wl_keyboard *k, uint32_t format, int fd,
+		uint32_t size)
+{
+	struct harness *h = data;
+
+	h->keymaps++;
+	close(fd);
+}
+
+static void
+keyboard_enter(void *data, struct wl_keyboard *k, uint32_t serial,
+	       struct wl_surface *surface, struct wl_array *keys)
+{
+	struct harness *h = data;
+
+	h->keyboard_focus = surface;
+	h->keyboard_enters++;
+	h->last_keyboard_serial = serial;
+}
+
+static void
+keyboard_leave(void *data, struct wl_keyboard *k, uint32_t serial,
+	       struct wl_surface *surface)
+{
+	struct harness *h = data;
+
+	if (h->keyboard_focus == surface)
+		h->keyboard_focus = NULL;
+}
+
+static void
+keyboard_key(void *data, struct wl_keyboard *k, uint32_t serial, uint32_t time,
+	     uint32_t key, uint32_t state)
+{
+	struct harness *h = data;
+
+	h->last_keyboard_serial = serial;
+	h->last_key = key;
+	h->last_key_pressed = state == WL_KEYBOARD_KEY_STATE_PRESSED;
+	h->last_key_surface = h->keyboard_focus;
+}
+
+static void
+keyboard_modifiers(void *data, struct wl_keyboard *k, uint32_t serial,
+		   uint32_t depressed, uint32_t latched, uint32_t locked,
+		   uint32_t group)
+{
+	struct harness *h = data;
+
+	h->mods_locked = locked;
+	h->group = group;
+}
+
+static void
+keyboard_repeat_info(void *data, struct wl_keyboard *k, int32_t rate,
+		     int32_t delay)
+{
+	struct harness *h = data;
+
+	h->repeat_rate = rate;
+	h->repeat_delay = delay;
+	h->repeat_infos++;
+}
+
+static const struct wl_keyboard_listener keyboard_listener = {
+	keyboard_keymap, keyboard_enter,     keyboard_leave,
+	keyboard_key,    keyboard_modifiers, keyboard_repeat_info,
+};
+
+static void
+seat_capabilities(void *data, struct wl_seat *seat, uint32_t caps)
+{
+	struct harness *h = data;
+
+	if ((caps & WL_SEAT_CAPABILITY_POINTER) && !h->pointer) {
+		h->pointer = wl_seat_get_pointer(seat);
+		wl_pointer_add_listener(h->pointer, &pointer_listener, h);
+	}
+	if ((caps & WL_SEAT_CAPABILITY_KEYBOARD) && !h->keyboard) {
+		h->keyboard = wl_seat_get_keyboard(seat);
+		wl_keyboard_add_listener(h->keyboard, &keyboard_listener, h);
+	}
+}
+
+static void
+seat_name(void *data, struct wl_seat *seat, const char *name)
+{
+}
+
+static const struct wl_seat_listener seat_listener = {
+	seat_capabilities,
+	seat_name,
+};
+
+/* ---- Globals ------------------------------------------------------------ */
+
+static void
+wm_base_ping(void *data, struct xdg_wm_base *wm_base, uint32_t serial)
+{
+	struct harness *h = data;
+
+	if (!h->ignore_pings)
+		xdg_wm_base_pong(wm_base, serial);
+}
+
+static const struct xdg_wm_base_listener wm_base_listener = {
+	wm_base_ping,
+};
+
+static void
+test_window_info(void *data, struct polo_test_v1 *test,
+		 struct wl_surface *surface, int32_t x, int32_t y,
+		 int32_t width, int32_t height, int32_t layer,
+		 int32_t stack_index, int32_t workspace, uint32_t state,
+		 uint32_t focused)
+{
+	struct harness_window *w = wl_surface_get_user_data(surface);
+
+	w->info = (struct harness_window_info){
+		.known = true,
+		.x = x,
+		.y = y,
+		.width = width,
+		.height = height,
+		.layer = layer,
+		.stack_index = stack_index,
+		.workspace = workspace,
+		.state = state,
+		.focused = focused != 0,
+	};
+}
+
+static void
+test_window_unknown(void *data, struct polo_test_v1 *test,
+		    struct wl_surface *surface)
+{
+	struct harness_window *w = wl_surface_get_user_data(surface);
+
+	w->info = (struct harness_window_info){ .known = false };
+}
+
+static void
+test_layer_surface_info(void *data, struct polo_test_v1 *test,
+			struct wl_surface *surface, int32_t x, int32_t y,
+			int32_t width, int32_t height, int32_t layer,
+			uint32_t mapped)
+{
+	struct harness *h = data;
+
+	h->layer_info = (struct harness_layer_info){
+		.known = true,
+		.x = x,
+		.y = y,
+		.width = width,
+		.height = height,
+		.layer = layer,
+		.mapped = mapped != 0,
+	};
+}
+
+static void
+test_layer_surface_unknown(void *data, struct polo_test_v1 *test,
+			   struct wl_surface *surface)
+{
+	struct harness *h = data;
+
+	h->layer_info = (struct harness_layer_info){ .known = false };
+}
+
+static void
+test_setting(void *data, struct polo_test_v1 *test, const char *schema,
+	     const char *key, const char *value)
+{
+	struct harness *h = data;
+
+	snprintf(h->setting, sizeof h->setting, "%s", value);
+}
+
+static void
+test_shell_ui_bound(void *data, struct polo_test_v1 *test, int32_t pid)
+{
+	struct harness *h = data;
+
+	h->shell_ui_pid = pid;
+	h->shell_ui_binds++;
+}
+
+static void
+test_shell_ui_unbound(void *data, struct polo_test_v1 *test)
+{
+	struct harness *h = data;
+
+	h->shell_ui_pid = 0;
+	h->shell_ui_unbinds++;
+}
+
+static void
+test_shell_ui_request(void *data, struct polo_test_v1 *test, const char *text)
+{
+	struct harness *h = data;
+
+	CHECK(h->n_shell_ui_requests < 16, "too many shell-ui requests");
+	snprintf(h->shell_ui_requests[h->n_shell_ui_requests++],
+		 sizeof h->shell_ui_requests[0], "%s", text);
+}
+
+static const struct polo_test_v1_listener test_listener = {
+	test_window_info,
+	test_window_unknown,
+	test_layer_surface_info,
+	test_layer_surface_unknown,
+	test_setting,
+	test_shell_ui_bound,
+	test_shell_ui_unbound,
+	test_shell_ui_request,
+};
+
+static void
+registry_global(void *data, struct wl_registry *registry, uint32_t name,
+		const char *interface, uint32_t version)
+{
+	struct harness *h = data;
+
+	if (strcmp(interface, "polo_shell_ui_v1") == 0)
+		h->saw_shell_ui_global = true;
+	if (strcmp(interface, wl_compositor_interface.name) == 0) {
+		h->compositor = wl_registry_bind(registry, name,
+						 &wl_compositor_interface, 4);
+	} else if (strcmp(interface, wl_shm_interface.name) == 0) {
+		h->shm = wl_registry_bind(registry, name, &wl_shm_interface, 1);
+	} else if (strcmp(interface, xdg_wm_base_interface.name) == 0) {
+		/* 3+ for xdg_positioner (popup tests). */
+		h->wm_base =
+			wl_registry_bind(registry, name, &xdg_wm_base_interface,
+					 version < 3 ? version : 3);
+		xdg_wm_base_add_listener(h->wm_base, &wm_base_listener, h);
+	} else if (strcmp(interface, wl_seat_interface.name) == 0 && !h->seat) {
+		h->seat = wl_registry_bind(registry, name, &wl_seat_interface,
+					   version < 7 ? version : 7);
+		wl_seat_add_listener(h->seat, &seat_listener, h);
+	} else if (strcmp(interface, polo_test_v1_interface.name) == 0) {
+		h->test = wl_registry_bind(registry, name,
+					   &polo_test_v1_interface, 5);
+		polo_test_v1_add_listener(h->test, &test_listener, h);
+	} else if (strcmp(interface, zwlr_layer_shell_v1_interface.name) == 0) {
+		h->layer_shell = wl_registry_bind(
+			registry, name, &zwlr_layer_shell_v1_interface,
+			version < 5 ? version : 5);
+	} else if (strcmp(interface, wl_output_interface.name) == 0) {
+		if (h->n_outputs < 8) {
+			h->outputs[h->n_outputs++] = wl_registry_bind(
+				registry, name, &wl_output_interface,
+				version < 4 ? version : 4);
+		}
+	}
+}
+
+static void
+registry_global_remove(void *data, struct wl_registry *registry, uint32_t name)
+{
+}
+
+static const struct wl_registry_listener registry_listener = {
+	registry_global,
+	registry_global_remove,
+};
+
+/* ---- Start and stop ----------------------------------------------------- */
+
+struct harness *
+harness_start(int argc, char **argv)
+{
+	struct harness *h = calloc(1, sizeof *h);
+	const char *polo;
+	int i;
+
+	CHECK(argc >= 2, "usage: %s POLO", argv[0]);
+	polo = argv[1];
+	current = h;
+
+	snprintf(h->runtime_dir, sizeof h->runtime_dir, "%s/polo-test-XXXXXX",
+		 getenv("TMPDIR") ? getenv("TMPDIR") : "/tmp");
+	CHECK(mkdtemp(h->runtime_dir) != NULL, "mkdtemp: %s", strerror(errno));
+	snprintf(h->socket, sizeof h->socket, "polo-test-%d", (int)getpid());
+	setenv("XDG_RUNTIME_DIR", h->runtime_dir, 1);
+	unsetenv("WAYLAND_DISPLAY");
+	unsetenv("WAYLAND_SOCKET");
+
+	h->pid = fork();
+	CHECK(h->pid >= 0, "fork: %s", strerror(errno));
+	if (h->pid == 0) {
+		char socket_arg[96];
+
+		snprintf(socket_arg, sizeof socket_arg, "--socket=%s",
+			 h->socket);
+		/* POLO_TEST_DEBUG=scope,scope turns on Polo's debug output. */
+		const char *debug = getenv("POLO_TEST_DEBUG");
+		char debug_arg[256];
+
+		snprintf(debug_arg, sizeof debug_arg, "--debug-scopes=%s",
+			 debug ? debug : "");
+		execl(polo, polo, "--backend=headless",
+		      getenv("POLO_TEST_RENDERER") ? getenv("POLO_TEST_RENDERER")
+						   : "--renderer=pixman",
+		      "--test-mode", socket_arg,
+		      getenv("POLO_TEST_WIDTH") ? getenv("POLO_TEST_WIDTH")
+						: "--width=1024",
+		      getenv("POLO_TEST_HEIGHT") ? getenv("POLO_TEST_HEIGHT")
+						 : "--height=768",
+		      debug_arg,
+		      getenv("POLO_TEST_TWO_OUTPUTS") ? "--outputs=2"
+						      : "--outputs=1",
+		      getenv("POLO_TEST_KILL") ? "--debug-kill"
+			      : getenv("POLO_TEST_SCALE")
+			      ? getenv("POLO_TEST_SCALE")
+			      : "--scale=1",
+		      (char *)NULL);
+		_exit(127);
+	}
+
+	for (i = 0; i < 200 && !h->display; i++) {
+		int status;
+
+		h->display = wl_display_connect(h->socket);
+		if (h->display)
+			break;
+		/* Report a start-up crash as one, not as a missing socket. */
+		if (waitpid(h->pid, &status, WNOHANG) == h->pid) {
+			h->pid = 0;
+			CHECK(0, "polo died during start-up: %s %d",
+			      WIFSIGNALED(status) ? "signal" : "exit status",
+			      WIFSIGNALED(status) ? WTERMSIG(status)
+						  : WEXITSTATUS(status));
+		}
+		sleep_ms(25);
+	}
+	CHECK(h->display != NULL, "cannot connect to %s", h->socket);
+
+	h->registry = wl_display_get_registry(h->display);
+	wl_registry_add_listener(h->registry, &registry_listener, h);
+	harness_roundtrip(h);
+	harness_roundtrip(h);
+
+	CHECK(h->compositor && h->shm && h->wm_base && h->seat,
+	      "missing core globals");
+	CHECK(h->test != NULL, "polo_test_v1 not advertised");
+	CHECK(h->layer_shell != NULL, "zwlr_layer_shell_v1 not advertised");
+	CHECK(h->pointer && h->keyboard, "seat lacks pointer or keyboard");
+	return h;
+}
+
+int
+harness_stop(struct harness *h)
+{
+	int status = 0;
+	char cmd[300];
+	int i;
+
+	if (h->test)
+		polo_test_v1_destroy(h->test);
+	if (h->pointer)
+		wl_pointer_release(h->pointer);
+	if (h->keyboard)
+		wl_keyboard_release(h->keyboard);
+	wl_seat_release(h->seat);
+	xdg_wm_base_destroy(h->wm_base);
+	if (h->layer_shell)
+		zwlr_layer_shell_v1_destroy(h->layer_shell);
+	for (i = 0; i < h->n_outputs; i++)
+		wl_output_release(h->outputs[i]);
+	wl_shm_destroy(h->shm);
+	wl_compositor_destroy(h->compositor);
+	wl_registry_destroy(h->registry);
+	wl_display_roundtrip(h->display);
+	wl_display_disconnect(h->display);
+
+	kill(h->pid, SIGTERM);
+	CHECK(waitpid(h->pid, &status, 0) == h->pid, "waitpid: %s",
+	      strerror(errno));
+
+	snprintf(cmd, sizeof cmd, "rm -rf '%s'", h->runtime_dir);
+	if (system(cmd) != 0)
+		fprintf(stderr, "could not remove %s\n", h->runtime_dir);
+
+	current = NULL;
+	free(h);
+	return WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+}
+
+void
+harness_roundtrip(struct harness *h)
+{
+	if (wl_display_roundtrip(h->display) < 0) {
+		const struct wl_interface *iface = NULL;
+		uint32_t code = 0;
+
+		wl_display_get_protocol_error(h->display, &iface, &code);
+		fprintf(stderr, "protocol error: interface %s code %u\n",
+			iface ? iface->name : "?", code);
+		CHECK(false, "connection lost: %s",
+		      strerror(wl_display_get_error(h->display)));
+	}
+}
+
+/* ---- Repaint synchronisation ------------------------------------------- */
+
+static void
+frame_done(void *data, struct wl_callback *callback, uint32_t time)
+{
+	bool *done = data;
+
+	*done = true;
+	wl_callback_destroy(callback);
+}
+
+static const struct wl_callback_listener frame_listener = {
+	frame_done,
+};
+
+void
+harness_wait_repaint(struct harness *h)
+{
+	if (h->n_windows == 0) {
+		harness_roundtrip(h);
+		return;
+	}
+	harness_wait_frame(h, h->windows[h->n_windows - 1]->surface);
+}
+
+void
+harness_wait_frame(struct harness *h, struct wl_surface *surface)
+{
+	struct wl_callback *callback;
+	bool done = false;
+	int i;
+
+	callback = wl_surface_frame(surface);
+	wl_callback_add_listener(callback, &frame_listener, &done);
+	wl_surface_commit(surface);
+	for (i = 0; i < 200 && !done; i++)
+		CHECK(wl_display_dispatch(h->display) >= 0, "connection lost");
+	CHECK(done, "no frame callback");
+}
+
+/* ---- Windows ------------------------------------------------------------ */
+
+struct wl_buffer *
+harness_buffer_create(struct wl_shm *shm, int width, int height)
+{
+	int stride = width * 4;
+	int size = stride * height;
+	struct wl_shm_pool *pool;
+	struct wl_buffer *buffer;
+	uint32_t *pixels;
+	int fd, i;
+
+	fd = memfd_create("polo-test-buffer", MFD_CLOEXEC);
+	CHECK(fd >= 0, "memfd_create: %s", strerror(errno));
+	CHECK(ftruncate(fd, size) == 0, "ftruncate: %s", strerror(errno));
+	pixels = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	CHECK(pixels != MAP_FAILED, "mmap: %s", strerror(errno));
+	for (i = 0; i < width * height; i++)
+		pixels[i] = 0xff3070c0;
+	munmap(pixels, size);
+
+	pool = wl_shm_create_pool(shm, fd, size);
+	buffer = wl_shm_pool_create_buffer(pool, 0, width, height, stride,
+					   WL_SHM_FORMAT_ARGB8888);
+	wl_shm_pool_destroy(pool);
+	close(fd);
+	return buffer;
+}
+
+static void
+window_attach(struct harness_window *w, int width, int height)
+{
+	if (w->buffer)
+		wl_buffer_destroy(w->buffer);
+	w->buffer = harness_buffer_create(w->harness->shm, width, height);
+	w->width = width;
+	w->height = height;
+	wl_surface_attach(w->surface, w->buffer, 0, 0);
+	wl_surface_damage_buffer(w->surface, 0, 0, width, height);
+}
+
+static void
+xdg_surface_configure(void *data, struct xdg_surface *xdg_surface,
+		      uint32_t serial)
+{
+	struct harness_window *w = data;
+
+	xdg_surface_ack_configure(xdg_surface, serial);
+	w->configured = true;
+	w->configure_count++;
+
+	int width = w->pending_width, height = w->pending_height;
+
+	if (w->size_inc > 0) {
+		width -= width % w->size_inc;
+		height -= height % w->size_inc;
+	}
+	/* Follow the compositor's size like a real client would. */
+	if (w->auto_configure && width > 0 && height > 0 &&
+	    (width != w->width || height != w->height)) {
+		window_attach(w, width, height);
+		wl_surface_commit(w->surface);
+	}
+}
+
+static const struct xdg_surface_listener xdg_surface_listener = {
+	xdg_surface_configure,
+};
+
+static void
+toplevel_configure(void *data, struct xdg_toplevel *toplevel, int32_t width,
+		   int32_t height, struct wl_array *states)
+{
+	struct harness_window *w = data;
+	uint32_t *state;
+
+	w->pending_width = width;
+	w->pending_height = height;
+	w->tiled = 0;
+	w->xdg_maximized = false;
+	wl_array_for_each(state, states)
+	{
+		switch (*state) {
+		case XDG_TOPLEVEL_STATE_MAXIMIZED:
+			w->xdg_maximized = true;
+			break;
+		case XDG_TOPLEVEL_STATE_TILED_LEFT:
+			w->tiled |= 1;
+			break;
+		case XDG_TOPLEVEL_STATE_TILED_RIGHT:
+			w->tiled |= 2;
+			break;
+		case XDG_TOPLEVEL_STATE_TILED_TOP:
+			w->tiled |= 4;
+			break;
+		case XDG_TOPLEVEL_STATE_TILED_BOTTOM:
+			w->tiled |= 8;
+			break;
+		default:
+			break;
+		}
+	}
+}
+
+static void
+toplevel_close(void *data, struct xdg_toplevel *toplevel)
+{
+	struct harness_window *w = data;
+
+	w->close_requested = true;
+}
+
+static void
+toplevel_configure_bounds(void *data, struct xdg_toplevel *toplevel,
+			  int32_t width, int32_t height)
+{
+}
+
+static void
+toplevel_wm_capabilities(void *data, struct xdg_toplevel *toplevel,
+			 struct wl_array *caps)
+{
+}
+
+static const struct xdg_toplevel_listener toplevel_listener = {
+	toplevel_configure,
+	toplevel_close,
+	toplevel_configure_bounds,
+	toplevel_wm_capabilities,
+};
+
+struct harness_window *
+harness_window_create(struct harness *h, int width, int height,
+		      const char *title)
+{
+	struct harness_window *w = calloc(1, sizeof *w);
+	int i;
+
+	w->harness = h;
+	w->auto_configure = true;
+	w->surface = wl_compositor_create_surface(h->compositor);
+	wl_surface_set_user_data(w->surface, w);
+	w->xdg_surface = xdg_wm_base_get_xdg_surface(h->wm_base, w->surface);
+	xdg_surface_add_listener(w->xdg_surface, &xdg_surface_listener, w);
+	w->xdg_toplevel = xdg_surface_get_toplevel(w->xdg_surface);
+	xdg_toplevel_add_listener(w->xdg_toplevel, &toplevel_listener, w);
+	xdg_toplevel_set_title(w->xdg_toplevel, title);
+	xdg_toplevel_set_app_id(w->xdg_toplevel, "org.mate.PoloTest");
+	wl_surface_commit(w->surface);
+
+	for (i = 0; i < 20 && !w->configured; i++)
+		harness_roundtrip(h);
+	CHECK(w->configured, "%s: no initial configure", title);
+
+	/* Ignore the compositor's suggested size: use ours, like a dialog. */
+	w->pending_width = w->pending_height = 0;
+	window_attach(w, width, height);
+	wl_surface_commit(w->surface);
+	harness_roundtrip(h);
+
+	CHECK(h->n_windows < 16, "too many windows");
+	h->windows[h->n_windows++] = w;
+	harness_wait_repaint(h);
+
+	CHECK(harness_window_info(w)->known, "%s: not mapped", title);
+	return w;
+}
+
+static void
+forget_window(struct harness *h, struct harness_window *w)
+{
+	int i;
+
+	for (i = 0; i < h->n_windows; i++) {
+		if (h->windows[i] == w) {
+			h->windows[i] = h->windows[--h->n_windows];
+			break;
+		}
+	}
+}
+
+void
+harness_window_unmap(struct harness_window *w)
+{
+	struct harness *h = w->harness;
+
+	forget_window(h, w);
+	wl_surface_attach(w->surface, NULL, 0, 0);
+	wl_surface_commit(w->surface);
+	if (w->buffer) {
+		wl_buffer_destroy(w->buffer);
+		w->buffer = NULL;
+	}
+	w->configured = false;
+	w->width = w->height = 0;
+	harness_roundtrip(h);
+	harness_wait_repaint(h);
+}
+
+void
+harness_window_remap(struct harness_window *w, int width, int height)
+{
+	struct harness *h = w->harness;
+	int i;
+
+	wl_surface_commit(w->surface);
+	for (i = 0; i < 20 && !w->configured; i++)
+		harness_roundtrip(h);
+	CHECK(w->configured, "no initial configure after unmap");
+	w->pending_width = w->pending_height = 0;
+	window_attach(w, width, height);
+	wl_surface_commit(w->surface);
+	harness_roundtrip(h);
+	CHECK(h->n_windows < 16, "too many windows");
+	h->windows[h->n_windows++] = w;
+	harness_wait_repaint(h);
+	CHECK(harness_window_info(w)->known, "not mapped again");
+}
+
+void
+harness_window_destroy(struct harness_window *w)
+{
+	struct harness *h = w->harness;
+	int i;
+
+	for (i = 0; i < h->n_windows; i++) {
+		if (h->windows[i] == w) {
+			h->windows[i] = h->windows[--h->n_windows];
+			break;
+		}
+	}
+	xdg_toplevel_destroy(w->xdg_toplevel);
+	xdg_surface_destroy(w->xdg_surface);
+	wl_surface_destroy(w->surface);
+	if (w->buffer)
+		wl_buffer_destroy(w->buffer);
+	if (h->keyboard_focus == w->surface)
+		h->keyboard_focus = NULL;
+	if (h->pointer_focus == w->surface)
+		h->pointer_focus = NULL;
+	free(w);
+	harness_wait_repaint(h);
+}
+
+const struct harness_window_info *
+harness_window_info(struct harness_window *w)
+{
+	polo_test_v1_get_window_info(w->harness->test, w->surface);
+	harness_roundtrip(w->harness);
+	return &w->info;
+}
+
+void
+harness_window_draw_pending(struct harness_window *w)
+{
+	CHECK(w->pending_width > 0 && w->pending_height > 0,
+	      "window has no pending size");
+	window_attach(w, w->pending_width, w->pending_height);
+	wl_surface_commit(w->surface);
+	harness_roundtrip(w->harness);
+}
+
+const struct harness_layer_info *
+harness_layer_info(struct harness *h, struct wl_surface *surface)
+{
+	polo_test_v1_get_layer_surface_info(h->test, surface);
+	harness_roundtrip(h);
+	return &h->layer_info;
+}
+
+/* ---- Input -------------------------------------------------------------- */
+
+const char *
+harness_set_setting(struct harness *h, const char *schema, const char *key,
+		    const char *value)
+{
+	polo_test_v1_set_setting(h->test, schema, key, value);
+	harness_roundtrip(h);
+	CHECK(h->setting[0] != '\0', "cannot set %s %s to %s", schema, key,
+	      value);
+	harness_roundtrip(h);
+	return h->setting;
+}
+
+const char *
+harness_get_setting(struct harness *h, const char *schema, const char *key)
+{
+	polo_test_v1_get_setting(h->test, schema, key);
+	harness_roundtrip(h);
+	return h->setting;
+}
+
+void
+harness_move_pointer(struct harness *h, int x, int y)
+{
+	polo_test_v1_move_pointer(h->test, x, y);
+	harness_wait_repaint(h);
+}
+
+void
+harness_button(struct harness *h, uint32_t button, bool pressed)
+{
+	polo_test_v1_button(h->test, button,
+			    pressed ? WL_POINTER_BUTTON_STATE_PRESSED
+				    : WL_POINTER_BUTTON_STATE_RELEASED);
+	harness_wait_repaint(h);
+}
+
+void
+harness_click(struct harness *h, int x, int y)
+{
+	harness_move_pointer(h, x, y);
+	harness_button(h, BTN_LEFT, true);
+	harness_button(h, BTN_LEFT, false);
+}
+
+void
+harness_key(struct harness *h, uint32_t key, bool pressed)
+{
+	polo_test_v1_key(h->test, key,
+			 pressed ? WL_KEYBOARD_KEY_STATE_PRESSED
+				 : WL_KEYBOARD_KEY_STATE_RELEASED);
+	harness_roundtrip(h);
+}
+
+long
+harness_cpu_ticks(struct harness *h)
+{
+	char path[64], buf[1024], *p;
+	unsigned long utime, stime;
+	FILE *f;
+	int i;
+
+	snprintf(path, sizeof path, "/proc/%d/stat", (int)h->pid);
+	f = fopen(path, "r");
+	CHECK(f != NULL, "cannot open %s", path);
+	CHECK(fgets(buf, sizeof buf, f) != NULL, "cannot read %s", path);
+	fclose(f);
+
+	/* Fields 14 and 15, counted after the ")" closing the comm field. */
+	p = strrchr(buf, ')');
+	CHECK(p != NULL, "malformed %s", path);
+	for (i = 0; i < 12 && p; i++)
+		p = strchr(p + 1, ' ');
+	CHECK(p && sscanf(p, " %lu %lu", &utime, &stime) == 2, "malformed %s",
+	      path);
+	return (long)(utime + stime);
+}
