@@ -1,0 +1,97 @@
+--- a/libweston/input.c
++++ b/libweston/input.c
+@@ -3599,32 +3599,11 @@
+ 	}
+ }
+ 
+-static void
+-pointer_set_cursor(struct wl_client *client, struct wl_resource *resource,
+-		   uint32_t serial, struct wl_resource *surface_resource,
+-		   int32_t x, int32_t y)
++WL_EXPORT void
++weston_pointer_set_sprite(struct weston_pointer *pointer,
++			  struct weston_surface *surface, int32_t x, int32_t y,
++			  struct wl_resource *error_resource)
+ {
+-	struct weston_pointer *pointer = wl_resource_get_user_data(resource);
+-	struct weston_surface *surface = NULL;
+-
+-	if (!pointer)
+-		return;
+-
+-	if (surface_resource)
+-		surface = wl_resource_get_user_data(surface_resource);
+-
+-	if (pointer->focus == NULL)
+-		return;
+-	/* pointer->focus->surface->resource can be NULL. Surfaces like the
+-	black_surface used in shell.c for fullscreen don't have
+-	a resource, but can still have focus */
+-	if (pointer->focus->surface->resource == NULL)
+-		return;
+-	if (wl_resource_get_client(pointer->focus->surface->resource) != client)
+-		return;
+-	if (pointer->focus_serial - serial > UINT32_MAX / 2)
+-		return;
+-
+ 	if (!surface) {
+ 		if (pointer->sprite)
+ 			pointer_unmap_sprite(pointer);
+@@ -3637,7 +3616,7 @@
+ 
+ 	if (!pointer->sprite || pointer->sprite->surface != surface) {
+ 		if (weston_surface_set_role(surface, "wl_pointer-cursor",
+-					    resource,
++					    error_resource,
+ 					    WL_POINTER_ERROR_ROLE) < 0)
+ 			return;
+ 
+@@ -3665,6 +3644,34 @@
+ }
+ 
+ static void
++pointer_set_cursor(struct wl_client *client, struct wl_resource *resource,
++		   uint32_t serial, struct wl_resource *surface_resource,
++		   int32_t x, int32_t y)
++{
++	struct weston_pointer *pointer = wl_resource_get_user_data(resource);
++	struct weston_surface *surface = NULL;
++
++	if (!pointer)
++		return;
++
++	if (surface_resource)
++		surface = wl_resource_get_user_data(surface_resource);
++
++	if (pointer->focus == NULL)
++		return;
++	/* A focused surface can lack a resource, such as shell.c's fullscreen
++	 * black_surface. */
++	if (pointer->focus->surface->resource == NULL)
++		return;
++	if (wl_resource_get_client(pointer->focus->surface->resource) != client)
++		return;
++	if (pointer->focus_serial - serial > UINT32_MAX / 2)
++		return;
++
++	weston_pointer_set_sprite(pointer, surface, x, y, resource);
++}
++
++static void
+ pointer_release(struct wl_client *client, struct wl_resource *resource)
+ {
+ 	wl_resource_destroy(resource);
+--- a/include/libweston/libweston.h
++++ b/include/libweston/libweston.h
+@@ -1080,6 +1080,11 @@
+ weston_pointer_move(struct weston_pointer *pointer,
+ 		    const struct weston_pointer_motion_event *event);
+ void
++weston_pointer_set_sprite(struct weston_pointer *pointer,
++			  struct weston_surface *surface, int32_t x, int32_t y,
++			  struct wl_resource *error_resource);
++
++void
+ weston_pointer_move_to(struct weston_pointer *pointer,
+ 		       struct weston_coord_global pos);
+ void
