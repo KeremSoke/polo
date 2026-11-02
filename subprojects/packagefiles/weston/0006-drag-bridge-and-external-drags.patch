@@ -1,0 +1,307 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Polo <polo@invalid>
+Date: Sun, 1 Nov 2026 00:00:00 -0700
+Subject: [PATCH] data-device: drags that cross into X
+
+A drag reaches only clients with a wl_data_device, and Xwayland has none.
+weston_drag_bridge hands the part of a drag over such surfaces to the
+compositor's XDND code. An external drag runs a drag for a source that keeps
+its own pointer grab, so an X source still gets its button release, and sources
+without a resource get a finished callback.
+
+Also fixes a plain native drag: a client that destroys its offer on leave, which
+the protocol allows, cancelled the whole drag as soon as the pointer left.
+
+Polo patch G9.
+---
+diff --git a/include/libweston/libweston.h b/include/libweston/libweston.h
+index 23515ee..446c36f 100644
+--- a/include/libweston/libweston.h
++++ b/include/libweston/libweston.h
+@@ -798,8 +798,41 @@ struct weston_data_source {
+ 	void (*send)(struct weston_data_source *source,
+ 		     const char *mime_type, int32_t fd);
+ 	void (*cancel)(struct weston_data_source *source);
++	/* Reports a consumed drop for sources without a resource. */
++	void (*finished)(struct weston_data_source *source);
+ };
+ 
++/* Sends drag events to a client using another protocol. */
++struct weston_drag_bridge {
++	bool (*wants_surface)(void *data, struct weston_surface *surface);
++	void (*enter)(void *data, struct weston_data_source *source,
++		      struct weston_surface *surface, int x, int y);
++	void (*motion)(void *data, int x, int y);
++	void (*leave)(void *data);
++	bool (*drop)(void *data);
++};
++
++struct weston_drag;
++
++/* Starts a drag whose source owns its pointer grab. */
++struct weston_drag *
++weston_seat_start_external_drag(struct weston_seat *seat,
++				struct weston_data_source *source);
++void
++weston_external_drag_update(struct weston_drag *drag, struct weston_seat *seat,
++			    struct weston_coord_global pos, uint32_t msecs);
++bool
++weston_external_drag_drop(struct weston_drag *drag);
++void
++weston_external_drag_end(struct weston_drag *drag);
++
++/* Reports that the bridged destination replied. */
++void
++weston_data_source_bridge_status(struct weston_data_source *source,
++				 const char *mime_type, uint32_t action);
++void
++weston_data_source_bridge_finished(struct weston_data_source *source);
++
+ struct weston_pointer_client {
+ 	struct wl_list link;
+ 	struct wl_client *client;
+@@ -1474,6 +1507,9 @@ struct weston_content_update;
+  * \ingroup compositor
+  */
+ struct weston_compositor {
++	const struct weston_drag_bridge *drag_bridge;
++	void *drag_bridge_data;
++
+ 	struct wl_signal destroy_signal;
+ 	bool shutting_down;
+ 
+diff --git a/libweston/data-device.c b/libweston/data-device.c
+index d41d43f..fa980c0 100644
+--- a/libweston/data-device.c
++++ b/libweston/data-device.c
+@@ -48,6 +48,9 @@ struct weston_drag {
+ 	struct wl_listener icon_destroy_listener;
+ 	struct weston_coord_surface offset;
+ 	struct weston_keyboard_grab keyboard_grab;
++	struct weston_compositor *bridge_compositor;
++	bool bridged;
++	bool external;
+ };
+ 
+ struct weston_pointer_drag {
+@@ -106,6 +109,12 @@ data_source_notify_finish(struct weston_data_source *source)
+ 	if (!source->actions_set)
+ 		return;
+ 
++	if (source->finished) {
++		source->offer = NULL;
++		source->finished(source);
++		return;
++	}
++
+ 	if (source->offer->in_ask &&
+ 	    wl_resource_get_version(source->resource) >=
+ 	    WL_DATA_SOURCE_ACTION_SINCE_VERSION) {
+@@ -135,7 +144,8 @@ data_offer_choose_action(struct weston_data_offer *offer)
+ 		offer_actions = WL_DATA_DEVICE_MANAGER_DND_ACTION_COPY;
+ 	}
+ 
+-	if (wl_resource_get_version(offer->source->resource) >=
++	if (!offer->source->resource ||
++	    wl_resource_get_version(offer->source->resource) >=
+ 	    WL_DATA_SOURCE_ACTION_SINCE_VERSION)
+ 		source_actions = offer->source->dnd_actions;
+ 	else
+@@ -176,7 +186,8 @@ data_offer_update_action(struct weston_data_offer *offer)
+ 	if (offer->in_ask)
+ 		return;
+ 
+-	if (wl_resource_get_version(offer->source->resource) >=
++	if (offer->source->resource &&
++	    wl_resource_get_version(offer->source->resource) >=
+ 	    WL_DATA_SOURCE_ACTION_SINCE_VERSION)
+ 		wl_data_source_send_action(offer->source->resource, action);
+ 
+@@ -274,6 +285,12 @@ destroy_data_offer(struct wl_resource *resource)
+ 	if (offer->source->offer != offer)
+ 		goto out;
+ 
++	if (offer->source->finished) {
++		offer->source->offer = NULL;
++		offer->source->finished(offer->source);
++		goto out;
++	}
++
+ 	/* If the drag destination has version < 3, wl_data_offer.finish
+ 	 * won't be called, so do this here as a safety net, because
+ 	 * we still want the version >=3 drag source to be happy.
+@@ -481,7 +498,28 @@ destroy_drag_focus(struct wl_listener *listener, void *data)
+ static void
+ weston_drag_clear_focus(struct weston_drag *drag)
+ {
++	if (drag->bridged) {
++		struct weston_compositor *compositor = drag->bridge_compositor;
++
++		drag->bridged = false;
++		drag->focus = NULL;
++		compositor->drag_bridge->leave(compositor->drag_bridge_data);
++		return;
++	}
++
+ 	if (drag->focus_resource) {
++		struct weston_data_source *source = drag->data_source;
++
++		/* Destroying an offer on leave does not cancel the drag. Keep it linked
++		 * after a drop until it finishes. */
++		if (source && source->seat && source->offer) {
++			struct weston_data_offer *offer = source->offer;
++
++			offer->source = NULL;
++			source->offer = NULL;
++			wl_list_remove(&offer->source_destroy_listener.link);
++		}
++
+ 		wl_data_device_send_leave(drag->focus_resource);
+ 		wl_list_remove(&drag->focus_listener.link);
+ 		drag->focus_resource = NULL;
+@@ -513,6 +552,22 @@ weston_drag_set_focus(struct weston_drag *drag,
+ 	if (!view->surface->resource)
+ 		return;
+ 
++	if (drag->data_source && !drag->external &&
++	    seat->compositor->drag_bridge &&
++	    seat->compositor->drag_bridge->wants_surface(
++		    seat->compositor->drag_bridge_data, view->surface)) {
++		struct weston_coord_global pos =
++			weston_coord_surface_to_global(view, surf_pos);
++
++		drag->bridged = true;
++		drag->bridge_compositor = seat->compositor;
++		drag->focus = view;
++		seat->compositor->drag_bridge->enter(
++			seat->compositor->drag_bridge_data, drag->data_source,
++			view->surface, (int)pos.c.x, (int)pos.c.y);
++		return;
++	}
++
+ 	if (!drag->data_source &&
+ 	    wl_resource_get_client(view->surface->resource) != drag->client)
+ 		return;
+@@ -606,6 +661,15 @@ drag_grab_motion(struct weston_pointer_grab *grab,
+ 						     drag->base.offset);
+ 	}
+ 
++	if (drag->base.bridged) {
++		struct weston_compositor *compositor =
++			drag->base.bridge_compositor;
++
++		compositor->drag_bridge->motion(compositor->drag_bridge_data,
++						(int)pointer->pos.c.x,
++						(int)pointer->pos.c.y);
++	}
++
+ 	if (drag->base.focus_resource) {
+ 		struct weston_coord_surface surf_pos;
+ 
+@@ -663,7 +727,20 @@ drag_grab_button(struct weston_pointer_grab *grab,
+ 	if (data_source &&
+ 	    pointer->grab_button == button_event->button &&
+ 	    state == WL_POINTER_BUTTON_STATE_RELEASED) {
+-		if (drag->base.focus_resource &&
++		if (drag->base.bridged) {
++			struct weston_compositor *compositor =
++				drag->base.bridge_compositor;
++
++			if (compositor->drag_bridge->drop(compositor->drag_bridge_data)) {
++				if (wl_resource_get_version(data_source->resource) >=
++				    WL_DATA_SOURCE_DND_DROP_PERFORMED_SINCE_VERSION)
++					wl_data_source_send_dnd_drop_performed(data_source->resource);
++				data_source->seat = NULL;
++			} else if (wl_resource_get_version(data_source->resource) >=
++				   WL_DATA_SOURCE_DND_FINISHED_SINCE_VERSION) {
++				wl_data_source_send_cancelled(data_source->resource);
++			}
++		} else if (drag->base.focus_resource &&
+ 		    data_source->accepted &&
+ 		    data_source->current_dnd_action) {
+ 			wl_data_device_send_drop(drag->base.focus_resource);
+@@ -1274,6 +1351,7 @@ create_data_source(struct wl_client *client,
+ 	source->send = client_source_send;
+ 	source->cancel = client_source_cancel;
+ 	source->offer = NULL;
++	source->finished = NULL;
+ 	source->accepted = false;
+ 	source->seat = NULL;
+ 	source->actions_set = false;
+@@ -1370,3 +1448,76 @@ wl_data_device_manager_init(struct wl_display *display)
+ 
+ 	return 0;
+ }
++
++WL_EXPORT struct weston_drag *
++weston_seat_start_external_drag(struct weston_seat *seat,
++				struct weston_data_source *source)
++{
++	struct weston_drag *drag = zalloc(sizeof *drag);
++
++	if (!drag)
++		return NULL;
++	drag->data_source = source;
++	drag->external = true;
++	source->seat = seat;
++	return drag;
++}
++
++WL_EXPORT void
++weston_external_drag_update(struct weston_drag *drag, struct weston_seat *seat,
++			    struct weston_coord_global pos, uint32_t msecs)
++{
++	drag_grab_focus_internal(drag, seat, pos);
++	if (drag->focus_resource) {
++		struct weston_coord_surface surf_pos =
++			weston_coord_global_to_surface(drag->focus, pos);
++
++		wl_data_device_send_motion(drag->focus_resource, msecs,
++					   wl_fixed_from_double(surf_pos.c.x),
++					   wl_fixed_from_double(surf_pos.c.y));
++	}
++}
++
++WL_EXPORT bool
++weston_external_drag_drop(struct weston_drag *drag)
++{
++	struct weston_data_source *source = drag->data_source;
++
++	if (!drag->focus_resource || !source->accepted ||
++	    !source->current_dnd_action)
++		return false;
++	wl_data_device_send_drop(drag->focus_resource);
++	source->offer->in_ask = source->current_dnd_action ==
++		WL_DATA_DEVICE_MANAGER_DND_ACTION_ASK;
++	source->seat = NULL;
++	return true;
++}
++
++WL_EXPORT void
++weston_external_drag_end(struct weston_drag *drag)
++{
++	weston_drag_clear_focus(drag);
++	free(drag);
++}
++
++WL_EXPORT void
++weston_data_source_bridge_status(struct weston_data_source *source,
++				 const char *mime_type, uint32_t action)
++{
++	source->accepted = mime_type != NULL;
++	source->accept(source, 0, mime_type);
++	if (source->current_dnd_action != action) {
++		source->current_dnd_action = action;
++		if (wl_resource_get_version(source->resource) >=
++		    WL_DATA_SOURCE_ACTION_SINCE_VERSION)
++			wl_data_source_send_action(source->resource, action);
++	}
++}
++
++WL_EXPORT void
++weston_data_source_bridge_finished(struct weston_data_source *source)
++{
++	if (wl_resource_get_version(source->resource) >=
++	    WL_DATA_SOURCE_DND_FINISHED_SINCE_VERSION)
++		wl_data_source_send_dnd_finished(source->resource);
++}

@@ -1,0 +1,32 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Polo <polo@invalid>
+Date: Sun, 1 Nov 2026 00:00:00 -0700
+Subject: [PATCH] clipboard: free the saved source with the seat
+
+clipboard_destroy freed the clipboard but not the copy of the selection it
+held, up to the whole selection in memory, at every shutdown.
+
+Polo patch G8.
+---
+diff --git a/libweston/clipboard.c b/libweston/clipboard.c
+index a82d8fe..8593768 100644
+--- a/libweston/clipboard.c
++++ b/libweston/clipboard.c
+@@ -283,6 +283,17 @@ clipboard_destroy(struct wl_listener *listener, void *data)
+ 	wl_list_remove(&clipboard->selection_listener.link);
+ 	wl_list_remove(&clipboard->destroy_listener.link);
+ 
++	if (clipboard->source) {
++		struct weston_seat *seat = clipboard->seat;
++
++		/* The seat's keyboard is gone by now; its listener must not run. */
++		if (seat->selection_data_source == &clipboard->source->base) {
++			wl_list_remove(&seat->selection_data_source_listener.link);
++			seat->selection_data_source = NULL;
++		}
++		clipboard_source_unref(clipboard->source);
++	}
++
+ 	free(clipboard);
+ }
+ 
