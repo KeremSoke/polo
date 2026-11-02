@@ -1,0 +1,114 @@
+# Polo CI.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  # Fedora 44 dependencies: keep in sync with README.md "Building".
+  FEDORA_DEPS: >-
+    gcc git meson ninja-build python3 pkgconf-pkg-config
+    vala valadoc
+    glib2-devel gtk3-devel gtk-layer-shell-devel
+    wayland-devel wayland-protocols-devel libxkbcommon-devel
+    libinput-devel libevdev-devel libseat-devel systemd-devel
+    libdrm-devel mesa-libgbm-devel libglvnd-devel libdisplay-info-devel
+    pixman-devel cairo-devel pango-devel lcms2-devel libpng-devel
+    libxcb-devel xcb-util-wm-devel xcb-util-errors-devel xcb-util-cursor-devel
+    libXcursor-devel xorg-x11-server-Xwayland-devel
+    libcanberra-devel pulseaudio-libs-devel libSM-devel libICE-devel
+    python3-xlib json-glib-devel marco
+  # io.elementary.vala-lint has no recent release; pin a commit.
+  VALA_LINT_REV: 34124fb326f63d9f24339175818425c310ca747c
+
+jobs:
+  build-test:
+    name: Build and test (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    container: fedora:44
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: strict
+            setup: -Dstrict=true -Dtest-protocol=true
+          - name: sanitizers
+            setup: -Dstrict=true -Dtest-protocol=true -Db_sanitize=address,undefined -Db_lundef=false
+    steps:
+      - name: Install dependencies
+        run: dnf -y install $FEDORA_DEPS
+      - uses: actions/checkout@v4
+      - name: Cache Weston checkout
+        uses: actions/cache@v4
+        with:
+          path: subprojects/weston
+          key: weston-${{ hashFiles('subprojects/weston.wrap', 'subprojects/packagefiles/weston/**') }}
+      - name: Configure
+        run: meson setup build ${{ matrix.setup }}
+      - name: Build
+        run: ninja -C build
+      - name: Test
+        run: meson test -C build --print-errorlogs
+      - name: Application matrix
+        env:
+          POLO_APP_MATRIX: 1
+        run: meson test -C build --suite apps --print-errorlogs
+      - name: Upload test log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: testlog-${{ matrix.name }}
+          path: build/meson-logs/
+
+  lint:
+    name: Lint and boundary
+    runs-on: ubuntu-latest
+    container: fedora:44
+    steps:
+      - name: Install dependencies
+        run: dnf -y install $FEDORA_DEPS clang-tools-extra vala-devel json-glib-devel
+      - uses: actions/checkout@v4
+      - name: Build vala-lint
+        run: |
+          git clone https://github.com/vala-lang/vala-lint.git /tmp/vala-lint
+          git -C /tmp/vala-lint checkout "$VALA_LINT_REV"
+          meson setup /tmp/vala-lint/build /tmp/vala-lint --prefix=/usr
+          ninja -C /tmp/vala-lint/build install
+      - name: Boundary check
+        run: python3 tools/check-boundary.py
+      - name: clang-format
+        run: find lib -name '*.[ch]' -print0 | xargs -0 clang-format --dry-run --Werror
+      - name: vala-lint
+        run: io.elementary.vala-lint --config vala-lint.conf src tests/vapi
+
+  scan-build:
+    name: Static analysis
+    runs-on: ubuntu-latest
+    container: fedora:44
+    steps:
+      - name: Install dependencies
+        run: dnf -y install $FEDORA_DEPS clang clang-analyzer
+      - uses: actions/checkout@v4
+      - name: Cache Weston checkout
+        uses: actions/cache@v4
+        with:
+          path: subprojects/weston
+          key: weston-${{ hashFiles('subprojects/weston.wrap', 'subprojects/packagefiles/weston/**') }}
+      # Analyses every C file the build compiles, including valac's generated
+      # C. libweston is excluded: only Polo's own code is gated.
+      - name: scan-build
+        run: |
+          SB="scan-build --status-bugs --exclude $PWD/subprojects -o scan-results"
+          $SB meson setup build-scan -Dtest-protocol=true
+          $SB ninja -C build-scan
+      - name: Upload report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scan-build
+          path: scan-results/
