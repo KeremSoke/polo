@@ -1,0 +1,126 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Polo <polo@invalid>
+Date: Wed, 28 Oct 2026 00:00:00 -0700
+Subject: [PATCH] backend-drm: device_removed callback next to configure_device
+
+A compositor that keeps the libinput devices it configured, to change their
+settings later (the desktop's touchpad and mouse preferences), cannot tell
+when one goes away: configure_device has no counterpart, so it would keep
+calling into devices that were unplugged. Add an optional device_removed
+callback to weston_drm_backend_config, called before the backend releases a
+device, both when libinput reports the removal and when the seat goes.
+
+Polo patch G4.
+---
+ include/libweston/backend-drm.h | 10 +++++++++-
+ libweston/backend-drm/drm.c     |  3 ++-
+ libweston/libinput-seat.c       | 11 ++++++++++-
+ libweston/libinput-seat.h       |  4 +++-
+ 4 files changed, 24 insertions(+), 4 deletions(-)
+
+diff --git a/include/libweston/backend-drm.h b/include/libweston/backend-drm.h
+index 0e83238..c30e92e 100644
+--- a/include/libweston/backend-drm.h
++++ b/include/libweston/backend-drm.h
+@@ -35,7 +35,7 @@
+ extern "C" {
+ #endif
+ 
+-#define WESTON_DRM_BACKEND_CONFIG_VERSION 6
++#define WESTON_DRM_BACKEND_CONFIG_VERSION 7
+ 
+ struct libinput_device;
+ 
+@@ -269,6 +269,13 @@ struct weston_drm_backend_config {
+ 
+ 	/** Disable state reuse for debugging */
+ 	bool disable_drm_state_reuse;
++
++	/** Called before the backend releases a device passed to configure_device.
++	 *
++	 * May be NULL.
++	 */
++	void (*device_removed)(struct weston_compositor *compositor,
++			       struct libinput_device *device);
+ };
+ 
+ #ifdef  __cplusplus
+diff --git a/libweston/backend-drm/drm.c b/libweston/backend-drm/drm.c
+index 5d65bb8..5b870bf 100644
+--- a/libweston/backend-drm/drm.c
++++ b/libweston/backend-drm/drm.c
+@@ -4796,7 +4796,8 @@ drm_backend_create(struct weston_compositor *compositor,
+ 
+ 	if (udev_input_init(&b->input,
+ 			    compositor, b->udev, seat_id,
+-			    config->configure_device) < 0) {
++			    config->configure_device,
++			    config->device_removed) < 0) {
+ 		weston_log("failed to create input devices\n");
+ 		goto err_drm_device;
+ 	}
+diff --git a/libweston/libinput-seat.c b/libweston/libinput-seat.c
+index c9b5ed2..2ef4fde 100644
+--- a/libweston/libinput-seat.c
++++ b/libweston/libinput-seat.c
+@@ -162,6 +162,8 @@ device_removed(struct udev_input *input, struct libinput_device *libinput_device
+ 		return 1;
+ 	}
+ 
++	if (input->device_removed != NULL)
++		input->device_removed(input->compositor, libinput_device);
+ 	evdev_device_destroy(device);
+ 	return 0;
+ }
+@@ -172,6 +174,11 @@ udev_seat_remove_devices(struct udev_seat *seat)
+ 	struct evdev_device *device, *next;
+ 
+ 	wl_list_for_each_safe(device, next, &seat->devices_list, link) {
++		struct udev_input *input = libinput_get_user_data(
++			libinput_device_get_context(device->device));
++
++		if (input->device_removed != NULL)
++			input->device_removed(input->compositor, device->device);
+ 		evdev_device_destroy(device);
+ 	}
+ }
+@@ -339,7 +346,8 @@ libinput_log_func(struct libinput *libinput,
+ int
+ udev_input_init(struct udev_input *input, struct weston_compositor *c,
+ 		struct udev *udev, const char *seat_id,
+-		udev_configure_device_t configure_device)
++		udev_configure_device_t configure_device,
++		udev_configure_device_t device_removed)
+ {
+ 	enum libinput_log_priority priority = LIBINPUT_LOG_PRIORITY_INFO;
+ 	const char *log_priority = NULL;
+@@ -348,6 +356,7 @@ udev_input_init(struct udev_input *input, struct weston_compositor *c,
+ 
+ 	input->compositor = c;
+ 	input->configure_device = configure_device;
++	input->device_removed = device_removed;
+ 	if (c->disable_input) {
+ 		weston_log("Frontend disabled all input devices.\n");
+ 		return 0;
+diff --git a/libweston/libinput-seat.h b/libweston/libinput-seat.h
+index 315980d..dfc5877 100644
+--- a/libweston/libinput-seat.h
++++ b/libweston/libinput-seat.h
+@@ -51,6 +51,7 @@ struct udev_input {
+ 	struct weston_compositor *compositor;
+ 	int suspended;
+ 	udev_configure_device_t configure_device;
++	udev_configure_device_t device_removed;
+ };
+ 
+ int
+@@ -62,7 +63,8 @@ udev_input_init(struct udev_input *input,
+ 		struct weston_compositor *c,
+ 		struct udev *udev,
+ 		const char *seat_id,
+-		udev_configure_device_t configure_device);
++		udev_configure_device_t configure_device,
++		udev_configure_device_t device_removed);
+ void
+ udev_input_destroy(struct udev_input *input);
+ 
