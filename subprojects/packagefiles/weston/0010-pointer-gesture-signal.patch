@@ -1,0 +1,135 @@
+--- a/libweston/input.c
++++ b/libweston/input.c
+@@ -1429,6 +1429,7 @@
+ 	pointer->default_grab.pointer = pointer;
+ 	pointer->grab = &pointer->default_grab;
+ 	wl_signal_init(&pointer->motion_signal);
++	wl_signal_init(&pointer->gesture_signal);
+ 	wl_signal_init(&pointer->focus_signal);
+ 	wl_list_init(&pointer->focus_view_listener.link);
+ 	wl_signal_init(&pointer->destroy_signal);
+--- a/libweston/libinput-device.c
++++ b/libweston/libinput-device.c
+@@ -796,6 +796,67 @@
+ 	async_notify_tablet_tool_frame(tool, &time);
+ }
+ 
++static void
++handle_gesture(struct evdev_device *device, struct libinput_event *event)
++{
++	struct weston_pointer *pointer = weston_seat_get_pointer(device->seat);
++	struct libinput_event_gesture *gesture =
++		libinput_event_get_gesture_event(event);
++	struct weston_pointer_gesture_event ev = { 0 };
++
++	if (!pointer)
++		return;
++	switch (libinput_event_get_type(event)) {
++	case LIBINPUT_EVENT_GESTURE_SWIPE_BEGIN:
++		ev.kind = WESTON_POINTER_GESTURE_SWIPE;
++		ev.phase = WESTON_POINTER_GESTURE_BEGIN;
++		break;
++	case LIBINPUT_EVENT_GESTURE_SWIPE_UPDATE:
++		ev.kind = WESTON_POINTER_GESTURE_SWIPE;
++		ev.phase = WESTON_POINTER_GESTURE_UPDATE;
++		break;
++	case LIBINPUT_EVENT_GESTURE_SWIPE_END:
++		ev.kind = WESTON_POINTER_GESTURE_SWIPE;
++		ev.phase = WESTON_POINTER_GESTURE_END;
++		break;
++	case LIBINPUT_EVENT_GESTURE_PINCH_BEGIN:
++		ev.kind = WESTON_POINTER_GESTURE_PINCH;
++		ev.phase = WESTON_POINTER_GESTURE_BEGIN;
++		break;
++	case LIBINPUT_EVENT_GESTURE_PINCH_UPDATE:
++		ev.kind = WESTON_POINTER_GESTURE_PINCH;
++		ev.phase = WESTON_POINTER_GESTURE_UPDATE;
++		break;
++	case LIBINPUT_EVENT_GESTURE_PINCH_END:
++		ev.kind = WESTON_POINTER_GESTURE_PINCH;
++		ev.phase = WESTON_POINTER_GESTURE_END;
++		break;
++	case LIBINPUT_EVENT_GESTURE_HOLD_BEGIN:
++		ev.kind = WESTON_POINTER_GESTURE_HOLD;
++		ev.phase = WESTON_POINTER_GESTURE_BEGIN;
++		break;
++	default:
++		ev.kind = WESTON_POINTER_GESTURE_HOLD;
++		ev.phase = WESTON_POINTER_GESTURE_END;
++		break;
++	}
++	ev.time_msec = libinput_event_gesture_get_time(gesture);
++	ev.fingers = libinput_event_gesture_get_finger_count(gesture);
++	ev.scale = 1.0;
++	if (ev.phase == WESTON_POINTER_GESTURE_UPDATE) {
++		ev.dx = libinput_event_gesture_get_dx(gesture);
++		ev.dy = libinput_event_gesture_get_dy(gesture);
++		if (ev.kind == WESTON_POINTER_GESTURE_PINCH) {
++			ev.scale = libinput_event_gesture_get_scale(gesture);
++			ev.rotation =
++				libinput_event_gesture_get_angle_delta(gesture);
++		}
++	}
++	if (ev.phase == WESTON_POINTER_GESTURE_END)
++		ev.cancelled = libinput_event_gesture_get_cancelled(gesture);
++	wl_signal_emit(&pointer->gesture_signal, &ev);
++}
++
+ int
+ evdev_device_process_event(struct libinput_event *event)
+ {
+@@ -864,6 +925,16 @@
+ 		handle_tablet_button(libinput_device,
+ 				libinput_event_get_tablet_tool_event(event));
+ 		break;
++	case LIBINPUT_EVENT_GESTURE_SWIPE_BEGIN:
++	case LIBINPUT_EVENT_GESTURE_SWIPE_UPDATE:
++	case LIBINPUT_EVENT_GESTURE_SWIPE_END:
++	case LIBINPUT_EVENT_GESTURE_PINCH_BEGIN:
++	case LIBINPUT_EVENT_GESTURE_PINCH_UPDATE:
++	case LIBINPUT_EVENT_GESTURE_PINCH_END:
++	case LIBINPUT_EVENT_GESTURE_HOLD_BEGIN:
++	case LIBINPUT_EVENT_GESTURE_HOLD_END:
++		handle_gesture(device, event);
++		break;
+ 	default:
+ 		handled = 0;
+ 		weston_log("unknown libinput event %d\n",
+--- a/include/libweston/libweston.h
++++ b/include/libweston/libweston.h
+@@ -840,6 +840,27 @@
+ 	struct wl_list relative_pointer_resources;
+ };
+ 
++enum weston_pointer_gesture_kind {
++	WESTON_POINTER_GESTURE_SWIPE,
++	WESTON_POINTER_GESTURE_PINCH,
++	WESTON_POINTER_GESTURE_HOLD,
++};
++
++enum weston_pointer_gesture_phase {
++	WESTON_POINTER_GESTURE_BEGIN,
++	WESTON_POINTER_GESTURE_UPDATE,
++	WESTON_POINTER_GESTURE_END,
++};
++
++struct weston_pointer_gesture_event {
++	enum weston_pointer_gesture_kind kind;
++	enum weston_pointer_gesture_phase phase;
++	uint32_t time_msec;
++	uint32_t fingers;
++	double dx, dy, scale, rotation;
++	bool cancelled;
++};
++
+ struct weston_pointer {
+ 	struct weston_seat *seat;
+ 
+@@ -852,6 +873,7 @@
+ 	struct wl_listener focus_resource_listener;
+ 	struct wl_signal focus_signal;
+ 	struct wl_signal motion_signal;
++	struct wl_signal gesture_signal; /* struct weston_pointer_gesture_event */
+ 	struct wl_signal destroy_signal;
+ 
+ 	struct weston_view *sprite;
