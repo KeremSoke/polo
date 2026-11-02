@@ -1,0 +1,16 @@
+--- a/libweston/desktop/xdg-shell.c
++++ b/libweston/desktop/xdg-shell.c
+@@ -1174,9 +1174,12 @@
+ 	}
+ 
+ 	if (!weston_surface_has_content(wsurface)) {
+-		if (weston_surface_is_unmapping(wsurface))
++		if (weston_surface_is_unmapping(wsurface)) {
++			toplevel->base.committed = false;
++			toplevel->base.force_configure = true;
+ 			weston_desktop_api_committed(toplevel->base.desktop,
+ 				toplevel->base.desktop_surface, buf_offset);
++		}
+ 		return;
+ 	}
+ 
