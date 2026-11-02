@@ -1,0 +1,92 @@
+--- a/libweston/desktop/xdg-shell.c
++++ b/libweston/desktop/xdg-shell.c
+@@ -78,6 +78,7 @@
+ 	struct weston_desktop_surface *desktop_surface;
+ 	bool committed;
+ 	bool configured;
++	bool force_configure;
+ 	struct wl_event_source *configure_idle;
+ 	struct wl_list configure_list; /* weston_desktop_xdg_surface_configure::link */
+ 
+@@ -1591,6 +1592,7 @@
+ 	struct weston_desktop_xdg_surface_configure *configure;
+ 
+ 	surface->configure_idle = NULL;
++	surface->force_configure = false;
+ 
+ 	if (!weston_destop_xdg_surface_resource_available(surface))
+ 		return;
+@@ -1687,7 +1689,8 @@
+ 		assert(0 && "not reached");
+ 		break;
+ 	case WESTON_DESKTOP_XDG_SURFACE_ROLE_TOPLEVEL:
+-		pending_same = weston_desktop_xdg_toplevel_state_compare((struct weston_desktop_xdg_toplevel *) surface);
++		pending_same = !surface->force_configure &&
++			weston_desktop_xdg_toplevel_state_compare((struct weston_desktop_xdg_toplevel *) surface);
+ 		break;
+ 	case WESTON_DESKTOP_XDG_SURFACE_ROLE_POPUP:
+ 		break;
+@@ -1711,6 +1714,16 @@
+ }
+ 
+ static void
++weston_desktop_xdg_toplevel_force_configure(struct weston_desktop_surface *dsurface,
++					    void *user_data)
++{
++	struct weston_desktop_xdg_surface *surface = user_data;
++
++	surface->force_configure = true;
++	weston_desktop_xdg_surface_schedule_configure(surface);
++}
++
++static void
+ weston_desktop_xdg_surface_protocol_get_toplevel(struct wl_client *wl_client,
+ 						 struct wl_resource *resource,
+ 						 uint32_t id)
+@@ -2079,6 +2092,7 @@
+ 	.set_maximized = weston_desktop_xdg_toplevel_set_maximized,
+ 	.set_fullscreen = weston_desktop_xdg_toplevel_set_fullscreen,
+ 	.set_resizing = weston_desktop_xdg_toplevel_set_resizing,
++	.force_configure = weston_desktop_xdg_toplevel_force_configure,
+ 	.set_activated = weston_desktop_xdg_toplevel_set_activated,
+ 	.set_size = weston_desktop_xdg_toplevel_set_size,
+ 	.set_orientation = weston_desktop_xdg_toplevel_set_orientation,
+--- a/libweston/desktop/surface.c
++++ b/libweston/desktop/surface.c
+@@ -525,6 +525,14 @@
+ }
+ 
+ WL_EXPORT void
++weston_desktop_surface_force_configure(struct weston_desktop_surface *surface)
++{
++	if (surface->implementation->force_configure != NULL)
++		surface->implementation->force_configure(surface,
++							 surface->implementation_data);
++}
++
++WL_EXPORT void
+ weston_desktop_surface_set_orientation(struct weston_desktop_surface *surface,
+ 				       enum weston_top_level_tiled_orientation tile_orientation)
+ {
+--- a/libweston/desktop/internal.h
++++ b/libweston/desktop/internal.h
+@@ -109,6 +109,8 @@
+ 			      void *user_data, bool maximized);
+ 	void (*set_resizing)(struct weston_desktop_surface *surface,
+ 			     void *user_data, bool resizing);
++	void (*force_configure)(struct weston_desktop_surface *surface,
++				void *user_data);
+ 	void (*set_size)(struct weston_desktop_surface *surface,
+ 			 void *user_data, int32_t width, int32_t height);
+ 	void (*set_orientation)(struct weston_desktop_surface *surface,
+--- a/include/libweston/desktop.h
++++ b/include/libweston/desktop.h
+@@ -176,6 +176,8 @@
+ weston_desktop_surface_set_resizing(struct weston_desktop_surface *surface,
+ 				    bool resized);
+ void
++weston_desktop_surface_force_configure(struct weston_desktop_surface *surface);
++void
+ weston_desktop_surface_set_size(struct weston_desktop_surface *surface,
+ 				int32_t width, int32_t height);
+ void
