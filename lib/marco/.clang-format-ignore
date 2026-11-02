@@ -1,0 +1,6 @@
+# Exact-behaviour Marco ports keep Marco's GNU style so that
+# `tools/marco-port/rename.py <marco file> | diff -u - <port>` stays readable
+# (plan §3.2 rule 5).
+boxes.c
+boxes.h
+edge-resistance.c
