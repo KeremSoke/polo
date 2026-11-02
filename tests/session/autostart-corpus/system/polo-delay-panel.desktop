@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=delay-panel
+Exec=stub
+X-MATE-Autostart-Phase=Panel
+X-MATE-Autostart-Delay=5

@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=wm
+Exec=stub
+X-MATE-Autostart-Phase=WindowManager
+X-MATE-Provides=windowmanager

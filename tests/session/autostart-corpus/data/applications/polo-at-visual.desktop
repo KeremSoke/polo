@@ -1,0 +1,5 @@
+[Desktop Entry]
+Type=Application
+Name=visual
+Exec=stub
+X-MATE-Autostart-Phase=Desktop

@@ -1,0 +1,5 @@
+[Desktop Entry]
+Type=Application
+Name=cond-short
+Exec=stub
+AutostartCondition=if polo-flag

@@ -1,0 +1,5 @@
+[Desktop Entry]
+Type=Application
+Name=cond-mate
+Exec=stub
+AutostartCondition=MATE org.mate.interface automatic-mnemonics

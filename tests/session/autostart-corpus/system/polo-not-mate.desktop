@@ -1,0 +1,5 @@
+[Desktop Entry]
+Type=Application
+Name=not-mate
+Exec=stub
+NotShowIn=MATE;

@@ -1,0 +1,5 @@
+[Desktop Entry]
+Type=Application
+Name=cond-upper
+Exec=stub
+AutostartCondition=IF-EXISTS polo-flag

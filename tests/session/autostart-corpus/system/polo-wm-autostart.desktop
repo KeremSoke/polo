@@ -1,0 +1,5 @@
+[Desktop Entry]
+Type=Application
+Name=wm
+Exec=stub
+X-MATE-Provides=windowmanager

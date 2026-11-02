@@ -1,0 +1,5 @@
+[Desktop Entry]
+Type=Application
+Name=delay-zero
+Exec=stub
+X-MATE-Autostart-Delay=0

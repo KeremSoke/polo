@@ -1,0 +1,5 @@
+[Desktop Entry]
+Type=Application
+Name=cond-session
+Exec=stub
+AutostartCondition=GNOME3 if-session polo

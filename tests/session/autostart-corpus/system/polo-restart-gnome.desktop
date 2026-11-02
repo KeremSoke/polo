@@ -1,0 +1,5 @@
+[Desktop Entry]
+Type=Application
+Name=restart-gnome
+Exec=stub
+X-GNOME-AutoRestart=true

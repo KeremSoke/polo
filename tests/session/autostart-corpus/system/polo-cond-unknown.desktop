@@ -1,0 +1,5 @@
+[Desktop Entry]
+Type=Application
+Name=cond-unknown
+Exec=stub
+AutostartCondition=whenever

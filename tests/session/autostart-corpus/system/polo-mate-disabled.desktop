@@ -1,0 +1,5 @@
+[Desktop Entry]
+Type=Application
+Name=mate-disabled
+Exec=stub
+X-MATE-Autostart-enabled=false

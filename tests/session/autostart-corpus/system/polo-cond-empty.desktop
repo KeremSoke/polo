@@ -1,0 +1,5 @@
+[Desktop Entry]
+Type=Application
+Name=cond-empty
+Exec=stub
+AutostartCondition=

@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Input Method starter
+Comment=Input Method starter
+Exec=imsettings-boot.sh
+Terminal=false

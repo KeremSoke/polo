@@ -1,0 +1,5 @@
+[Desktop Entry]
+Type=Application
+Name=cond-gs-nokey
+Exec=stub
+AutostartCondition=GSettings org.mate.interface

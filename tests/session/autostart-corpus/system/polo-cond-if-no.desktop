@@ -1,0 +1,5 @@
+[Desktop Entry]
+Type=Application
+Name=cond-if-no
+Exec=stub
+AutostartCondition=if-exists polo-none

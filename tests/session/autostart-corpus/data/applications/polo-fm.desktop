@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=fm
+Exec=stub
+X-MATE-Autostart-Phase=Desktop
+X-MATE-Provides=filemanager

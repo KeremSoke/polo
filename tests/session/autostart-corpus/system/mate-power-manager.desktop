@@ -1,0 +1,15 @@
+[Desktop Entry]
+Name=Power Manager
+Comment=Power management daemon
+# Translators: Do NOT translate or transliterate this text (this is an icon file name)!
+Icon=mate-power-manager
+Exec=mate-power-manager
+Terminal=false
+Type=Application
+OnlyShowIn=MATE;
+X-MATE-Bugzilla-Bugzilla=MATE
+X-MATE-Bugzilla-Product=mate-power-manager
+X-MATE-Bugzilla-Component=mate-power-manager
+X-MATE-Bugzilla-Version=1.28.1
+#X-MATE-AutoRestart=true
+

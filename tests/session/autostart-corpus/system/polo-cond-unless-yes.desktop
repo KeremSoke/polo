@@ -1,0 +1,5 @@
+[Desktop Entry]
+Type=Application
+Name=cond-unless-yes
+Exec=stub
+AutostartCondition=unless-exists polo-flag
