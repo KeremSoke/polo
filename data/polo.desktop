@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=MATE (Polo)
+Comment=This session logs you into MATE using the Polo compositor
+Exec=polo --session
+TryExec=polo
+Icon=mate
+Type=Application
+DesktopNames=MATE
+X-GDM-SessionRegisters=true
