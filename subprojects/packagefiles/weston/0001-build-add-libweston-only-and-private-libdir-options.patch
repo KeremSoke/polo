@@ -1,0 +1,215 @@
+From d52cf03f18d983da658aa9080cb9efd332dc3d2b Mon Sep 17 00:00:00 2001
+From: Polo <polo@invalid>
+Date: Sat, 24 Oct 2026 06:42:24 -0700
+Subject: [PATCH] build: add libweston-only and private-libdir options
+
+Compositors that bundle a private libweston (Polo pins Weston 16.0.1 and
+carries renderer patches) must not install anything into the system
+locations, or they would conflict with a distribution's libweston of the
+same major version and with /usr/bin/weston.
+
+libweston-only skips the weston frontend, clients, data and man pages.
+private-libdir moves libweston, its modules (and therefore the compiled-in
+LIBWESTON_MODULEDIR), headers, pkg-config files and protocol XML under one
+directory relative to the prefix.
+
+Both options default to the previous behaviour.
+
+Polo patch G0 (build only, no functional change).
+---
+ include/libweston/meson.build          |  4 ++--
+ libweston/backend-drm/meson.build      |  2 +-
+ libweston/backend-headless/meson.build |  2 +-
+ libweston/backend-pipewire/meson.build |  2 +-
+ libweston/backend-rdp/meson.build      |  2 +-
+ libweston/backend-vnc/meson.build      |  2 +-
+ libweston/backend-wayland/meson.build  |  2 +-
+ libweston/backend-x11/meson.build      |  2 +-
+ libweston/meson.build                  |  4 +++-
+ meson.build                            | 19 +++++++++++++++++++
+ meson_options.txt                      | 13 +++++++++++++
+ 11 files changed, 44 insertions(+), 10 deletions(-)
+
+diff --git a/include/libweston/meson.build b/include/libweston/meson.build
+index 2a3b943..37d6d60 100644
+--- a/include/libweston/meson.build
++++ b/include/libweston/meson.build
+@@ -15,7 +15,7 @@ install_headers(
+ 	'remoting-plugin.h',
+ 	'pipewire-plugin.h',
+ 	'shell-utils.h',
+-	subdir: dir_include_libweston_install
++	install_dir: dir_include_install
+ )
+ 
+ backend_drm_h =      files('backend-drm.h')
+@@ -38,4 +38,4 @@ version_h = configure_file(
+ 	output: 'version.h',
+ 	configuration: libweston_version_h
+ )
+-install_headers(version_h, subdir: dir_include_libweston_install)
++install_headers(version_h, install_dir: dir_include_install)
+diff --git a/libweston/backend-drm/meson.build b/libweston/backend-drm/meson.build
+index 210c405..58fec8b 100644
+--- a/libweston/backend-drm/meson.build
++++ b/libweston/backend-drm/meson.build
+@@ -88,4 +88,4 @@ plugin_drm = shared_library(
+ )
+ env_modmap += 'drm-backend.so=@0@;'.format(plugin_drm.full_path())
+ 
+-install_headers(backend_drm_h, subdir: dir_include_libweston_install)
++install_headers(backend_drm_h, install_dir: dir_include_install)
+diff --git a/libweston/backend-headless/meson.build b/libweston/backend-headless/meson.build
+index f652882..3731e2b 100644
+--- a/libweston/backend-headless/meson.build
++++ b/libweston/backend-headless/meson.build
+@@ -24,4 +24,4 @@ plugin_headless = shared_library(
+ 	install_dir: dir_module_libweston,
+ )
+ env_modmap += 'headless-backend.so=@0@;'.format(plugin_headless.full_path())
+-install_headers(backend_headless_h, subdir: dir_include_libweston_install)
++install_headers(backend_headless_h, install_dir: dir_include_install)
+diff --git a/libweston/backend-pipewire/meson.build b/libweston/backend-pipewire/meson.build
+index 3ce5092..c4fbc37 100644
+--- a/libweston/backend-pipewire/meson.build
++++ b/libweston/backend-pipewire/meson.build
+@@ -33,4 +33,4 @@ plugin_pipewire = shared_library(
+ 	install_dir: dir_module_libweston
+ )
+ env_modmap += 'pipewire-backend.so=@0@;'.format(plugin_pipewire.full_path())
+-install_headers(backend_pipewire_h, subdir: dir_include_libweston_install)
++install_headers(backend_pipewire_h, install_dir: dir_include_install)
+diff --git a/libweston/backend-rdp/meson.build b/libweston/backend-rdp/meson.build
+index bb951b7..90ddcfd 100644
+--- a/libweston/backend-rdp/meson.build
++++ b/libweston/backend-rdp/meson.build
+@@ -64,4 +64,4 @@ plugin_rdp = shared_library(
+         install_dir: dir_module_libweston
+ )
+ env_modmap += 'rdp-backend.so=@0@;'.format(plugin_rdp.full_path())
+-install_headers(backend_rdp_h, subdir: dir_include_libweston_install)
++install_headers(backend_rdp_h, install_dir: dir_include_install)
+diff --git a/libweston/backend-vnc/meson.build b/libweston/backend-vnc/meson.build
+index 7dc278d..94c4f2e 100644
+--- a/libweston/backend-vnc/meson.build
++++ b/libweston/backend-vnc/meson.build
+@@ -29,4 +29,4 @@ plugin_vnc = shared_library(
+ 	install_dir: dir_module_libweston
+ )
+ env_modmap += 'vnc-backend.so=@0@;'.format(plugin_vnc.full_path())
+-install_headers(backend_vnc_h, subdir: dir_include_libweston_install)
++install_headers(backend_vnc_h, install_dir: dir_include_install)
+diff --git a/libweston/backend-wayland/meson.build b/libweston/backend-wayland/meson.build
+index c5d4a33..5b17a67 100644
+--- a/libweston/backend-wayland/meson.build
++++ b/libweston/backend-wayland/meson.build
+@@ -45,4 +45,4 @@ plugin_wlwl = shared_library(
+ 	install_dir: dir_module_libweston
+ )
+ env_modmap += 'wayland-backend.so=@0@;'.format(plugin_wlwl.full_path())
+-install_headers(backend_wayland_h, subdir: dir_include_libweston_install)
++install_headers(backend_wayland_h, install_dir: dir_include_install)
+diff --git a/libweston/backend-x11/meson.build b/libweston/backend-x11/meson.build
+index 5d30bcc..8f335fb 100644
+--- a/libweston/backend-x11/meson.build
++++ b/libweston/backend-x11/meson.build
+@@ -49,4 +49,4 @@ plugin_x11 = shared_library(
+ )
+ env_modmap += 'x11-backend.so=@0@;'.format(plugin_x11.full_path())
+ 
+-install_headers(backend_x11_h, subdir: dir_include_libweston_install)
++install_headers(backend_x11_h, install_dir: dir_include_install)
+diff --git a/libweston/meson.build b/libweston/meson.build
+index 2a61711..b4156d7 100644
+--- a/libweston/meson.build
++++ b/libweston/meson.build
+@@ -136,6 +136,7 @@ lib_weston = shared_library(
+ 	srcs_libweston,
+ 	include_directories: common_inc,
+ 	install: true,
++	install_dir: dir_lib,
+ 	cpp_args: '-std=c++17',
+ 	version: '0.0.@0@'.format(libweston_revision),
+ 	link_whole: lib_libshared,
+@@ -177,7 +178,8 @@ pkgconfig.generate(
+ 	version: version_weston,
+ 	description: 'Header files for libweston compositors development',
+ 	requires_private: deps_for_libweston_users,
+-	subdirs: dir_include_libweston
++	subdirs: dir_include_libweston,
++	install_dir: dir_lib_pc
+ )
+ 
+ pkgconfig.generate(
+diff --git a/meson.build b/meson.build
+index 73e8163..cce7e49 100644
+--- a/meson.build
++++ b/meson.build
+@@ -41,6 +41,18 @@ dir_lib_pc = dir_lib / 'pkgconfig'
+ dir_man = dir_prefix / get_option('mandir')
+ dir_protocol_libweston = 'libweston-@0@'.format(libweston_major) / 'protocols'
+ dir_sysconf = dir_prefix / get_option('sysconfdir')
++dir_include_install = dir_prefix / get_option('includedir') / dir_include_libweston_install
++
++# Keep a bundled libweston out of the system locations to avoid conflicts
++# with a distribution's libweston of the same major version.
++if get_option('private-libdir') != ''
++	dir_lib = dir_prefix / get_option('private-libdir')
++	dir_data = dir_lib / 'share'
++	dir_module_libweston = dir_lib / 'libweston-@0@'.format(libweston_major)
++	dir_data_pc = dir_lib / 'pkgconfig'
++	dir_lib_pc = dir_lib / 'pkgconfig'
++	dir_include_install = dir_lib / 'include' / dir_include_libweston_install
++endif
+ dir_gitlab_ci = meson.project_source_root() / '.gitlab-ci'
+ 
+ public_inc = include_directories('include')
+@@ -230,19 +243,25 @@ subdir('protocol')
+ subdir('shared')
+ subdir('libweston')
+ subdir('xwayland')
++if not get_option('libweston-only')
+ subdir('frontend')
++endif
+ subdir('desktop-shell')
+ subdir('ivi-shell')
+ subdir('kiosk-shell')
+ subdir('lua-shell')
+ subdir('remoting')
+ subdir('pipewire')
++if not get_option('libweston-only')
+ subdir('clients')
++endif
+ if get_option('tests')
+ 	subdir('tests')
+ endif
++if not get_option('libweston-only')
+ subdir('data')
+ subdir('man')
++endif
+ subdir('pam')
+ 
+ devenv = environment()
+diff --git a/meson_options.txt b/meson_options.txt
+index 858baee..ecc36b0 100644
+--- a/meson_options.txt
++++ b/meson_options.txt
+@@ -223,3 +223,16 @@ option(
+ 	value: false,
+ 	description: 'DEPRECATED: Allow non-atomic modeset paths which will be removed soon'
+ )
++
++option(
++	'libweston-only',
++	type: 'boolean',
++	value: false,
++	description: 'Build only libweston and its modules: no weston frontend, clients, data or man pages'
++)
++option(
++	'private-libdir',
++	type: 'string',
++	value: '',
++	description: 'Install libweston, modules, headers, pkg-config files and protocol XML under this directory (relative to prefix) instead of the system locations'
++)
+-- 
+2.56.0

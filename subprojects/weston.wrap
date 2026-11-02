@@ -1,0 +1,18 @@
+[wrap-git]
+directory = weston
+url = https://gitlab.freedesktop.org/wayland/weston.git
+revision = 16.0.1
+depth = 1
+clone-recursive = false
+diff_files =
+  weston/0001-build-add-libweston-only-and-private-libdir-options.patch,
+  weston/0002-desktop-allow-null-popup-parents.patch,
+  weston/0003-desktop-popup-constraint-area.patch,
+  weston/0004-libinput-device-removed-callback.patch,
+  weston/0005-clipboard-free-source-on-destroy.patch,
+  weston/0006-drag-bridge-and-external-drags.patch,
+  weston/0007-desktop-force-configure.patch,
+  weston/0008-desktop-configure-after-unmap.patch,
+  weston/0009-pointer-set-sprite.patch,
+  weston/0010-pointer-gesture-signal.patch,
+  weston/0011-linux-drm-syncobj.patch
