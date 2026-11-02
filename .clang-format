@@ -1,0 +1,37 @@
+# Weston/Linux style for Polo's C (lib/). Vala is checked by vala-lint.
+BasedOnStyle: LLVM
+Language: Cpp
+IndentWidth: 8
+TabWidth: 8
+UseTab: ForContinuationAndIndentation
+ColumnLimit: 80
+BreakBeforeBraces: Linux
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: None
+AllowShortBlocksOnASingleLine: Never
+AllowShortCaseLabelsOnASingleLine: false
+BreakAfterReturnType: TopLevel
+AlignAfterOpenBracket: Align
+AlignConsecutiveMacros: false
+AlignTrailingComments: true
+AlignOperands: false
+BinPackParameters: true
+BinPackArguments: true
+ContinuationIndentWidth: 8
+IndentCaseLabels: false
+PointerAlignment: Right
+SpaceAfterCStyleCast: false
+SpaceBeforeParens: ControlStatements
+SortIncludes: Never
+IncludeBlocks: Preserve
+MaxEmptyLinesToKeep: 1
+KeepEmptyLinesAtTheStartOfBlocks: false
+PenaltyReturnTypeOnItsOwnLine: 0
+AttributeMacros: [G_GNUC_PRINTF]
+StatementAttributeLikeMacros: [G_BEGIN_DECLS, G_END_DECLS]
+Macros:
+  - G_BEGIN_DECLS=
+  - G_END_DECLS=
+  - G_GNUC_PRINTF(a,b)=
+Cpp11BracedListStyle: false
