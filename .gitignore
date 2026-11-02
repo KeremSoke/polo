@@ -1,0 +1,9 @@
+/build*/
+/_build*/
+/subprojects/*
+!/subprojects/*.wrap
+!/subprojects/packagefiles/
+*.swp
+*~
+__pycache__/
+/.cache/

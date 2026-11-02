@@ -1,0 +1,111 @@
+# libpolo-policy: the window model and every policy decision.
+# GLib and libpolo-marco only, no backend, so tests/policy replays Marco
+# oracle scenarios against it without a compositor (enforced by
+# tools/check-boundary.py rule 4).
+policy_sources = files(
+  'core/window-adapter.vala',
+  'core/window.vala',
+  'policy/marco-prefs.vala',
+  'policy/marco-prefs-tracker.vala',
+  'policy/model.vala',
+  'policy/activation.vala',
+  'policy/constraints.vala',
+  'policy/focus.vala',
+  'policy/placement.vala',
+  'policy/stack.vala',
+  'policy/tab-list.vala',
+  'policy/x11-props.vala',
+  'policy/workspace-layout.vala',
+  'policy/work-areas.vala',
+)
+policy_lib = static_library('polo-policy',
+  policy_sources,
+  vala_args: vala_args + ['--pkg', 'polo-marco'],
+  vala_header: 'polo-policy.h',
+  vala_vapi: 'polo-policy.vapi',
+  c_args: vala_c_args,
+  dependencies: [glib_dep, gobject_dep, polo_marco_dep],
+)
+polo_policy_dep = declare_dependency(
+  link_with: policy_lib,
+  include_directories: include_directories('.'),
+  dependencies: [glib_dep, gobject_dep, polo_marco_dep],
+)
+
+output_lib = static_library('polo-output',
+  'core/output.vala', 'output/monitors-xml.vala', 'output/layout.vala', 'output/store.vala',
+  vala_args: vala_args,
+  vala_header: 'polo-output.h',
+  vala_vapi: 'polo-output.vapi',
+  c_args: vala_c_args,
+  dependencies: [glib_dep, gobject_dep, gio_dep, cc.find_library('m')],
+)
+polo_output_dep = declare_dependency(
+  link_with: output_lib,
+  include_directories: include_directories('.'),
+  dependencies: [glib_dep, gobject_dep, gio_dep, cc.find_library('m')],
+)
+
+polo_sources = files(
+  'application.vala',
+  'session/session.vala',
+  'session/env.vala',
+  'session/autostart.vala',
+  'session/phases.vala',
+  'core/spawn.vala',
+  'core/trust.vala',
+  'log.vala',
+  'main.vala',
+  'protocols/foreign-toplevel.vala',
+  'protocols/workspaces.vala',
+  'input/accelerator.vala',
+  'input/keyboard.vala',
+  'input/bindings.vala',
+  'input/device-settings.vala',
+  'input/libinput-device.vala',
+  'input/move-resize.vala',
+  'input/xkb-settings.vala',
+  'input/marco-actions.vala',
+  'settings/background.vala',
+  'settings/marco-prefs-reader.vala',
+  'shell/desktop.vala',
+  'shell/layer-shell.vala',
+  'shell/not-responding.vala',
+  'shell/rename-workspace.vala',
+  'shell/tile-preview.vala',
+  'shell/shell-ui.vala',
+  'shell/switcher.vala',
+  'shell/window-menu.vala',
+  'shell/workspace-switcher.vala',
+  'shell/xdg-adapter.vala',
+)
+
+# The only packages Vala code may use. tools/check-boundary.py
+# enforces that every --pkg in src/ comes from this list.
+systemd_vala_args = get_option('systemd') ? ['--define=POLO_HAVE_SYSTEMD'] : []
+polo_vala_args = vala_args + systemd_vala_args + [
+  '--pkg', 'polo-config',
+  '--pkg', 'polo-backend',
+  '--pkg', 'polo-marco',
+  '--pkg', 'polo-fx',
+  '--pkg', 'polo-bg',
+  '--pkg', 'gio-unix-2.0',
+]
+polo_deps = [glib_dep, gobject_dep, gio_dep, gio_unix_dep, polo_backend_dep, polo_marco_dep,
+             polo_fx_dep, polo_bg_dep, polo_policy_dep, polo_output_dep]
+
+if get_option('xwayland')
+  polo_sources += files('shell/x11-adapter.vala', 'shell/ewmh.vala')
+  polo_vala_args += ['--pkg', 'polo-xwm', '--pkg', 'posix', '--define=POLO_HAVE_XWAYLAND']
+  polo_deps += polo_xwm_dep
+endif
+
+polo_exe = executable('polo',
+  polo_sources,
+  vala_args: polo_vala_args,
+  c_args: vala_c_args,
+  include_directories: config_inc,
+  dependencies: polo_deps,
+  install: true,
+  install_rpath: polo_private_rpath,
+)

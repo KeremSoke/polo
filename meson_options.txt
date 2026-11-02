@@ -1,0 +1,14 @@
+option('xwayland', type: 'boolean', value: true,
+       description: 'Build the vendored XWayland window manager (libpolo-xwm)')
+option('shell-ui', type: 'boolean', value: true,
+       description: 'Build polo-shell-ui, the GTK helper for switcher, menus, dialogs and OSDs')
+option('tests', type: 'boolean', value: true,
+       description: 'Build and register the test suites')
+option('test-protocol', type: 'boolean', value: false,
+       description: 'Build the polo_test_v1 protocol (test builds only, never in releases)')
+option('debug-protocol', type: 'boolean', value: false,
+       description: 'Allow the weston-debug protocol (never in releases)')
+option('systemd', type: 'boolean', value: true,
+       description: 'systemd --user integration (polo-session.target, environment import)')
+option('strict', type: 'boolean', value: false,
+       description: 'Turn Polo warnings into errors (C -Werror, valac --fatal-warnings); used by CI')
