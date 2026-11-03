@@ -6,6 +6,8 @@
  *   x-clip copy TARGET SIZE: own CLIPBOARD until killed, with INCR past 128 KiB.
  *   x-clip paste TARGET SIZE: exit 0 on SIZE correct bytes, 3 when refused.
  *   x-clip targets TARGET: exit 0 if TARGETS names TARGET.
+ *   x-clip loop TARGET: send CLIPBOARD's owner a request naming itself as the
+ *   requestor.
  * X_CLIP_SELECTION names another selection than CLIPBOARD.
  * X_CLIP_CHILD makes the requestor a child window, which the WM does not watch.
  */
@@ -236,6 +238,31 @@ targets(const char *target_name)
 	return 1;
 }
 
+static int
+loop(const char *target)
+{
+	xcb_atom_t clipboard = atom("CLIPBOARD");
+	xcb_get_selection_owner_reply_t *reply = xcb_get_selection_owner_reply(
+		conn, xcb_get_selection_owner(conn, clipboard), NULL);
+	xcb_window_t owner = reply ? reply->owner : XCB_WINDOW_NONE;
+	xcb_selection_request_event_t request = {
+		.response_type = XCB_SELECTION_REQUEST,
+		.time = XCB_CURRENT_TIME,
+		.owner = owner,
+		.requestor = owner,
+		.selection = clipboard,
+		.target = atom(target),
+		.property = atom("POLO_LOOP"),
+	};
+
+	free(reply);
+	if (owner == XCB_WINDOW_NONE)
+		return 1;
+	xcb_send_event(conn, 0, owner, 0, (const char *)&request);
+	xcb_flush(conn);
+	return 0;
+}
+
 int
 main(int argc, char **argv)
 {
@@ -265,5 +292,7 @@ main(int argc, char **argv)
 	alarm(10);
 	if (strcmp(argv[1], "paste") == 0)
 		return paste(argv[2], strtoul(argv[3], NULL, 0));
+	if (strcmp(argv[1], "loop") == 0)
+		return loop(argv[2]);
 	return targets(argv[2]);
 }

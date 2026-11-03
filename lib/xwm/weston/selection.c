@@ -821,24 +821,34 @@ abandon_if_requestor_gone(struct weston_wm *wm, xcb_window_t asking)
 }
 
 static void
+refuse_request(struct weston_wm *wm, xcb_selection_request_event_t *request)
+{
+	xcb_selection_request_event_t running = wm->selection_request;
+
+	wm->selection_request = *request;
+	weston_wm_send_selection_notify(wm, XCB_ATOM_NONE);
+	wm->selection_request = running;
+}
+
+static void
 weston_wm_handle_selection_request(struct weston_wm *wm,
 				 xcb_generic_event_t *event)
 {
 	xcb_selection_request_event_t *selection_request =
 		(xcb_selection_request_event_t *) event;
 
-
-	assert(selection_request->requestor != wm->selection_window);
+	/* Our own conversion reaches us when we took the selection after
+	 * asking for it; refuse it rather than serve ourselves. */
+	if (selection_request->requestor == wm->selection_window) {
+		refuse_request(wm, selection_request);
+		return;
+	}
 
 	/* One transfer at a time: state below belongs to the running one. */
 	if (wm->selection_request.requestor != XCB_NONE &&
 	    (wm->property_source || wm->flush_property_on_delete) &&
 	    !abandon_if_requestor_gone(wm, selection_request->requestor)) {
-		xcb_selection_request_event_t running = wm->selection_request;
-
-		wm->selection_request = *selection_request;
-		weston_wm_send_selection_notify(wm, XCB_ATOM_NONE);
-		wm->selection_request = running;
+		refuse_request(wm, selection_request);
 		return;
 	}
 

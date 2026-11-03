@@ -1639,6 +1639,11 @@ test_clipboard(int argc, char **argv)
 	CHECK(x_clip(h, display, clip, xauth, "paste TEXT 1000") == 0, "TEXT");
 	CHECK(x_clip(h, display, clip, xauth, "paste image/png 0") == 3,
 	      "a target not on offer was served");
+	CHECK(x_clip(h, display, clip, xauth, "loop UTF8_STRING") == 0,
+	      "the clipboard has no owner");
+	pause_ms(h, 200);
+	CHECK(x_clip(h, display, clip, xauth, "paste UTF8_STRING 1000") == 0,
+	      "the clipboard stopped working after a request from its owner");
 
 	native_copy(h, device, "text/plain;charset=utf-8", BIG);
 	CHECK(x_clip(h, display, clip, xauth, "paste UTF8_STRING 1048576") == 0,
