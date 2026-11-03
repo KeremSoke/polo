@@ -8,6 +8,7 @@
  */
 
 #include <math.h>
+#include <stdbool.h>
 #include <string.h>
 
 #include <pango/pangocairo.h>
@@ -98,58 +99,46 @@ polo_marco_frame_window_height(const PoloFrameGeometry *fgeom,
 
 cairo_region_t *
 polo_marco_frame_visible_region(const PoloFrameGeometry *fgeom,
-				PoloFrameFlags flags)
+				PoloFrameFlags flags, int scale)
 {
 	int window_height = polo_marco_frame_window_height(fgeom, flags);
 	cairo_rectangle_int_t frame_rect = {
-		fgeom->borders.invisible.left,
-		fgeom->borders.invisible.top,
-		fgeom->width - fgeom->borders.invisible.right -
-			fgeom->borders.invisible.left,
-		window_height - fgeom->borders.invisible.bottom -
-			fgeom->borders.invisible.top,
+		fgeom->borders.invisible.left * scale,
+		fgeom->borders.invisible.top * scale,
+		(fgeom->width - fgeom->borders.invisible.right -
+		 fgeom->borders.invisible.left) *
+			scale,
+		(window_height - fgeom->borders.invisible.bottom -
+		 fgeom->borders.invisible.top) *
+			scale,
 	};
 	cairo_region_t *visible = cairo_region_create_rectangle(&frame_rect);
-	cairo_rectangle_int_t row;
+	guint corners[4] = {
+		fgeom->top_left_corner_rounded_radius * scale,
+		fgeom->top_right_corner_rounded_radius * scale,
+		fgeom->bottom_left_corner_rounded_radius * scale,
+		fgeom->bottom_right_corner_rounded_radius * scale,
+	};
+	int c;
 	guint i;
 
-	for (i = 0; i < fgeom->top_left_corner_rounded_radius; i++) {
-		row = (cairo_rectangle_int_t){
-			frame_rect.x, frame_rect.y + (int)i,
-			corner_inset(fgeom->top_left_corner_rounded_radius, i),
-			1
-		};
-		cairo_region_subtract_rectangle(visible, &row);
-	}
-	for (i = 0; i < fgeom->top_right_corner_rounded_radius; i++) {
-		int width =
-			corner_inset(fgeom->top_right_corner_rounded_radius, i);
+	for (c = 0; c < 4; c++) {
+		bool right = c == 1 || c == 3;
+		bool bottom = c >= 2;
 
-		row = (cairo_rectangle_int_t){ frame_rect.x + frame_rect.width -
-						       width,
-					       frame_rect.y + (int)i, width,
-					       1 };
-		cairo_region_subtract_rectangle(visible, &row);
-	}
-	for (i = 0; i < fgeom->bottom_left_corner_rounded_radius; i++) {
-		row = (cairo_rectangle_int_t){
-			frame_rect.x,
-			frame_rect.y + frame_rect.height - (int)i - 1,
-			corner_inset(fgeom->bottom_left_corner_rounded_radius,
-				     i),
-			1
-		};
-		cairo_region_subtract_rectangle(visible, &row);
-	}
-	for (i = 0; i < fgeom->bottom_right_corner_rounded_radius; i++) {
-		int width = corner_inset(
-			fgeom->bottom_right_corner_rounded_radius, i);
+		for (i = 0; i < corners[c]; i++) {
+			int width = corner_inset(corners[c], i);
+			cairo_rectangle_int_t row = {
+				right ? frame_rect.x + frame_rect.width - width
+				      : frame_rect.x,
+				bottom ? frame_rect.y + frame_rect.height -
+						(int)i - 1
+				       : frame_rect.y + (int)i,
+				width, 1
+			};
 
-		row = (cairo_rectangle_int_t){
-			frame_rect.x + frame_rect.width - width,
-			frame_rect.y + frame_rect.height - (int)i - 1, width, 1
-		};
-		cairo_region_subtract_rectangle(visible, &row);
+			cairo_region_subtract_rectangle(visible, &row);
+		}
 	}
 	return visible;
 }
@@ -158,17 +147,23 @@ polo_marco_frame_visible_region(const PoloFrameGeometry *fgeom,
  * frame window in frames.c get_visible_region(). */
 static void
 clear_outside_visible_region(cairo_t *cr, const PoloFrameGeometry *fgeom,
-			     PoloFrameFlags flags)
+			     PoloFrameFlags flags, int scale, int piece_x,
+			     int piece_y)
 {
 	cairo_rectangle_int_t all = {
-		0, 0, fgeom->width, polo_marco_frame_window_height(fgeom, flags)
+		0, 0, fgeom->width * scale,
+		polo_marco_frame_window_height(fgeom, flags) * scale
 	};
 	cairo_region_t *hidden = cairo_region_create_rectangle(&all);
-	cairo_region_t *visible = polo_marco_frame_visible_region(fgeom, flags);
+	cairo_region_t *visible =
+		polo_marco_frame_visible_region(fgeom, flags, scale);
 	int i;
 
 	cairo_region_subtract(hidden, visible);
 	cairo_save(cr);
+	/* Work in buffer pixels: Marco cuts corners at the window scale. */
+	cairo_identity_matrix(cr);
+	cairo_translate(cr, -piece_x * scale, -piece_y * scale);
 	cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
 	for (i = 0; i < cairo_region_num_rectangles(hidden); i++) {
 		cairo_rectangle_int_t r;
@@ -190,7 +185,7 @@ polo_marco_frame_render(PoloTheme *theme, PoloThemeColors *colors,
 			double dpi, const PoloButtonLayout *button_layout,
 			const PoloButtonState *button_states, int piece_x,
 			int piece_y, guint8 *pixels, int width, int height,
-			int stride)
+			int stride, int scale)
 {
 	PangoFontDescription *font =
 		title_font(theme, type, flags, system_font, titlebar_font);
@@ -216,6 +211,7 @@ polo_marco_frame_render(PoloTheme *theme, PoloThemeColors *colors,
 	cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
 	cairo_paint(cr);
 	cairo_restore(cr);
+	cairo_scale(cr, scale, scale);
 	cairo_translate(cr, -piece_x, -piece_y);
 	pango_cairo_update_layout(cr, layout);
 	polo_marco_theme_draw_frame(theme, colors, cr, type, flags,
@@ -225,7 +221,8 @@ polo_marco_frame_render(PoloTheme *theme, PoloThemeColors *colors,
 	polo_marco_theme_calc_geometry(theme, type, text_height(context, font),
 				       flags, client_width, client_height,
 				       button_layout, &fgeom);
-	clear_outside_visible_region(cr, &fgeom, flags);
+	clear_outside_visible_region(cr, &fgeom, flags, scale, piece_x,
+				     piece_y);
 	cairo_destroy(cr);
 	cairo_surface_flush(surface);
 	cairo_surface_destroy(surface);

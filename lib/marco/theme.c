@@ -3345,6 +3345,21 @@ polo_marco_theme_validate(PoloTheme *theme, GError **error)
 	return TRUE;
 }
 
+/* Themes load images at the root-window scale; image and icon drawing undo it. */
+static int image_scale = 1;
+
+void
+polo_marco_set_image_scale(int scale)
+{
+	image_scale = scale > 0 ? scale : 1;
+}
+
+int
+polo_marco_get_image_scale(void)
+{
+	return image_scale;
+}
+
 GdkPixbuf *
 polo_marco_theme_load_image(PoloTheme *theme, const char *filename,
 			    guint size_of_theme_icons, GError **error)
@@ -3354,7 +3369,7 @@ polo_marco_theme_load_image(PoloTheme *theme, const char *filename,
 
 	pixbuf = g_hash_table_lookup(theme->images_by_filename, filename);
 
-	scale = 1;
+	scale = image_scale;
 
 	if (pixbuf == NULL) {
 		if (g_str_has_prefix(filename, "theme:") &&

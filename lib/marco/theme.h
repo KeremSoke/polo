@@ -953,8 +953,15 @@ polo_marco_frame_text_height(PoloTheme *theme, PoloFrameType type,
 			     PoloFrameFlags flags, const char *system_font,
 			     const char *titlebar_font, double dpi);
 
-/* Renders the specified frame piece into an ARGB32 buffer. titlebar_font is
- * NULL when the system font is used. */
+/* Set the root-window scale before loading a theme, which loads images at it. */
+void
+polo_marco_set_image_scale(int scale);
+int
+polo_marco_get_image_scale(void);
+
+/* Renders a frame piece into an ARGB32 buffer of width x height pixels at
+ * scale. piece_x and piece_y are unscaled frame pixels.
+ * titlebar_font is NULL when the system font is used. */
 void
 polo_marco_frame_render(PoloTheme *theme, PoloThemeColors *colors,
 			PoloFrameType type, PoloFrameFlags flags,
@@ -963,7 +970,7 @@ polo_marco_frame_render(PoloTheme *theme, PoloThemeColors *colors,
 			double dpi, const PoloButtonLayout *button_layout,
 			const PoloButtonState *button_states, int piece_x,
 			int piece_y, guint8 *pixels, int width, int height,
-			int stride);
+			int stride, int scale);
 
 /* Releases Pango's cached fonts before exit. */
 void
@@ -975,10 +982,10 @@ polo_marco_frame_window_height(const PoloFrameGeometry *fgeom,
 			       PoloFrameFlags flags);
 
 /* Visible frame-window area, excluding invisible borders and rounded corners,
- * as frames.c get_visible_region() defines it. */
+ * as frames.c get_visible_region() defines it, in pixels at scale. */
 cairo_region_t *
 polo_marco_frame_visible_region(const PoloFrameGeometry *fgeom,
-				PoloFrameFlags flags);
+				PoloFrameFlags flags, int scale);
 
 /* Returns a NULL-terminated array; free the array, not its names. */
 const char **

@@ -282,10 +282,12 @@ namespace Polo.Shell {
                     if (existing == null) {
                         existing = new Policy.Output (o.name, rect);
                         existing.primary = o.primary;
+                        existing.scale = head.get_scale ();
                         outputs.insert (head, existing);
                         model.add_output (existing);
                     } else {
                         existing.primary = o.primary;
+                        existing.scale = head.get_scale ();
                         model.reconfigure_output (existing, rect);
                     }
                     head.set_background_color (BACKGROUND_RED, BACKGROUND_GREEN, BACKGROUND_BLUE);
@@ -294,6 +296,11 @@ namespace Polo.Shell {
             if (drm && success) {
                 store.remember (monitors);
             }
+            int image_scale = 1;
+            foreach (var output in model.get_outputs ()) {
+                image_scale = int.max (image_scale, output.scale);
+            }
+            decorations.set_image_scale (image_scale);
             layer_shell.arrange ();
         }
 

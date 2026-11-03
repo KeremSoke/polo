@@ -163,7 +163,7 @@ void test_rounded_corners () {
     var states = new Polo.Marco.ButtonState[Polo.Marco.ButtonType.LAST];
     theme.render (decorations.get_colors (), normal, FLAGS, 300, 200, "A title", "Sans 10", null,
                   Polo.Decor.Decorations.DPI, decorations.button_layout, states, 0, 0, pixels,
-                  width, height, stride);
+                  width, height, stride, 1);
     int left = geometry.borders.invisible.left;
     int right = width - geometry.borders.invisible.right - 1;
     int top = geometry.borders.invisible.top;
@@ -194,7 +194,7 @@ void test_shadow () {
     int visible_height = geometry.height - invisible.top - invisible.bottom;
 
     var mask = Polo.Marco.ShadowMask.create (Polo.Marco.ShadowType.LARGE, Polo.Marco.SHADOW_OPACITY,
-                                             geometry, FLAGS);
+                                             geometry, FLAGS, 1);
     int x, y, width, height;
     mask.get_bounds (out x, out y, out width, out height);
     assert (x == invisible.left - 15 && y == invisible.top - 15);
@@ -215,10 +215,77 @@ void test_shadow () {
     assert (alpha_at (pixels, pw * 4, 0, 0) < alpha_at (pixels, pw * 4, width / 2, 14));
 
     var medium = Polo.Marco.ShadowMask.create (Polo.Marco.ShadowType.MEDIUM, Polo.Marco.SHADOW_OPACITY,
-                                               geometry, FLAGS);
+                                               geometry, FLAGS, 1);
     medium.get_bounds (out x, out y, out width, out height);
     assert (x == invisible.left - 9 && y == invisible.top - 7);
     assert (width == visible_width + 18 && height == visible_height + 18);
+}
+
+/* HiDPI buffers use the output scale, including corner and shadow clipping. */
+void test_scale () {
+    if (!GLib.FileUtils.test ("/usr/share/themes/Menta/metacity-1", GLib.FileTest.IS_DIR)) {
+        GLib.Test.skip ("Menta is not installed");
+        return;
+    }
+    var decorations = new Polo.Decor.Decorations ();
+    assert (decorations.load_theme ("Menta"));
+    decorations.set_fonts ("Sans 10", null);
+    var normal = Polo.Marco.FrameType.NORMAL;
+    var frame = new Polo.Decor.Frame (server, decorations);
+
+    assert (frame.update (normal, FLAGS, 300, 200, "A title", 1));
+    int width_at_one = frame.geometry.width, height_at_one = frame.geometry.height;
+    assert (!frame.update (normal, FLAGS, 300, 200, "A title", 1));
+    assert (frame.update (normal, FLAGS, 300, 200, "A title", 2));
+    assert (frame.geometry.width == width_at_one && frame.geometry.height == height_at_one);
+    Polo.Marco.Rect rect;
+    int width, height, scale;
+    frame.get_edge (Polo.Decor.Frame.Edge.TOP, out rect).get_size (out width, out height, out scale);
+    assert (width == rect.width * 2 && height == rect.height * 2 && scale == 2);
+    frame.get_edge (Polo.Decor.Frame.Edge.LEFT, out rect).get_size (out width, out height, out scale);
+    assert (width == rect.width * 2 && height == rect.height * 2 && scale == 2);
+
+    /* At scale 2, the 4-pixel corner is cut 8 pixels deep, one row at a time. */
+    unowned Polo.Marco.Theme theme = decorations.get_theme ();
+    int left = frame.geometry.borders.invisible.left * 2;
+    int top = frame.geometry.borders.invisible.top * 2;
+    int buffer_width = frame.geometry.width * 2;
+    int buffer_height = frame.geometry.borders.total.top * 2;
+    int stride = buffer_width * 4;
+    var pixels = new uint8[stride * buffer_height];
+    var states = new Polo.Marco.ButtonState[Polo.Marco.ButtonType.LAST];
+    theme.render (decorations.get_colors (), normal, FLAGS, 300, 200, "A title", "Sans 10", null,
+                  Polo.Decor.Decorations.DPI, decorations.button_layout, states, 0, 0, pixels,
+                  buffer_width, buffer_height, stride, 2);
+    int cut_row0 = 0, cut_row1 = 0;
+    while (alpha_at (pixels, stride, left + cut_row0, top) == 0) {
+        cut_row0++;
+    }
+    while (alpha_at (pixels, stride, left + cut_row1, top + 1) == 0) {
+        cut_row1++;
+    }
+    assert (cut_row0 > 2 && cut_row1 < cut_row0);
+    assert (alpha_at (pixels, stride, buffer_width / 2, top) != 0);
+
+    var mask1 = Polo.Marco.ShadowMask.create (Polo.Marco.ShadowType.LARGE, Polo.Marco.SHADOW_OPACITY,
+                                              frame.geometry, FLAGS, 1);
+    var mask2 = Polo.Marco.ShadowMask.create (Polo.Marco.ShadowType.LARGE, Polo.Marco.SHADOW_OPACITY,
+                                              frame.geometry, FLAGS, 2);
+    int x1, y1, w1, h1, x2, y2, w2, h2;
+    mask1.get_bounds (out x1, out y1, out w1, out h1);
+    mask2.get_bounds (out x2, out y2, out w2, out h2);
+    assert (x1 == x2 && y1 == y2 && w1 == w2 && h1 == h2);
+    for (int i = 0; i < Polo.Marco.ShadowPiece.COUNT; i++) {
+        mask1.get_piece ((Polo.Marco.ShadowPiece) i, out x1, out y1, out w1, out h1);
+        mask2.get_piece ((Polo.Marco.ShadowPiece) i, out x2, out y2, out w2, out h2);
+        assert (x1 == x2 && y1 == y2 && w1 == w2 && h1 == h2);
+    }
+    mask2.get_piece (Polo.Marco.ShadowPiece.TOP, out x2, out y2, out w2, out h2);
+    var shadow = new uint8[w2 * 2 * h2 * 2 * 4];
+    mask2.render (x2, y2, shadow, w2 * 2, h2 * 2, w2 * 2 * 4);
+    /* Just above the frame's middle: shadow; in it, nothing. */
+    assert (alpha_at (shadow, w2 * 2 * 4, w2, 15 * 2 - 1) > 0);
+    assert (alpha_at (shadow, w2 * 2 * 4, w2, 15 * 2) == 0);
 }
 
 int main (string[] args) {
@@ -228,6 +295,7 @@ int main (string[] args) {
     GLib.Test.add_func ("/decor/frame", test_frame);
     GLib.Test.add_func ("/decor/rounded-corners", test_rounded_corners);
     GLib.Test.add_func ("/decor/shadow", test_shadow);
+    GLib.Test.add_func ("/decor/scale", test_scale);
     int status = GLib.Test.run ();
     server.stop ();
     Polo.Marco.release_fonts ();

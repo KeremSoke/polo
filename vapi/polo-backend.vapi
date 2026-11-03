@@ -159,6 +159,7 @@ namespace Polo {
             public int height;
             public int scale;
             public int output_count;
+            public unowned string? scales;
             public bool fullscreen;
             public unowned string? socket_name;
             public unowned string? seat;

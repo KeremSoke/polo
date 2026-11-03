@@ -1216,7 +1216,7 @@ polo_marco_draw_op_draw_with_env(const PoloDrawOp *op,
 		gdouble rx, ry, rwidth, rheight;
 		cairo_surface_t *surface;
 
-		scale = 1;
+		scale = polo_marco_get_image_scale();
 		cairo_scale(cr, 1.0 / scale, 1.0 / scale);
 
 		if (op->data.image.pixbuf) {
@@ -1323,7 +1323,7 @@ polo_marco_draw_op_draw_with_env(const PoloDrawOp *op,
 		gdouble rx, ry, rwidth, rheight;
 		cairo_surface_t *surface;
 
-		scale = 1;
+		scale = polo_marco_get_image_scale();
 		cairo_scale(cr, 1.0 / scale, 1.0 / scale);
 
 		rwidth = parse_size_unchecked(op->data.icon.width, env) * scale;

@@ -84,6 +84,20 @@ polo_backend_server_lookup_output(PoloBackendServer *server,
 	return lookup_output(server, output);
 }
 
+/* Config.scales supplies the scale for each headless output by index. */
+static int
+windowed_scale(PoloBackendServer *server, struct weston_output *output)
+{
+	const char *digits = output->name;
+	int index;
+
+	while (*digits && !g_ascii_isdigit(*digits))
+		digits++;
+	index = *digits ? atoi(digits) : 0;
+	return index < server->n_output_scales ? server->output_scales[index]
+					       : server->output_scale;
+}
+
 static int
 configure_output(PoloBackendServer *server, struct weston_output *output)
 {
@@ -112,7 +126,7 @@ configure_output(PoloBackendServer *server, struct weston_output *output)
 		if (!api)
 			return 0;
 
-		weston_output_set_scale(output, server->output_scale);
+		weston_output_set_scale(output, windowed_scale(server, output));
 		if (api->output_set_size(output, server->output_width,
 					 server->output_height) < 0)
 			return -1;
@@ -212,9 +226,10 @@ heads_changed(struct wl_listener *listener, void *data)
 						       head))) {
 		bool connected = weston_head_is_connected(head);
 
-		if (connected && weston_head_get_output(head) &&
-		    weston_head_is_device_changed(head))
-			head_disable(server, head);
+		/* New EDID or modes (a virtual machine's display resized) keep
+		 * the output: rebuilding it takes panels, backgrounds and
+		 * window placement with it. The layout is chosen again below.
+		 */
 		if (connected && !weston_head_get_output(head) &&
 		    !weston_head_is_non_desktop(head))
 			head_enable(server, head);
@@ -504,6 +519,20 @@ polo_backend_server_start(PoloBackendServer *server,
 	server->output_width = config->width > 0 ? config->width : 1024;
 	server->output_height = config->height > 0 ? config->height : 768;
 	server->output_scale = config->scale > 0 ? config->scale : 1;
+	server->n_output_scales = 0;
+	if (config->scales) {
+		g_auto(GStrv) parts = g_strsplit(config->scales, ",", -1);
+
+		for (int i = 0; parts[i] &&
+		     server->n_output_scales <
+			     (int)G_N_ELEMENTS(server->output_scales);
+		     i++) {
+			int scale = atoi(parts[i]);
+
+			server->output_scales[server->n_output_scales++] =
+				scale > 0 ? scale : 1;
+		}
+	}
 
 	server->display = wl_display_create();
 	server->compositor = weston_compositor_create(

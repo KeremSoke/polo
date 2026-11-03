@@ -60,6 +60,7 @@ namespace Polo.Decor {
         private int drawn_width;
         private int drawn_height;
         private string? drawn_title;
+        private int drawn_scale;
 
         /* Emitted when an edge view is ready to place. */
         public signal void ready ();
@@ -200,15 +201,17 @@ namespace Polo.Decor {
         }
 
         /* Redraws only when an input changed; returns true if it drew. */
+        /* Buffers use the highest scale of the outputs under the frame. */
         public bool update (Marco.FrameType type, Marco.FrameFlags flags, int client_width, int client_height,
-                            string? title) {
+                            string? title, int scale = 1) {
             unowned Marco.Theme? theme = decorations.get_theme ();
             if (theme == null || theme.get_frame_style (type, flags) == null) {
                 clear ();
                 return false;
             }
             if (drawn && drawn_serial == decorations.serial && drawn_type == type && drawn_flags == flags &&
-                drawn_width == client_width && drawn_height == client_height && drawn_title == title) {
+                drawn_width == client_width && drawn_height == client_height && drawn_title == title &&
+                drawn_scale == scale) {
                 return false;
             }
             int text_height = theme.text_height (type, flags, decorations.system_font, decorations.titlebar_font,
@@ -229,7 +232,7 @@ namespace Polo.Decor {
                     edges[i] = null;
                     continue;
                 }
-                draw_edge (theme, (Edge) i, type, flags, client_width, client_height, title);
+                draw_edge (theme, (Edge) i, type, flags, client_width, client_height, title, scale);
             }
             drawn = true;
             drawn_serial = decorations.serial;
@@ -238,25 +241,26 @@ namespace Polo.Decor {
             drawn_width = client_width;
             drawn_height = client_height;
             drawn_title = title;
+            drawn_scale = scale;
             return true;
         }
 
         private void draw_edge (Marco.Theme theme, Edge edge, Marco.FrameType type, Marco.FrameFlags flags,
-                                int client_width, int client_height, string? title) {
+                                int client_width, int client_height, string? title, int scale) {
             var rect = edge_rects[edge];
             if (rect.width <= 0 || rect.height <= 0) {
                 edges[edge] = null;
                 return;
             }
-            int width, height, scale;
+            int width, height, buffer_scale;
             if (edges[edge] != null) {
-                edges[edge].get_size (out width, out height, out scale);
-                if (width != rect.width || height != rect.height) {
+                edges[edge].get_size (out width, out height, out buffer_scale);
+                if (width != rect.width * scale || height != rect.height * scale || buffer_scale != scale) {
                     edges[edge] = null;
                 }
             }
             if (edges[edge] == null) {
-                edges[edge] = new Backend.PixelBuffer (server, rect.width, rect.height, 1);
+                edges[edge] = new Backend.PixelBuffer (server, rect.width * scale, rect.height * scale, scale);
                 edges[edge].set_accepts_input (true);
                 edges[edge].ready.connect (on_edge_ready);
             }
@@ -268,7 +272,7 @@ namespace Polo.Decor {
             theme.render (decorations.get_colors (), type, flags, client_width, client_height, title,
                           decorations.system_font, decorations.titlebar_font, Decorations.DPI,
                           decorations.button_layout, button_states, rect.x, rect.y, pixels,
-                          rect.width, rect.height, stride);
+                          rect.width * scale, rect.height * scale, stride, scale);
             edges[edge].commit ();
         }
 

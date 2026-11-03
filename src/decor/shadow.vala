@@ -18,6 +18,7 @@ namespace Polo.Decor {
         private int drawn_width;
         private int drawn_height;
         private uint drawn_serial;
+        private int drawn_scale;
 
         /* Emitted when a piece's view is ready to place. */
         public signal void ready ();
@@ -34,12 +35,12 @@ namespace Polo.Decor {
 
         /* Redraws only when an input changes; returns true when it redraws. */
         public bool update (Marco.ShadowType type, Marco.FrameGeometry geometry, Marco.FrameFlags flags,
-                            uint serial) {
+                            uint serial, int scale = 1) {
             if (drawn && drawn_type == type && drawn_flags == flags && drawn_width == geometry.width &&
-                drawn_height == geometry.height && drawn_serial == serial) {
+                drawn_height == geometry.height && drawn_serial == serial && drawn_scale == scale) {
                 return false;
             }
-            var mask = Marco.ShadowMask.create (type, Marco.SHADOW_OPACITY, geometry, flags);
+            var mask = Marco.ShadowMask.create (type, Marco.SHADOW_OPACITY, geometry, flags, scale);
             if (mask == null) {
                 clear ();
                 return false;
@@ -49,7 +50,7 @@ namespace Polo.Decor {
             x = mask_x;
             y = mask_y;
             for (int i = 0; i < Marco.ShadowPiece.COUNT; i++) {
-                draw_piece (mask, (Marco.ShadowPiece) i);
+                draw_piece (mask, (Marco.ShadowPiece) i, scale);
             }
             drawn = true;
             drawn_type = type;
@@ -57,10 +58,11 @@ namespace Polo.Decor {
             drawn_width = geometry.width;
             drawn_height = geometry.height;
             drawn_serial = serial;
+            drawn_scale = scale;
             return true;
         }
 
-        private void draw_piece (Marco.ShadowMask mask, Marco.ShadowPiece piece) {
+        private void draw_piece (Marco.ShadowMask mask, Marco.ShadowPiece piece, int scale) {
             Marco.Rect rect = {};
             mask.get_piece (piece, out rect.x, out rect.y, out rect.width, out rect.height);
             piece_rects[piece] = rect;
@@ -68,15 +70,15 @@ namespace Polo.Decor {
                 pieces[piece] = null;
                 return;
             }
-            int width, height, scale;
+            int width, height, buffer_scale;
             if (pieces[piece] != null) {
-                pieces[piece].get_size (out width, out height, out scale);
-                if (width != rect.width || height != rect.height) {
+                pieces[piece].get_size (out width, out height, out buffer_scale);
+                if (width != rect.width * scale || height != rect.height * scale || buffer_scale != scale) {
                     pieces[piece] = null;
                 }
             }
             if (pieces[piece] == null) {
-                pieces[piece] = new Backend.PixelBuffer (server, rect.width, rect.height, 1);
+                pieces[piece] = new Backend.PixelBuffer (server, rect.width * scale, rect.height * scale, scale);
                 pieces[piece].ready.connect (on_piece_ready);
             }
             int stride;
@@ -84,7 +86,7 @@ namespace Polo.Decor {
             if (pixels.length == 0) {
                 return;
             }
-            mask.render (rect.x, rect.y, pixels, rect.width, rect.height, stride);
+            mask.render (rect.x, rect.y, pixels, rect.width * scale, rect.height * scale, stride);
             pieces[piece].commit ();
         }
 

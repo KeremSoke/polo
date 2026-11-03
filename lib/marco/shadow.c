@@ -24,7 +24,8 @@ typedef struct {
 } shadow;
 
 struct _PoloShadowMask {
-	int width, height;
+	int scale;
+	int width, height; /* in pixels at scale; the rest is unscaled */
 	int x, y; /* mask corner relative to the frame window's corner */
 	int extent_left, extent_top, extent_right, extent_bottom;
 	int corner_top, corner_bottom;
@@ -60,7 +61,9 @@ static const double shadow_offsets_y[POLO_WINDOW_SHADOW_LAST] = {
 	[POLO_WINDOW_SHADOW_LARGE] = SHADOW_LARGE_OFFSET_Y,
 };
 
-static shadow *shadows[POLO_WINDOW_SHADOW_LAST];
+#define MAX_SCALE 8
+
+static shadow *shadows[POLO_WINDOW_SHADOW_LAST][MAX_SCALE];
 
 static double
 gaussian(double r, double x, double y)
@@ -203,22 +206,22 @@ presum_gaussian(shadow *shad)
 
 /* Cache one Gaussian map for each shadow type. */
 static shadow *
-shadow_for(PoloWindowShadow type)
+shadow_for(PoloWindowShadow type, int scale)
 {
-	if (!shadows[type]) {
+	if (!shadows[type][scale - 1]) {
 		shadow *shad = g_new0(shadow, 1);
 
-		shad->gaussian_map = make_gaussian_map(radii[type]);
+		shad->gaussian_map = make_gaussian_map(radii[type] * scale);
 		presum_gaussian(shad);
-		shadows[type] = shad;
+		shadows[type][scale - 1] = shad;
 	}
-	return shadows[type];
+	return shadows[type][scale - 1];
 }
 
 /* Build the shadow's alpha mask. */
 static guchar *
-make_shadow(PoloWindowShadow type, double opacity, int width, int height,
-	    int *swidth_out, int *sheight_out)
+make_shadow(PoloWindowShadow type, int scale, double opacity, int width,
+	    int height, int *swidth_out, int *sheight_out)
 {
 	guchar *data;
 	shadow *shad;
@@ -231,7 +234,7 @@ make_shadow(PoloWindowShadow type, double opacity, int width, int height,
 	int x_diff;
 	int opacity_int = (int)(opacity * 25);
 
-	shad = shadow_for(type);
+	shad = shadow_for(type, scale);
 	msize = shad->gaussian_map->size;
 	swidth = width + msize;
 	sheight = height + msize;
@@ -310,7 +313,8 @@ make_shadow(PoloWindowShadow type, double opacity, int width, int height,
 
 PoloShadowMask *
 polo_marco_shadow_mask_new(PoloWindowShadow type, double opacity,
-			   const PoloFrameGeometry *fgeom, PoloFrameFlags flags)
+			   const PoloFrameGeometry *fgeom, PoloFrameFlags flags,
+			   int scale)
 {
 	const PoloBorder *invisible = &fgeom->borders.invisible;
 	int window_height = polo_marco_frame_window_height(fgeom, flags);
@@ -323,11 +327,15 @@ polo_marco_shadow_mask_new(PoloWindowShadow type, double opacity,
 	g_return_val_if_fail(type < POLO_WINDOW_SHADOW_LAST, NULL);
 	if (width <= 0 || height <= 0)
 		return NULL;
+	scale = CLAMP(scale, 1, MAX_SCALE);
 
+	/* Scale the radius with the mask so the shadow looks the same on every
+	 * output and Marco's constants still divide out exactly. */
 	mask = g_new0(PoloShadowMask, 1);
-	mask->data = make_shadow(type, opacity, width, height, &mask->width,
-				 &mask->height);
-	msize = shadow_for(type)->gaussian_map->size;
+	mask->scale = scale;
+	mask->data = make_shadow(type, scale, opacity, width * scale,
+				 height * scale, &mask->width, &mask->height);
+	msize = shadow_for(type, scale)->gaussian_map->size / scale;
 	/* Match cw->shadow_dx in Marco's win_extents(). */
 	mask->x = (int)shadow_offsets_x[type] + invisible->left;
 	mask->y = (int)shadow_offsets_y[type] + invisible->top;
@@ -344,8 +352,8 @@ polo_marco_shadow_mask_new(PoloWindowShadow type, double opacity,
 	 * frame. */
 	shadow_dx = -1 * (int)shadow_offsets_x[type] - invisible->left;
 	shadow_dy = -1 * (int)shadow_offsets_y[type] - invisible->top;
-	visible = polo_marco_frame_visible_region(fgeom, flags);
-	cairo_region_translate(visible, shadow_dx, shadow_dy);
+	visible = polo_marco_frame_visible_region(fgeom, flags, scale);
+	cairo_region_translate(visible, shadow_dx * scale, shadow_dy * scale);
 	for (i = 0; i < cairo_region_num_rectangles(visible); i++) {
 		cairo_rectangle_int_t r;
 		int y;
@@ -380,8 +388,8 @@ polo_marco_shadow_mask_get_bounds(const PoloShadowMask *mask, int *x, int *y,
 {
 	*x = mask->x;
 	*y = mask->y;
-	*width = mask->width;
-	*height = mask->height;
+	*width = mask->width / mask->scale;
+	*height = mask->height / mask->scale;
 }
 
 /* Split the shadow ring around the frame. The top and bottom include rows
@@ -391,33 +399,35 @@ polo_marco_shadow_mask_get_piece(const PoloShadowMask *mask,
 				 PoloShadowPiece piece, int *x, int *y,
 				 int *width, int *height)
 {
-	int top = MIN(mask->extent_top + mask->corner_top, mask->height);
+	int mask_width = mask->width / mask->scale;
+	int mask_height = mask->height / mask->scale;
+	int top = MIN(mask->extent_top + mask->corner_top, mask_height);
 	int bottom = MIN(mask->extent_bottom + mask->corner_bottom,
-			 mask->height - top);
-	int middle = mask->height - top - bottom;
+			 mask_height - top);
+	int middle = mask_height - top - bottom;
 
 	switch (piece) {
 	case POLO_SHADOW_PIECE_TOP:
 		*x = 0;
 		*y = 0;
-		*width = mask->width;
+		*width = mask_width;
 		*height = top;
 		break;
 	case POLO_SHADOW_PIECE_BOTTOM:
 		*x = 0;
-		*y = mask->height - bottom;
-		*width = mask->width;
+		*y = mask_height - bottom;
+		*width = mask_width;
 		*height = bottom;
 		break;
 	case POLO_SHADOW_PIECE_LEFT:
 		*x = 0;
 		*y = top;
-		*width = MIN(mask->extent_left, mask->width);
+		*width = MIN(mask->extent_left, mask_width);
 		*height = middle;
 		break;
 	default:
-		*width = MIN(mask->extent_right, mask->width);
-		*x = mask->width - *width;
+		*width = MIN(mask->extent_right, mask_width);
+		*x = mask_width - *width;
 		*y = top;
 		*height = middle;
 		break;
@@ -434,10 +444,10 @@ polo_marco_shadow_mask_render(const PoloShadowMask *mask, int piece_x,
 
 	for (y = 0; y < height; y++) {
 		guint32 *row = (guint32 *)(pixels + y * stride);
-		int my = piece_y + y;
+		int my = piece_y * mask->scale + y;
 
 		for (x = 0; x < width; x++) {
-			int mx = piece_x + x;
+			int mx = piece_x * mask->scale + x;
 			guint32 a = 0;
 
 			if (mx >= 0 && mx < mask->width && my >= 0 &&

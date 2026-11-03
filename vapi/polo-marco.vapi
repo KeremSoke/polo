@@ -696,7 +696,7 @@ namespace Polo.Marco {
     public class ShadowMask {
         [CCode (cname = "polo_marco_shadow_mask_new")]
         public static ShadowMask? create (ShadowType type, double opacity, FrameGeometry geometry,
-                                          FrameFlags flags);
+                                          FrameFlags flags, int scale);
 
         /* x and y are relative to the frame window's corner. */
         [CCode (cname = "polo_marco_shadow_mask_get_bounds")]
@@ -709,6 +709,10 @@ namespace Polo.Marco {
         public void render (int piece_x, int piece_y, [CCode (array_length = false)] uint8[] pixels,
                             int width, int height, int stride);
     }
+
+    /* The root window's scale in Marco: theme images load at it, so set it before loading a theme. */
+    [CCode (cname = "polo_marco_set_image_scale", cheader_filename = "theme-parser.h")]
+    public void set_image_scale (int scale);
 
     /* Releases Pango's cached fonts before exit. */
     [CCode (cname = "polo_marco_frame_release_fonts", cheader_filename = "theme-parser.h")]
@@ -750,7 +754,7 @@ namespace Polo.Marco {
                             ButtonLayout button_layout,
                             [CCode (array_length = false)] ButtonState[] button_states,
                             int piece_x, int piece_y, [CCode (array_length = false)] uint8[] pixels,
-                            int width, int height, int stride);
+                            int width, int height, int stride, int scale);
 
         [CCode (cname = "polo_marco_theme_calc_geometry")]
         public void calc_geometry (FrameType type, int text_height, FrameFlags flags,

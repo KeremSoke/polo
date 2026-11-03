@@ -136,6 +136,15 @@ screenshot(struct harness *h)
 	return pixels;
 }
 
+static bool
+white_at(const uint32_t *pixels, int col, int row)
+{
+	return col < cap_width && row < cap_height &&
+	       (pixels[row * cap_width + col] & 0xffffff) == 0xffffff;
+}
+
+/* All white pixels; x, y is the corner of the first solid white block, as a
+ * frame's button images have white pixels of their own. */
 static int
 white_pixels(const uint32_t *pixels, int *x, int *y)
 {
@@ -143,11 +152,14 @@ white_pixels(const uint32_t *pixels, int *x, int *y)
 
 	for (int row = cap_height - 1; row >= 0; row--)
 		for (int col = cap_width - 1; col >= 0; col--)
-			if ((pixels[row * cap_width + col] & 0xffffff) ==
-			    0xffffff) {
+			if (white_at(pixels, col, row)) {
 				n++;
-				*x = col;
-				*y = row;
+				if (white_at(pixels, col + 3, row) &&
+				    white_at(pixels, col, row + 3) &&
+				    white_at(pixels, col + 3, row + 3)) {
+					*x = col;
+					*y = row;
+				}
 			}
 	return n;
 }

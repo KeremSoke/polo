@@ -184,10 +184,28 @@ namespace Polo.Shell {
                 return;
             }
             var flags = Decor.FrameState.flags_of (window);
+            int scale = frame_scale ();
             decor.update (type, flags, window.frame.width - window.borders.left - window.borders.right,
-                          window.frame.height - window.borders.top - window.borders.bottom, window.title);
-            refresh_shadow (flags);
+                          window.frame.height - window.borders.top - window.borders.bottom, window.title, scale);
+            refresh_shadow (flags, scale);
             place_frame ();
+        }
+
+        private int last_frame_scale = 1;
+
+        /* Highest output scale beneath the frame; keep the last scale off-screen. */
+        private int frame_scale () {
+            var outer = window.outer_rect ();
+            int scale = 0;
+            foreach (var output in desktop.model.get_outputs ()) {
+                if (output.rect.overlap (outer)) {
+                    scale = int.max (scale, output.scale);
+                }
+            }
+            if (scale > 0) {
+                last_frame_scale = scale;
+            }
+            return last_frame_scale;
         }
 
         private void drop_decor () {
@@ -214,7 +232,7 @@ namespace Polo.Shell {
                    !(Marco.FrameFlags.TILED_RIGHT in flags);
         }
 
-        private void refresh_shadow (Marco.FrameFlags flags) {
+        private void refresh_shadow (Marco.FrameFlags flags, int scale) {
             if (!wants_shadow (flags)) {
                 drop_shadow ();
                 return;
@@ -225,7 +243,7 @@ namespace Polo.Shell {
             }
             /* Focused windows use the large shadow. */
             var type = window.has_state (WindowState.ACTIVE) ? Marco.ShadowType.LARGE : Marco.ShadowType.MEDIUM;
-            shadow.update (type, decor.geometry, flags, desktop.decorations.serial);
+            shadow.update (type, decor.geometry, flags, desktop.decorations.serial, scale);
         }
 
         private void place_frame () {
@@ -319,7 +337,12 @@ namespace Polo.Shell {
             window.frame.y = y;
             toplevel.get_view ().set_position (x + window.borders.left - geometry_x,
                                                y + window.borders.top - geometry_y);
-            place_frame ();
+            /* Redraw after moving to an output with another scale. */
+            if (mapped) {
+                refresh_frame ();
+            } else {
+                place_frame ();
+            }
             moved (x, y);
             window.geometry_changed ();
         }

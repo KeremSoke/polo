@@ -112,6 +112,8 @@ typedef struct {
 	int height;
 	int scale;
 	int output_count;
+	/* Per-output scales for Wayland and headless, for example "1,2". */
+	const char *scales;
 	/* wayland: open the nested output fullscreen */
 	gboolean fullscreen;
 	/* NULL: first free "wayland-N" */

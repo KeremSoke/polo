@@ -17,6 +17,7 @@ namespace Polo {
         public static int width = 0;
         public static int height = 0;
         public static int scale = 1;
+        public static string? scales = null;
         public static int outputs = 1;
         public static bool fullscreen = false;
         public static string? socket = null;
@@ -49,6 +50,8 @@ namespace Polo {
               "Scale of nested or headless outputs", "N" },
             { "outputs", 0, 0, GLib.OptionArg.INT, ref outputs,
               "Number of nested or headless outputs", "N" },
+            { "scales", 0, 0, GLib.OptionArg.STRING, ref scales,
+              "Scale of each nested or headless output, as 1,2", "LIST" },
             { "fullscreen", 0, 0, GLib.OptionArg.NONE, ref fullscreen,
               "Open the nested output fullscreen", null },
             { "socket", 0, 0, GLib.OptionArg.STRING, ref socket,
@@ -468,6 +471,7 @@ namespace Polo {
             config.height = CommandLine.height;
             config.scale = CommandLine.scale;
             config.output_count = CommandLine.outputs;
+            config.scales = CommandLine.scales;
             config.fullscreen = CommandLine.fullscreen;
             config.socket_name = CommandLine.socket;
             config.seat = GLib.Environment.get_variable ("XDG_SEAT");

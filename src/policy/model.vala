@@ -24,6 +24,8 @@ namespace Polo.Policy {
     public class Output : GLib.Object {
         public string name { get; construct; }
         public bool primary { get; set; }
+        /* wl_output.scale used to draw frames. */
+        public int scale { get; set; default = 1; }
         public Marco.Rect rect;
         /* The work area on the current workspace (Model.work_areas ()). */
         public Marco.Rect work_area;

@@ -48,11 +48,27 @@ namespace Polo.Decor {
             }
         }
 
+        private string? theme_name = null;
+        private int image_scale = 1;
+
+        /* Marco loads theme images at the root-window scale; use the highest output scale. */
+        public void set_image_scale (int scale) {
+            if (scale == image_scale) {
+                return;
+            }
+            image_scale = scale;
+            if (theme_name != null) {
+                load_theme (theme_name);
+            }
+        }
+
         /* Keep the current theme if loading the new one fails. */
         public bool load_theme (string name) {
             try {
+                Marco.set_image_scale (image_scale);
                 var loaded = Marco.Theme.load (name);
                 theme = (owned) loaded;
+                theme_name = name;
             } catch (GLib.Error e) {
                 Logging.scope (LogDomain.POLO).warning ("cannot load the window theme %s: %s", name, e.message);
                 return false;

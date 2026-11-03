@@ -58,6 +58,8 @@ struct _PoloBackendServer {
 	int output_width; /* windowed/headless outputs */
 	int output_height;
 	int output_scale;
+	int output_scales[8];
+	int n_output_scales;
 
 	struct wl_listener heads_changed_listener;
 	struct wl_listener seat_created_listener;

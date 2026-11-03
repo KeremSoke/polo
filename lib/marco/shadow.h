@@ -35,7 +35,8 @@ typedef struct _PoloShadowMask PoloShadowMask;
 /* The shadow of a frame, less what the frame covers; NULL for an empty one. */
 PoloShadowMask *
 polo_marco_shadow_mask_new(PoloWindowShadow type, double opacity,
-			   const PoloFrameGeometry *fgeom, PoloFrameFlags flags);
+			   const PoloFrameGeometry *fgeom, PoloFrameFlags flags,
+			   int scale);
 
 void
 polo_marco_shadow_mask_free(PoloShadowMask *mask);
@@ -51,7 +52,8 @@ polo_marco_shadow_mask_get_piece(const PoloShadowMask *mask,
 				 PoloShadowPiece piece, int *x, int *y,
 				 int *width, int *height);
 
-/* Copies that part of the mask into premultiplied ARGB32 pixels. */
+/* Copies that part of the mask (piece_x and piece_y unscaled) into
+ * premultiplied ARGB32 pixels at the mask's scale. */
 void
 polo_marco_shadow_mask_render(const PoloShadowMask *mask, int piece_x,
 			      int piece_y, guint8 *pixels, int width,
