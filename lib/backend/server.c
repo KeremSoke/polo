@@ -906,6 +906,7 @@ polo_backend_server_finalize(GObject *object)
 	g_hash_table_unref(server->input_devices);
 	g_hash_table_unref(server->clients);
 	g_hash_table_unref(server->views);
+	g_hash_table_unref(server->early_server_decorations);
 	g_free(server->socket_name);
 	g_free(server->test_color_table);
 	g_free(server->cursor_theme);
@@ -962,6 +963,8 @@ polo_backend_server_init(PoloBackendServer *server)
 	server->clients = g_hash_table_new_full(g_direct_hash, g_direct_equal,
 						NULL, g_object_unref);
 	server->views = g_hash_table_new(g_direct_hash, g_direct_equal);
+	server->early_server_decorations =
+		g_hash_table_new(g_direct_hash, g_direct_equal);
 	wl_list_init(&server->test_resources);
 	wl_list_init(&server->foreign_toplevels);
 	wl_list_init(&server->foreign_toplevel_managers);

@@ -221,6 +221,7 @@ namespace Polo {
                     log.warning ("cannot show \"%s\": %s", message, e.message);
                 }
             });
+            desktop.decorations.attach (server.get_shell_ui ());
             not_responding = new Shell.NotResponding (model, spawn, desktop, server.get_shell_ui ());
             rename_workspace = new Shell.RenameWorkspace (model, desktop, server.get_shell_ui (), write_preference);
             shell_ui = new Shell.ShellUi (server, spawn, trust);
@@ -433,6 +434,7 @@ namespace Polo {
             desktop = null;
             model = null;
             server = null;
+            Marco.release_fonts ();
         }
 
         private Backend.Config make_config () throws GLib.OptionError {

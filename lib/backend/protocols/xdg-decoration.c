@@ -2,8 +2,8 @@
  * Copyright 2026 Kerem Soke
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
- * zxdg_decoration_manager_v1. Polo does not draw server-side frames, so every
- * toplevel is told to decorate itself, whatever it asks for. A toplevel
+ * zxdg_decoration_manager_v1. A toplevel that asks for server-side
+ * decorations gets them; client-side remains the default. A toplevel
  * destroyed before its decoration leaves the decoration inert rather than an
  * orphaned error, so a client that tears down in the wrong order keeps running.
  */
@@ -18,17 +18,29 @@ struct decoration {
 	struct wl_resource *resource;
 	struct wl_resource *toplevel;
 	struct wl_listener toplevel_destroy;
+	uint32_t mode;
 };
 
 static void
 send_mode(struct decoration *decoration)
 {
+	gboolean server = decoration->mode ==
+		ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE;
+
 	zxdg_toplevel_decoration_v1_send_configure(
 		decoration->resource,
-		ZXDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE);
-	if (decoration->toplevel)
-		weston_desktop_surface_force_configure(
-			wl_resource_get_user_data(decoration->toplevel));
+		server ? ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE
+		       : ZXDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE);
+	if (decoration->toplevel) {
+		struct weston_desktop_surface *surface =
+			wl_resource_get_user_data(decoration->toplevel);
+
+		if (surface)
+			polo_backend_toplevel_set_server_decorated(
+				weston_desktop_surface_get_surface(surface),
+				server);
+		weston_desktop_surface_force_configure(surface);
+	}
 }
 
 static void
@@ -41,13 +53,19 @@ static void
 decoration_set_mode(struct wl_client *client, struct wl_resource *resource,
 		    uint32_t mode)
 {
-	send_mode(wl_resource_get_user_data(resource));
+	struct decoration *decoration = wl_resource_get_user_data(resource);
+
+	decoration->mode = mode;
+	send_mode(decoration);
 }
 
 static void
 decoration_unset_mode(struct wl_client *client, struct wl_resource *resource)
 {
-	send_mode(wl_resource_get_user_data(resource));
+	struct decoration *decoration = wl_resource_get_user_data(resource);
+
+	decoration->mode = ZXDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE;
+	send_mode(decoration);
 }
 
 static const struct zxdg_toplevel_decoration_v1_interface decoration_impl = {
@@ -61,8 +79,16 @@ decoration_resource_destroyed(struct wl_resource *resource)
 {
 	struct decoration *decoration = wl_resource_get_user_data(resource);
 
-	if (decoration->toplevel)
+	if (decoration->toplevel) {
+		struct weston_desktop_surface *surface =
+			wl_resource_get_user_data(decoration->toplevel);
+
 		wl_list_remove(&decoration->toplevel_destroy.link);
+		if (surface)
+			polo_backend_toplevel_set_server_decorated(
+				weston_desktop_surface_get_surface(surface),
+				FALSE);
+	}
 	g_free(decoration);
 }
 
@@ -71,7 +97,12 @@ toplevel_destroyed(struct wl_listener *listener, void *data)
 {
 	struct decoration *decoration =
 		wl_container_of(listener, decoration, toplevel_destroy);
+	struct weston_desktop_surface *surface =
+		wl_resource_get_user_data(decoration->toplevel);
 
+	if (surface)
+		polo_backend_toplevel_set_server_decorated(
+			weston_desktop_surface_get_surface(surface), FALSE);
 	wl_list_remove(&decoration->toplevel_destroy.link);
 	decoration->toplevel = NULL;
 }
@@ -118,6 +149,7 @@ manager_get_toplevel_decoration(struct wl_client *client,
 		return;
 	}
 	decoration->toplevel = toplevel;
+	decoration->mode = ZXDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE;
 	decoration->toplevel_destroy.notify = toplevel_destroyed;
 	wl_resource_add_destroy_listener(toplevel,
 					 &decoration->toplevel_destroy);

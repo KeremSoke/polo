@@ -53,7 +53,9 @@ struct _PoloBackendServer {
 		*input_devices; /* libinput_device -> PoloBackendInputDevice */
 	GHashTable *clients;    /* wl_client -> PoloBackendClient, owned */
 	GHashTable *views;      /* weston_view -> PoloBackendView */
-	int output_width;       /* windowed/headless outputs */
+	/* Server-decoration decisions received before their toplevel exists. */
+	GHashTable *early_server_decorations;
+	int output_width; /* windowed/headless outputs */
 	int output_height;
 	int output_scale;
 
@@ -211,6 +213,11 @@ polo_backend_desktop_fini(PoloBackendServer *server);
 
 PoloBackendToplevel *
 polo_backend_toplevel_from_surface(struct weston_surface *surface);
+
+/* Records the decoration mode agreed with the client. */
+void
+polo_backend_toplevel_set_server_decorated(struct weston_surface *surface,
+					   gboolean server_decorated);
 
 /* client.c */
 PoloBackendClient *

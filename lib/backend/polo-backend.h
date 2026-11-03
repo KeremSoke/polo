@@ -720,6 +720,10 @@ void
 polo_backend_toplevel_get_max_size(PoloBackendToplevel *toplevel,
 				   int *width, int *height);
 
+/* Whether Polo draws this toplevel's frame. */
+gboolean
+polo_backend_toplevel_get_server_decorated(PoloBackendToplevel *toplevel);
+
 /* Whether the surface has a buffer and can be shown. */
 gboolean
 polo_backend_toplevel_has_content(PoloBackendToplevel *toplevel);

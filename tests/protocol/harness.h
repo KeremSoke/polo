@@ -18,6 +18,7 @@
 
 #include "polo-test-v1-client-protocol.h"
 #include "wlr-layer-shell-unstable-v1-client-protocol.h"
+#include "xdg-decoration-unstable-v1-client-protocol.h"
 #include "xdg-shell-client-protocol.h"
 
 #define HARNESS_OUTPUT_WIDTH 1024
@@ -57,6 +58,7 @@ struct harness_window {
 	uint32_t tiled;
 	bool xdg_maximized;
 	struct harness_window_info info;
+	struct zxdg_toplevel_decoration_v1 *decoration;
 };
 
 struct harness {
@@ -69,6 +71,7 @@ struct harness {
 	struct wl_compositor *compositor;
 	struct wl_shm *shm;
 	struct xdg_wm_base *wm_base;
+	struct zxdg_decoration_manager_v1 *decoration_manager;
 	struct wl_seat *seat;
 	struct wl_pointer *pointer;
 	struct wl_keyboard *keyboard;
@@ -157,6 +160,11 @@ harness_layer_info(struct harness *h, struct wl_surface *surface);
 struct harness_window *
 harness_window_create(struct harness *h, int width, int height,
 		      const char *title);
+
+/* Creates one after requesting server-side decorations before its first commit. */
+struct harness_window *
+harness_window_create_decorated(struct harness *h, int width, int height,
+				const char *title);
 
 /* A filled ARGB8888 SHM buffer of the given size. */
 struct wl_buffer *

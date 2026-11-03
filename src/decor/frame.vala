@@ -30,6 +30,9 @@ namespace Polo.Decor {
         private int drawn_height;
         private string? drawn_title;
 
+        /* Emitted when an edge view is ready to place. */
+        public signal void ready ();
+
         public Frame (Backend.Server server, Decorations decorations) {
             this.server = server;
             this.decorations = decorations;
@@ -101,6 +104,7 @@ namespace Polo.Decor {
             }
             if (edges[edge] == null) {
                 edges[edge] = new Backend.PixelBuffer (server, rect.width, rect.height, 1);
+                edges[edge].ready.connect (on_edge_ready);
             }
             int stride;
             unowned uint8[] pixels = edges[edge].begin (out stride);
@@ -112,6 +116,10 @@ namespace Polo.Decor {
                           decorations.button_layout, button_states, rect.x, rect.y, pixels,
                           rect.width, rect.height, stride);
             edges[edge].commit ();
+        }
+
+        private void on_edge_ready () {
+            ready ();
         }
 
         public void clear () {

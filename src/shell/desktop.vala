@@ -60,10 +60,21 @@ namespace Polo.Shell {
             server.input_device_added.connect (on_input_device_added);
             layer_shell = new LayerShell (server, model, this);
             background = new Settings.Background (server, model, this, layer_shell);
-            decorations = new Decor.Decorations (server.get_shell_ui ());
+            decorations = new Decor.Decorations ();
             load_decorations ();
+            decorations.changed.connect (on_decorations_changed);
             /* In the body: construct blocks run before layer_shell exists. */
             model.layer_struts = layer_shell.all_struts;
+        }
+
+        internal void frames_changed () {
+            restack ();
+        }
+
+        private void on_decorations_changed () {
+            foreach (var xdg in windows.get_values ()) {
+                xdg.decorations_changed ();
+            }
         }
 
         private void load_decorations () {
@@ -767,6 +778,7 @@ namespace Polo.Shell {
                 unowned Backend.View view = xdg.toplevel.get_view ();
                 if (!model.is_showing (window)) {
                     view.move_to_layer (null);
+                    xdg.stack_frame (new GLib.GenericArray<Backend.View> (), null);
                     continue;
                 }
                 int kind = (int) backend_layer (window);
@@ -779,6 +791,8 @@ namespace Polo.Shell {
                     tile_preview.view.move_to_layer (server.get_layer ((Backend.LayerKind) kind));
                     views.add (tile_preview.view);
                 }
+                xdg.refresh_frame ();
+                xdg.stack_frame (views, server.get_layer ((Backend.LayerKind) kind));
                 views.add (view);
             }
             foreach (var kind in per_layer.get_keys ()) {

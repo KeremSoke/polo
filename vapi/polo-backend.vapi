@@ -606,6 +606,10 @@ namespace Polo {
             public unowned Toplevel? get_parent ();
 
             /* Window geometry relative to the surface origin. */
+            /* Whether Polo draws this toplevel's frame. */
+            [CCode (cname = "polo_backend_toplevel_get_server_decorated")]
+            public bool get_server_decorated ();
+
             [CCode (cname = "polo_backend_toplevel_get_window_geometry")]
             public void get_window_geometry (out int x, out int y, out int width, out int height);
 
@@ -667,6 +671,7 @@ namespace Polo {
             public signal void parent_changed (Toplevel? parent);
 
             public signal void modal_hint_changed (bool modal);
+            public signal void decoration_changed ();
             public signal void request_window_menu (Seat seat, double x, double y);
             public signal void ping_timeout ();
             public signal void pong ();

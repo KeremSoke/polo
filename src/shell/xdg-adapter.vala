@@ -34,6 +34,8 @@ namespace Polo.Shell {
         private int drawn_width = 0;
         private int drawn_height = 0;
 
+        private Decor.Frame? decor = null;
+
         private bool mapped_hints = false;
         private int last_min_w;
         private int last_min_h;
@@ -75,7 +77,7 @@ namespace Polo.Shell {
             }
             window = new Window (window_kind (), this);
             window.notify["resizing"].connect (on_resizing_changed);
-            window.mwm_decorated = false;
+            window.mwm_decorated = server_decorated ();
             window.group = (uint64) (ulong) (void*) toplevel.get_client ();
             window.title = toplevel.title;
             window.app_id = toplevel.app_id;
@@ -98,6 +100,7 @@ namespace Polo.Shell {
             toplevel.ping_timeout.connect (on_ping_timeout);
             toplevel.pong.connect (on_pong);
             toplevel.destroyed.connect (on_destroyed);
+            toplevel.decoration_changed.connect (on_decoration_changed);
         }
 
         private unowned LogScope log () {
@@ -106,6 +109,116 @@ namespace Polo.Shell {
 
         private void on_title_changed () {
             window.title = toplevel.title;
+            refresh_frame ();
+        }
+
+        /* ---- Server-side frame ------------------------------------------- */
+
+        private bool server_decorated () {
+            return window_kind () == WindowKind.XDG && toplevel.get_server_decorated ();
+        }
+
+        private void on_decoration_changed () {
+            bool decorated = server_decorated ();
+            if (window.mwm_decorated == decorated) {
+                return;
+            }
+            window.mwm_decorated = decorated;
+            desktop.model.recalc_window_features (window);
+            decorations_changed ();
+        }
+
+        /* Refreshes this window after a theme, font, or decoration change. */
+        internal void decorations_changed () {
+            if (update_borders () && mapped) {
+                configure (window.frame);
+            }
+            refresh_frame ();
+            desktop.frames_changed ();
+        }
+
+        /* Updates Marco's visible frame borders; returns true if they changed. */
+        private bool update_borders () {
+            var old = window.borders;
+            window.borders = Marco.FrameBorders ();
+            unowned Marco.Theme? theme = desktop.decorations.get_theme ();
+            Marco.FrameType? type = Decor.FrameState.type_of (window);
+            var flags = Decor.FrameState.flags_of (window);
+            if (!window.has_frame () || !server_decorated () || theme == null || type == null ||
+                window.has_state (WindowState.FULLSCREEN) || theme.get_frame_style (type, flags) == null) {
+                if (decor != null) {
+                    decor.clear ();
+                    decor.ready.disconnect (desktop.frames_changed);
+                    decor = null;
+                }
+                return !equal_borders (old, window.borders);
+            }
+            int text_height = theme.text_height (type, flags, desktop.decorations.system_font,
+                                                 desktop.decorations.titlebar_font, Decor.Decorations.DPI);
+            Marco.ThemeBorders borders;
+            theme.get_frame_borders (type, text_height, flags, out borders);
+            window.borders = Marco.FrameBorders () {
+                left = borders.visible.left, right = borders.visible.right,
+                top = borders.visible.top, bottom = borders.visible.bottom
+            };
+            if (decor == null) {
+                decor = new Decor.Frame (desktop.server, desktop.decorations);
+                decor.ready.connect (desktop.frames_changed);
+            }
+            return !equal_borders (old, window.borders);
+        }
+
+        private static bool equal_borders (Marco.FrameBorders a, Marco.FrameBorders b) {
+            return a.left == b.left && a.right == b.right && a.top == b.top && a.bottom == b.bottom;
+        }
+
+        /* Redraws and positions the frame when its visible state changes. */
+        internal void refresh_frame () {
+            if (decor == null || !mapped) {
+                return;
+            }
+            Marco.FrameType? type = Decor.FrameState.type_of (window);
+            if (type == null) {
+                return;
+            }
+            decor.update (type, Decor.FrameState.flags_of (window),
+                          window.frame.width - window.borders.left - window.borders.right,
+                          window.frame.height - window.borders.top - window.borders.bottom, window.title);
+            place_frame ();
+        }
+
+        private void place_frame () {
+            if (decor == null) {
+                return;
+            }
+            int x = window.frame.x - decor.geometry.borders.invisible.left;
+            int y = window.frame.y - decor.geometry.borders.invisible.top;
+            for (int i = 0; i < Decor.Frame.Edge.COUNT; i++) {
+                Marco.Rect rect;
+                unowned Backend.PixelBuffer? edge = decor.get_edge ((Decor.Frame.Edge) i, out rect);
+                unowned Backend.View? view = edge != null ? edge.get_view () : null;
+                if (view != null) {
+                    view.set_position (x + rect.x, y + rect.y);
+                }
+            }
+        }
+
+        /* Puts frame views below the window on layer, or removes them from all layers. */
+        internal void stack_frame (GLib.GenericArray<Backend.View> views, Backend.Layer? layer) {
+            if (decor == null) {
+                return;
+            }
+            for (int i = 0; i < Decor.Frame.Edge.COUNT; i++) {
+                Marco.Rect rect;
+                unowned Backend.PixelBuffer? edge = decor.get_edge ((Decor.Frame.Edge) i, out rect);
+                unowned Backend.View? view = edge != null ? edge.get_view () : null;
+                if (view != null) {
+                    view.move_to_layer (layer);
+                    if (layer != null) {
+                        views.add (view);
+                    }
+                }
+            }
         }
 
         private void on_app_id_changed () {
@@ -119,6 +232,7 @@ namespace Polo.Shell {
             window.frame.y = y;
             toplevel.get_view ().set_position (x + window.borders.left - geometry_x,
                                                y + window.borders.top - geometry_y);
+            place_frame ();
             moved (x, y);
             window.geometry_changed ();
         }
@@ -132,6 +246,7 @@ namespace Polo.Shell {
         }
 
         public virtual void configure (Marco.Rect frame) {
+            update_borders ();
             pending = true;
             pending_frame = frame;
             if (configure_in_flight) {
@@ -279,6 +394,7 @@ namespace Polo.Shell {
             window.frame.height = frame_height;
             update_hints ();
             show_at (new_x, new_y);
+            refresh_frame ();
             bool answered = frame_width == sent_width && frame_height == sent_height;
             if (configure_in_flight && (answered || frame_width != width_at_send ||
                                         frame_height != height_at_send)) {
@@ -436,6 +552,11 @@ namespace Polo.Shell {
             drawn_height = 0;
             mapped_hints = false;
             toplevel.get_view ().move_to_layer (null);
+            if (decor != null) {
+                decor.clear ();
+                decor.ready.disconnect (desktop.frames_changed);
+                decor = null;
+            }
             var old = window;
             new_window ();
             old.unmanaged ();

@@ -25,6 +25,7 @@ struct _PoloBackendToplevel {
 	char *icon_name;
 	GBytes *icon_pixels;
 	int icon_size;
+	gboolean server_decorated;
 };
 
 enum {
@@ -45,6 +46,7 @@ enum {
 	SIGNAL_REQUEST_MINIMIZE,
 	SIGNAL_PARENT_CHANGED,
 	SIGNAL_MODAL_HINT_CHANGED,
+	SIGNAL_DECORATION_CHANGED,
 	SIGNAL_REQUEST_WINDOW_MENU,
 	SIGNAL_PING_TIMEOUT,
 	SIGNAL_PONG,
@@ -132,6 +134,9 @@ surface_added(struct weston_desktop_surface *desktop_surface, void *data)
 		g_strdup(weston_desktop_surface_get_title(desktop_surface));
 	self->app_id =
 		g_strdup(weston_desktop_surface_get_app_id(desktop_surface));
+	self->server_decorated = g_hash_table_remove(
+		server->early_server_decorations,
+		weston_desktop_surface_get_surface(desktop_surface));
 	weston_desktop_surface_set_user_data(desktop_surface, self);
 
 	self->metadata_listener.notify = metadata_changed;
@@ -514,6 +519,40 @@ polo_backend_toplevel_get_weston_surface(PoloBackendToplevel *toplevel)
 	return weston_desktop_surface_get_surface(toplevel->desktop_surface);
 }
 
+void
+polo_backend_toplevel_set_server_decorated(struct weston_surface *surface,
+					   gboolean server_decorated)
+{
+	PoloBackendToplevel *self = polo_backend_toplevel_from_surface(surface);
+	PoloBackendServer *server;
+
+	if (!self) {
+		server = surface
+			? weston_compositor_get_user_data(surface->compositor)
+			: NULL;
+		if (!server)
+			return;
+		if (server_decorated)
+			g_hash_table_add(server->early_server_decorations,
+					 surface);
+		else
+			g_hash_table_remove(server->early_server_decorations,
+					    surface);
+		return;
+	}
+	if (self->server_decorated == server_decorated)
+		return;
+	self->server_decorated = server_decorated;
+	g_signal_emit(self, signals[SIGNAL_DECORATION_CHANGED], 0);
+}
+
+gboolean
+polo_backend_toplevel_get_server_decorated(PoloBackendToplevel *toplevel)
+{
+	g_return_val_if_fail(POLO_BACKEND_IS_TOPLEVEL(toplevel), FALSE);
+	return toplevel->server_decorated;
+}
+
 gboolean
 polo_backend_toplevel_has_content(PoloBackendToplevel *toplevel)
 {
@@ -719,6 +758,9 @@ polo_backend_toplevel_class_init(PoloBackendToplevelClass *klass)
 	signals[SIGNAL_MODAL_HINT_CHANGED] =
 		g_signal_new("modal-hint-changed", type, G_SIGNAL_RUN_LAST, 0,
 			     NULL, NULL, NULL, G_TYPE_NONE, 1, G_TYPE_BOOLEAN);
+	signals[SIGNAL_DECORATION_CHANGED] =
+		g_signal_new("decoration-changed", type, G_SIGNAL_RUN_LAST, 0,
+			     NULL, NULL, NULL, G_TYPE_NONE, 0);
 	signals[SIGNAL_REQUEST_WINDOW_MENU] = g_signal_new(
 		"request-window-menu", type, G_SIGNAL_RUN_LAST, 0, NULL, NULL,
 		NULL, G_TYPE_NONE, 3, POLO_BACKEND_TYPE_SEAT, G_TYPE_DOUBLE,

@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 
 #include "harness.h"
 
@@ -47,11 +48,21 @@ main(int argc, char **argv)
 {
 	struct harness *h;
 	const char *answer;
+	bool menta;
 	double first, last, r, g, b, a;
 
 	CHECK(argc >= 3, "usage: %s POLO SHELL_UI", argv[0]);
 	setenv("POLO_SHELL_UI", argv[2], 1);
+	menta = access("/usr/share/themes/Menta/metacity-1", F_OK) == 0;
+	if (menta)
+		setenv("POLO_TEST_PREFS", "general/theme='Menta'", 1);
 	h = harness_start(argc, argv);
+
+	if (menta) {
+		answer = wait_request(h, "custom_color wm_");
+		CHECK(strstr(answer, " none") == NULL,
+		      "Menta's GTK colour is unknown: %s", answer);
+	}
 
 	answer = wait_request(h, "color_table ");
 	CHECK(sscanf(answer, "color_table %lf %lf", &first, &last) == 2, "%s",

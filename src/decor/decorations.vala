@@ -28,14 +28,16 @@ namespace Polo.Decor {
 
         private Backend.ShellUi? shell_ui;
 
-        public Decorations (Backend.ShellUi? shell_ui) {
-            this.shell_ui = shell_ui;
+        public Decorations () {
             Marco.parse_button_layout ("menu:minimize,maximize,close", false, out button_layout);
-            if (shell_ui != null) {
-                shell_ui.color_table.connect (on_color_table);
-                shell_ui.custom_color.connect (on_custom_color);
-                shell_ui.bound.connect (ask_custom_colors);
-            }
+        }
+
+        public void attach (Backend.ShellUi shell_ui) {
+            this.shell_ui = shell_ui;
+            shell_ui.color_table.connect (on_color_table);
+            shell_ui.custom_color.connect (on_custom_color);
+            shell_ui.bound.connect (ask_custom_colors);
+            ask_custom_colors ();
         }
 
         public void shutdown () {

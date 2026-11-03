@@ -375,6 +375,11 @@ registry_global(void *data, struct wl_registry *registry, uint32_t name,
 						 &wl_compositor_interface, 4);
 	} else if (strcmp(interface, wl_shm_interface.name) == 0) {
 		h->shm = wl_registry_bind(registry, name, &wl_shm_interface, 1);
+	} else if (strcmp(interface,
+			  zxdg_decoration_manager_v1_interface.name) == 0) {
+		h->decoration_manager = wl_registry_bind(
+			registry, name, &zxdg_decoration_manager_v1_interface,
+			1);
 	} else if (strcmp(interface, xdg_wm_base_interface.name) == 0) {
 		/* 3+ for xdg_positioner (popup tests). */
 		h->wm_base =
@@ -447,8 +452,9 @@ harness_start(int argc, char **argv)
 		snprintf(debug_arg, sizeof debug_arg, "--debug-scopes=%s",
 			 debug ? debug : "");
 		execl(polo, polo, "--backend=headless",
-		      getenv("POLO_TEST_RENDERER") ? getenv("POLO_TEST_RENDERER")
-						   : "--renderer=pixman",
+		      getenv("POLO_TEST_RENDERER")
+			      ? getenv("POLO_TEST_RENDERER")
+			      : "--renderer=pixman",
 		      "--test-mode", socket_arg,
 		      getenv("POLO_TEST_WIDTH") ? getenv("POLO_TEST_WIDTH")
 						: "--width=1024",
@@ -511,6 +517,8 @@ harness_stop(struct harness *h)
 		wl_keyboard_release(h->keyboard);
 	wl_seat_release(h->seat);
 	xdg_wm_base_destroy(h->wm_base);
+	if (h->decoration_manager)
+		zxdg_decoration_manager_v1_destroy(h->decoration_manager);
 	if (h->layer_shell)
 		zwlr_layer_shell_v1_destroy(h->layer_shell);
 	for (i = 0; i < h->n_outputs; i++)
@@ -720,9 +728,9 @@ static const struct xdg_toplevel_listener toplevel_listener = {
 	toplevel_wm_capabilities,
 };
 
-struct harness_window *
-harness_window_create(struct harness *h, int width, int height,
-		      const char *title)
+static struct harness_window *
+window_create(struct harness *h, int width, int height, const char *title,
+	      bool decorated)
 {
 	struct harness_window *w = calloc(1, sizeof *w);
 	int i;
@@ -737,6 +745,15 @@ harness_window_create(struct harness *h, int width, int height,
 	xdg_toplevel_add_listener(w->xdg_toplevel, &toplevel_listener, w);
 	xdg_toplevel_set_title(w->xdg_toplevel, title);
 	xdg_toplevel_set_app_id(w->xdg_toplevel, "org.mate.PoloTest");
+	if (decorated) {
+		CHECK(h->decoration_manager, "no zxdg_decoration_manager_v1");
+		w->decoration =
+			zxdg_decoration_manager_v1_get_toplevel_decoration(
+				h->decoration_manager, w->xdg_toplevel);
+		zxdg_toplevel_decoration_v1_set_mode(
+			w->decoration,
+			ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE);
+	}
 	wl_surface_commit(w->surface);
 
 	for (i = 0; i < 20 && !w->configured; i++)
@@ -755,6 +772,20 @@ harness_window_create(struct harness *h, int width, int height,
 
 	CHECK(harness_window_info(w)->known, "%s: not mapped", title);
 	return w;
+}
+
+struct harness_window *
+harness_window_create(struct harness *h, int width, int height,
+		      const char *title)
+{
+	return window_create(h, width, height, title, false);
+}
+
+struct harness_window *
+harness_window_create_decorated(struct harness *h, int width, int height,
+				const char *title)
+{
+	return window_create(h, width, height, title, true);
 }
 
 static void
@@ -820,6 +851,8 @@ harness_window_destroy(struct harness_window *w)
 			break;
 		}
 	}
+	if (w->decoration)
+		zxdg_toplevel_decoration_v1_destroy(w->decoration);
 	xdg_toplevel_destroy(w->xdg_toplevel);
 	xdg_surface_destroy(w->xdg_surface);
 	wl_surface_destroy(w->surface);

@@ -194,8 +194,8 @@ test_xdg(struct harness *h)
 		t.decoration, ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE);
 	draw(&c, &t);
 	CHECK(t.decoration_configures > 0, "no decoration configure");
-	CHECK(t.mode == ZXDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE,
-	      "told mode %u before Polo draws frames", t.mode);
+	CHECK(t.mode == ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE,
+	      "server-side refused: told mode %u", t.mode);
 
 	for (int i = 0; i < 2; i++) {
 		int before = t.decoration_configures;
@@ -210,7 +210,9 @@ test_xdg(struct harness *h)
 		wl_display_roundtrip(c.display);
 		CHECK(t.decoration_configures == before + 1,
 		      "no reply to a change of mode on a mapped toplevel");
-		CHECK(t.mode == ZXDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE,
+		CHECK(t.mode ==
+			      (i == 0 ? ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE
+				      : ZXDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE),
 		      "told mode %u", t.mode);
 		CHECK(t.surface_configures > t.surface_configures_at_mode,
 		      "no xdg_surface.configure after the decoration "
@@ -299,8 +301,8 @@ test_kde(struct harness *h)
 		d, ORG_KDE_KWIN_SERVER_DECORATION_MODE_SERVER);
 	wl_display_roundtrip(c.display);
 	CHECK(kde_modes == 2 &&
-		      kde_mode == ORG_KDE_KWIN_SERVER_DECORATION_MODE_CLIENT,
-	      "granted %u for Server before Polo draws frames", kde_mode);
+		      kde_mode == ORG_KDE_KWIN_SERVER_DECORATION_MODE_SERVER,
+	      "granted %u for Server", kde_mode);
 
 	org_kde_kwin_server_decoration_request_mode(
 		d, ORG_KDE_KWIN_SERVER_DECORATION_MODE_NONE);

@@ -57,7 +57,7 @@ void test_no_theme () {
     var flags = FLAGS;
     var normal = Polo.Marco.FrameType.NORMAL;
     {
-        var decorations = new Polo.Decor.Decorations (null);
+        var decorations = new Polo.Decor.Decorations ();
         var frame = new Polo.Decor.Frame (server, decorations);
         assert (!frame.update (normal, flags, 300, 200, "x"));
         Polo.Marco.Rect rect;
@@ -75,7 +75,7 @@ void test_frame () {
             GLib.Test.skip ("Atlanta is not installed");
             return;
         }
-        var decorations = new Polo.Decor.Decorations (null);
+        var decorations = new Polo.Decor.Decorations ();
         assert (decorations.load_theme ("Atlanta"));
         assert (!decorations.load_theme ("PoloNoSuchTheme"));
         assert (decorations.get_theme () != null);
