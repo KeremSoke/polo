@@ -340,7 +340,8 @@ polo_marco_shadow_mask_new(PoloWindowShadow type, double opacity,
 	mask->corner_bottom = MAX(fgeom->bottom_left_corner_rounded_radius,
 				  fgeom->bottom_right_corner_rounded_radius);
 
-	/* Marco's shadow_picture_clip() leaves nothing beneath the visible frame. */
+	/* Marco's shadow_picture_clip() leaves nothing beneath the visible
+	 * frame. */
 	shadow_dx = -1 * (int)shadow_offsets_x[type] - invisible->left;
 	shadow_dy = -1 * (int)shadow_offsets_y[type] - invisible->top;
 	visible = polo_marco_frame_visible_region(fgeom, flags);
