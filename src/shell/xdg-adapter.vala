@@ -29,8 +29,8 @@ namespace Polo.Shell {
         private int height_at_send;
         private int sent_width;
         private int sent_height;
-        /* The frame size the client last drew. The model may already have
-         * stored its target in window.frame when it calls configure (). */
+        /* Last committed client size; borders can change before the next configure.
+         * window.frame may already contain the next target. */
         private int drawn_width = 0;
         private int drawn_height = 0;
 
@@ -280,7 +280,7 @@ namespace Polo.Shell {
             if (configure_in_flight) {
                 return;
             }
-            if (frame.width == drawn_width && frame.height == drawn_height) {
+            if (client_width (frame) == drawn_width && client_height (frame) == drawn_height) {
                 /* A maximized state without a size lets the client pick one, and
                  * libweston disconnects it for not being the size it never got. */
                 if (window.has_state (WindowState.MAXIMIZED_H) || window.has_state (WindowState.MAXIMIZED_V) ||
@@ -296,8 +296,8 @@ namespace Polo.Shell {
             height_at_send = drawn_height;
             /* A client may round the size (terminals keep whole cells) to what it already shows, and not commit. */
             configure_timeout = GLib.Timeout.add (CONFIGURE_TIMEOUT_MS, on_configure_timeout);
-            sent_width = frame.width;
-            sent_height = frame.height;
+            sent_width = client_width (frame);
+            sent_height = client_height (frame);
             send_size (frame);
         }
 
@@ -312,7 +312,8 @@ namespace Polo.Shell {
         private bool on_configure_timeout () {
             configure_timeout = 0;
             configure_in_flight = false;
-            if (pending && (pending_frame.width != sent_width || pending_frame.height != sent_height)) {
+            if (pending && (client_width (pending_frame) != sent_width ||
+                            client_height (pending_frame) != sent_height)) {
                 configure (pending_frame);
             }
             return GLib.Source.REMOVE;
@@ -381,8 +382,8 @@ namespace Polo.Shell {
             int frame_width = width + window.borders.left + window.borders.right;
             int frame_height = height + window.borders.top + window.borders.bottom;
 
-            drawn_width = frame_width;
-            drawn_height = frame_height;
+            drawn_width = width;
+            drawn_height = height;
             if (!mapped) {
                 window.frame.width = frame_width;
                 window.frame.height = frame_height;
@@ -411,8 +412,7 @@ namespace Polo.Shell {
                 new_y = anchored.y;
             }
 
-            if (pending && frame_width == pending_frame.width &&
-                frame_height == pending_frame.height) {
+            if (pending && width == client_width (pending_frame) && height == client_height (pending_frame)) {
                 new_x = pending_frame.x;
                 new_y = pending_frame.y;
                 pending = false;
@@ -423,12 +423,11 @@ namespace Polo.Shell {
             update_hints ();
             show_at (new_x, new_y);
             refresh_frame ();
-            bool answered = frame_width == sent_width && frame_height == sent_height;
-            if (configure_in_flight && (answered || frame_width != width_at_send ||
-                                        frame_height != height_at_send)) {
+            bool answered = width == sent_width && height == sent_height;
+            if (configure_in_flight && (answered || width != width_at_send || height != height_at_send)) {
                 clear_configure_in_flight ();
-                if (pending && !answered && pending_frame.width == sent_width &&
-                    pending_frame.height == sent_height) {
+                if (pending && !answered && client_width (pending_frame) == sent_width &&
+                    client_height (pending_frame) == sent_height) {
                     pending = false;
                 }
                 if (pending) {
