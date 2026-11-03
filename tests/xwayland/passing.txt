@@ -82,3 +82,5 @@ ws-num-workspaces-two
 ws-sticky
 ws-switch-back-restores-focus
 ws-switch-hides
+focus-new-window-strict
+stack-titlebar-click-raises

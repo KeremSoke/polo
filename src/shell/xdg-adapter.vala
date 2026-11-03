@@ -114,8 +114,9 @@ namespace Polo.Shell {
 
         /* ---- Server-side frame ------------------------------------------- */
 
-        private bool server_decorated () {
-            return window_kind () == WindowKind.XDG && toplevel.get_server_decorated ();
+        /* Whether the client lets Polo draw its frame. */
+        protected virtual bool server_decorated () {
+            return toplevel.get_server_decorated ();
         }
 
         private void on_decoration_changed () {

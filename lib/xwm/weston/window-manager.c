@@ -865,7 +865,18 @@ weston_wm_handle_configure_request(struct weston_wm *wm, xcb_generic_event_t *ev
 		frame_resize_inside(window->frame, window->width, window->height);
 	}
 
-	weston_wm_window_get_child_position(window, &x, &y);
+	if (window->frame_id == XCB_WINDOW_NONE) {
+		/* Before it is managed, retain the position the window requested.
+		 * The map request later places it there. */
+		if (configure_request->value_mask & XCB_CONFIG_WINDOW_X)
+			window->pos.c.x = configure_request->x;
+		if (configure_request->value_mask & XCB_CONFIG_WINDOW_Y)
+			window->pos.c.y = configure_request->y;
+		x = (int)window->pos.c.x;
+		y = (int)window->pos.c.y;
+	} else {
+		weston_wm_window_get_child_position(window, &x, &y);
+	}
 	values[i++] = x;
 	values[i++] = y;
 	values[i++] = window->width;

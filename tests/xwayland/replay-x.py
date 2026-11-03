@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 # Copyright 2026 Kerem Soke
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Plays Marco oracle scenarios through Xwayland, the XWM and the X adapter: the
-same X client steps as tools/marco-oracle/run.py, read back from the same X
-properties, against fixtures recorded with --undecorated because Polo uses
-client-side X decorations.
+"""Replays Marco oracle scenarios through Xwayland and Polo's XWM/X adapter,
+then compares the resulting X properties with fixtures recorded with Marco frames.
 
   replay-x.py POLO POLO-INPUT --fixtures DIR [--passing FILE] [--only NAME] [-v]
 

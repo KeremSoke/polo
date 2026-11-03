@@ -37,6 +37,7 @@ namespace Polo.Shell {
 
         private Policy.Model model;
         private Xwm.Manager xwm;
+        private Decor.Decorations decorations;
         private uint idle = 0;
         public Shell.NumWorkspacesWriter? write_num_workspaces_func = null;
 
@@ -46,9 +47,20 @@ namespace Polo.Shell {
             }
         }
 
-        public Ewmh (Policy.Model model, Xwm.Manager xwm) {
+        /* Marco reports normal-window borders unless MWM hints disable decoration. */
+        private void request_frame_extents (Xwm.XWindow window) {
+            var hints = window.get_cardinals ("_MOTIF_WM_HINTS");
+            var borders = Marco.FrameBorders ();
+            if (hints.length < 3 || hints[2] != 0) {
+                borders = decorations.normal_borders ();
+            }
+            window.set_frame_extents (borders.left, borders.right, borders.top, borders.bottom);
+        }
+
+        public Ewmh (Policy.Model model, Xwm.Manager xwm, Decor.Decorations decorations) {
             this.model = model;
             this.xwm = xwm;
+            this.decorations = decorations;
             xwm.started.connect (sync_all);
             xwm.root_property_changed.connect (on_root_property_changed);
             xwm.root_message.connect (on_root_message);
@@ -56,8 +68,7 @@ namespace Polo.Shell {
             xwm.window_created.connect ((window) => {
                 window.client_message.connect ((type) => {
                     if (type == "_NET_REQUEST_FRAME_EXTENTS") {
-                        /* Polo reports zero frame extents. */
-                        window.set_frame_extents (0, 0, 0, 0);
+                        request_frame_extents (window);
                     }
                 });
             });

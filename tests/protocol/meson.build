@@ -150,7 +150,7 @@ if get_option('shell-ui')
     polo_input = executable('polo-input', '../xwayland/polo-input.c', dependencies: harness_dep)
     test('x-oracle', python,
       args: [files('../xwayland/replay-x.py'), polo_exe, polo_input.full_path(),
-             '--fixtures', meson.project_source_root() / 'tests' / 'xwayland' / 'fixtures',
+             '--fixtures', meson.project_source_root() / 'tests' / 'policy' / 'fixtures',
              '--passing', meson.project_source_root() / 'tests' / 'xwayland' / 'passing.txt'],
       depends: [polo_input],
       env: protocol_test_env,

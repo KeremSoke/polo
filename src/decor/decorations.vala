@@ -62,7 +62,20 @@ namespace Polo.Decor {
             return true;
         }
 
-        /* titlebar_font is null when the titlebar uses the system font. */
+        /* Marco's normal-window borders with no state flags. */
+        public Marco.FrameBorders normal_borders () {
+            if (theme == null || theme.get_frame_style (Marco.FrameType.NORMAL, 0) == null) {
+                return Marco.FrameBorders ();
+            }
+            int text_height = theme.text_height (Marco.FrameType.NORMAL, 0, system_font, titlebar_font, DPI);
+            Marco.ThemeBorders borders;
+            theme.get_frame_borders (Marco.FrameType.NORMAL, text_height, 0, out borders);
+            return Marco.FrameBorders () {
+                left = borders.visible.left, right = borders.visible.right,
+                top = borders.visible.top, bottom = borders.visible.bottom
+            };
+        }
+
         public void set_fonts (string? system_font, string? titlebar_font) {
             if (system_font == this.system_font && titlebar_font == this.titlebar_font) {
                 return;

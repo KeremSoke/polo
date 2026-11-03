@@ -16,7 +16,8 @@
  * focus on WM_TAKE_FOCUS, "blur" is FocusOut, X_TEST_OVERRIDE makes it
  * override-redirect, X_TEST_MOTIF sets _MOTIF_WM_HINTS to
  * "FLAGS,FUNCTIONS,DECORATIONS" and X_TEST_MOTIF_ON_KEY does so on a key.
- * X_TEST_WM_PID sets _NET_WM_PID.
+ * X_TEST_WM_PID sets _NET_WM_PID. X_TEST_POSITION="X,Y" moves the window there
+ * before mapping it and marks the position as the user's, as Xt does.
  * X_TEST_GRAB_ON_KEY names a keycode: that key takes an active keyboard grab,
  * after X_TEST_GRAB_DELAY seconds, and logs "grabbed"; the next press of it
  * ungrabs.
@@ -274,6 +275,20 @@ main(int argc, char **argv)
 	}
 	if (getenv("X_TEST_MOTIF"))
 		set_motif(window, getenv("X_TEST_MOTIF"));
+	if (getenv("X_TEST_POSITION")) {
+		uint32_t where[2] = { 0 };
+		uint32_t user_position[18] = { 1 };
+
+		sscanf(getenv("X_TEST_POSITION"), "%u,%u", &where[0],
+		       &where[1]);
+		xcb_change_property(conn, XCB_PROP_MODE_REPLACE, window,
+				    XCB_ATOM_WM_NORMAL_HINTS,
+				    XCB_ATOM_WM_SIZE_HINTS, 32, 18,
+				    user_position);
+		xcb_configure_window(conn, window,
+				     XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y,
+				     where);
+	}
 	fprintf(out, "id %u\n", window);
 	xcb_map_window(conn, window);
 	xcb_flush(conn);

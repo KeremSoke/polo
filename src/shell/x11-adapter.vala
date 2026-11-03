@@ -20,6 +20,8 @@ namespace Polo.Shell {
         private string sent_state = "?";
         private int sent_x = int.MIN;
         private int sent_y = int.MIN;
+        private bool extents_sent = false;
+        private Marco.FrameBorders sent_extents;
         private int inset_left = 0;
         private int inset_right = 0;
         private int inset_top = 0;
@@ -59,6 +61,11 @@ namespace Polo.Shell {
                 stop_following_model ();
                 withdraw ();
             }
+        }
+
+        /* X clients that want no frame say so in _MOTIF_WM_HINTS (mwm_decorated). */
+        protected override bool server_decorated () {
+            return true;
         }
 
         protected override bool shows_content () {
@@ -126,6 +133,7 @@ namespace Polo.Shell {
                     update_motif_hints ();
                     if (mapped) {
                         desktop.model.recalc_window_features (window);
+                        decorations_changed ();
                         sync_from_model ();
                     }
                     break;
@@ -191,6 +199,7 @@ namespace Polo.Shell {
             window.mwm_functions = Policy.X11Props.motif_functions (flags, functions);
             Policy.X11Props.motif_decorations (flags, decorations, out window.mwm_wants_frame,
                                                out window.mwm_border_only);
+            window.mwm_decorated = window.mwm_wants_frame;
         }
 
         private void update_wm_hints () {
@@ -453,9 +462,7 @@ namespace Polo.Shell {
                                                  (mask & 8) != 0 ? height : current.height);
             }
             /* ICCCM 4.1.5: granted or not, the client hears where it is. */
-            send_configure (window.frame.x - inset_left, window.frame.y - inset_top,
-                            window.frame.width + inset_left + inset_right,
-                            window.frame.height + inset_top + inset_bottom);
+            send_size (window.frame);
         }
 
         private void sync_allowed_actions () {
@@ -576,9 +583,28 @@ namespace Polo.Shell {
             desktop.model.set_size_hints (window, hints);
         }
 
+        /* The X window holds the client area, the frame drawn around it. */
         protected override void send_size (Marco.Rect frame) {
-            send_configure (frame.x - inset_left, frame.y - inset_top, frame.width + inset_left + inset_right,
-                            frame.height + inset_top + inset_bottom);
+            unowned Marco.FrameBorders b = window.borders;
+            send_configure (frame.x + b.left - inset_left, frame.y + b.top - inset_top,
+                            frame.width - b.left - b.right + inset_left + inset_right,
+                            frame.height - b.top - b.bottom + inset_top + inset_bottom);
+        }
+
+        public override void configure (Marco.Rect frame) {
+            base.configure (frame);
+            update_net_frame_extents ();
+        }
+
+        private void update_net_frame_extents () {
+            unowned Marco.FrameBorders b = window.borders;
+            if (extents_sent && sent_extents.left == b.left && sent_extents.right == b.right &&
+                sent_extents.top == b.top && sent_extents.bottom == b.bottom) {
+                return;
+            }
+            extents_sent = true;
+            sent_extents = b;
+            xwindow.set_frame_extents (b.left, b.right, b.top, b.bottom);
         }
 
         /* get_geometry () lags behind what X has been asked for. */
@@ -591,8 +617,10 @@ namespace Polo.Shell {
         protected override void moved (int x, int y) {
             int old_x, old_y, width, height;
             xwindow.get_geometry (out old_x, out old_y, out width, out height);
-            if (sent_x != x - inset_left || sent_y != y - inset_top) {
-                send_configure (x - inset_left, y - inset_top, width, height);
+            x += window.borders.left - inset_left;
+            y += window.borders.top - inset_top;
+            if (sent_x != x || sent_y != y) {
+                send_configure (x, y, width, height);
             }
         }
 

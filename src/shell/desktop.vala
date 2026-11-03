@@ -767,7 +767,7 @@ namespace Polo.Shell {
             xwm.ready.connect ((name) => {
                 Logging.scope (LogDomain.POLO).info ("X display %s", name);
             });
-            ewmh = new Ewmh (model, xwm);
+            ewmh = new Ewmh (model, xwm, decorations);
             xwm.watched_property_changed.connect ((xid, atom) => {
                 foreach (var x_window in x_windows.get_values ()) {
                     x_window.on_watched_property (xid, atom);

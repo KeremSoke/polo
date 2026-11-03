@@ -425,6 +425,54 @@ last_position(int *x, int *y)
 	return found;
 }
 
+/* The last _NET_FRAME_EXTENTS the X client saw; zero before any. */
+static void
+frame_extents(int *left, int *right, int *top, int *bottom)
+{
+	char text[128];
+	FILE *file = fopen(log_path, "r");
+
+	*left = *right = *top = *bottom = 0;
+	if (!file)
+		return;
+	while (fgets(text, sizeof text, file))
+		sscanf(text, "prop _NET_FRAME_EXTENTS %d %d %d %d", left, right,
+		       top, bottom);
+	fclose(file);
+}
+
+/* The client size of a window filling width x height inside its frame. */
+static void
+size_inside_frame(int width, int height, char *line, size_t n)
+{
+	int left, right, top, bottom;
+
+	frame_extents(&left, &right, &top, &bottom);
+	snprintf(line, n, "size %dx%d", width - left - right,
+		 height - top - bottom);
+}
+
+static bool
+log_has_size_inside_frame(int width, int height)
+{
+	char line[64];
+
+	size_inside_frame(width, height, line, sizeof line);
+	return log_has(line);
+}
+
+static void
+wait_for_maximized(struct harness *h, int width, int height)
+{
+	char line[64];
+
+	for (int i = 0; i < 500 && !log_has_size_inside_frame(width, height);
+	     i++)
+		pause_ms(h, 20);
+	size_inside_frame(width, height, line, sizeof line);
+	wait_for_line(h, line);
+}
+
 static void
 press(struct harness *h, uint32_t modifier, uint32_t key)
 {
@@ -478,7 +526,7 @@ test_policy(int argc, char **argv)
 	      "the requested position won over placement");
 
 	press(h, KEY_LEFTALT, KEY_F10);
-	wait_for_line(h, "size 1024x768");
+	wait_for_maximized(h, 1024, 768);
 	wait_for_line(h,
 		      "prop _NET_WM_STATE _NET_WM_STATE_MAXIMIZED_HORZ "
 		      "_NET_WM_STATE_MAXIMIZED_VERT _NET_WM_STATE_FOCUSED");
@@ -906,7 +954,7 @@ test_ewmh_messages(int argc, char **argv)
 	x_send(display, send, id, "_NET_WM_STATE", "1",
 	       "_NET_WM_STATE_MAXIMIZED_VERT", "_NET_WM_STATE_MAXIMIZED_HORZ",
 	       "0", "0", xauth);
-	wait_for_line(h, "size 1024x768");
+	wait_for_maximized(h, 1024, 768);
 	wait_for_line(h,
 		      "prop _NET_WM_STATE _NET_WM_STATE_MAXIMIZED_HORZ "
 		      "_NET_WM_STATE_MAXIMIZED_VERT _NET_WM_STATE_FOCUSED");
@@ -961,20 +1009,37 @@ test_ewmh_messages(int argc, char **argv)
 	       "0", xauth);
 	wait_for_line(h, "prop _NET_NUMBER_OF_DESKTOPS 3");
 
+	/* Answered with a normal window's borders, as Marco does. */
+	int extents = count_lines_with("prop _NET_FRAME_EXTENTS ");
+	char estimated[64];
+
 	x_send(display, send, id, "_NET_REQUEST_FRAME_EXTENTS", "0", "0", "0",
 	       "0", "0", xauth);
-	wait_for_line(h, "prop _NET_FRAME_EXTENTS 0 0 0 0");
+	for (int i = 0;
+	     i < 100 && count_lines_with("prop _NET_FRAME_EXTENTS ") == extents;
+	     i++)
+		pause_ms(h, 20);
+	size_inside_frame(0, 0, estimated, sizeof estimated);
+	CHECK(count_lines_with("prop _NET_FRAME_EXTENTS ") > extents &&
+		      strcmp(estimated, "size 0x0") != 0,
+	      "_NET_REQUEST_FRAME_EXTENTS got no theme borders (%s)",
+	      estimated);
 
-	/* _NET_MOVERESIZE_WINDOW: x, y, width and height, north-west gravity.
-	 */
+	/* _NET_MOVERESIZE_WINDOW: x, y, width and height, north-west gravity,
+	 * which puts the frame's corner there. */
+	int left, right, top, bottom;
+	char at[64];
+
+	frame_extents(&left, &right, &top, &bottom);
 	x_send(display, send, id, "_NET_MOVERESIZE_WINDOW", "0xf01", "30", "40",
 	       "320", "210", xauth);
-	wait_for_line(h, "at 30 40");
+	snprintf(at, sizeof at, "at %d %d", 30 + left, 40 + top);
+	wait_for_line(h, at);
 	wait_for_line(h, "size 320x210");
 	pause_ms(h, 300);
 	white_pixels(screenshot(h), &x, &y);
-	CHECK(x == 30 && y == 40, "_NET_MOVERESIZE_WINDOW drew it at %d,%d", x,
-	      y);
+	CHECK(x == 30 + left && y == 40 + top,
+	      "_NET_MOVERESIZE_WINDOW drew it at %d,%d", x, y);
 
 	/* A ConfigureRequest goes through policy: the same answer as a
 	 * synthetic event. */
@@ -990,7 +1055,8 @@ test_ewmh_messages(int argc, char **argv)
 	harness_key(h, KEY_RIGHT, false);
 	harness_key(h, KEY_ENTER, true);
 	harness_key(h, KEY_ENTER, false);
-	wait_for_line(h, "at 40 40");
+	snprintf(at, sizeof at, "at %d %d", 40 + left, 40 + top);
+	wait_for_line(h, at);
 
 	/* _NET_SHOWING_DESKTOP. */
 	x_send(display, send, 0, "_NET_SHOWING_DESKTOP", "1", "0", "0", "0",
@@ -1071,11 +1137,13 @@ test_ewmh_messages(int argc, char **argv)
 	pause_ms(h, 200);
 
 	/* _GTK_FRAME_EXTENTS: maximized, the visible part fills the screen, not
-	 * the X window. */
+	 * the X window. Like GTK, the client asks for no frame. */
 	setenv("X_TEST_FRAME_EXTENTS", "10", 1);
+	setenv("X_TEST_MOTIF", "2,0,0", 1);
 	start_log();
 	client = start_x_client(display, argv[2], true, xauth);
 	unsetenv("X_TEST_FRAME_EXTENTS");
+	unsetenv("X_TEST_MOTIF");
 	wait_for_line(h, "focus");
 	pause_ms(h, 200);
 	press(h, KEY_LEFTALT, KEY_F10);
@@ -1106,8 +1174,7 @@ last_allowed_actions(char *actions, size_t size)
 	}
 }
 
-/* Match Marco's advertised actions except SHADE: Polo uses client-side X
- * decorations. */
+/* Match Marco's advertised actions. */
 static void
 test_motif(int argc, char **argv)
 {
@@ -1159,6 +1226,24 @@ test_motif(int argc, char **argv)
 		      strstr(actions, "_NET_WM_ACTION_RESIZE") &&
 		      !strstr(actions, "_NET_WM_ACTION_MINIMIZE"),
 	      "a changed hint did not reach the allowed actions: %s", actions);
+	stop_client(client);
+	pause_ms(h, 300);
+
+	/* A user position set before the map puts the frame's corner there. */
+	start_log();
+	setenv("X_TEST_POSITION", "40,60", 1);
+	client = start_x_client(display, argv[2], true, xauth);
+	unsetenv("X_TEST_POSITION");
+	wait_for_line(h, "focus");
+	pause_ms(h, 300);
+	int left, right, top, bottom;
+	char at[64];
+
+	frame_extents(&left, &right, &top, &bottom);
+	CHECK(top > 0, "the X window has no titlebar (%d %d %d %d)", left,
+	      right, top, bottom);
+	snprintf(at, sizeof at, "at %d %d", 40 + left, 60 + top);
+	wait_for_line(h, at);
 
 	stop_client(client);
 	CHECK(harness_stop(h) == 0, "polo did not stop cleanly");
@@ -2063,7 +2148,7 @@ test_hidpi(int argc, char **argv)
 	wait_for_line(h, "button 1");
 
 	press(h, KEY_LEFTALT, KEY_F10);
-	wait_for_line(h, "size 1024x768");
+	wait_for_maximized(h, 1024, 768);
 	pause_ms(h, 300);
 	whites = white_pixels(screenshot(h), &x, &y);
 	CHECK(whites >= 2048 * 1536 * 9 / 10, "not maximized on screen: %d",
@@ -2080,7 +2165,7 @@ x_maximized_by_alt_f10(struct harness *h)
 {
 	press(h, KEY_LEFTALT, KEY_F10);
 	pause_ms(h, 500);
-	bool maximized = log_has("size 1024x768");
+	bool maximized = log_has_size_inside_frame(1024, 768);
 
 	if (maximized) {
 		press(h, KEY_LEFTALT, KEY_F10);
