@@ -9,6 +9,7 @@
 
 #include <errno.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "harness.h"
 #include "server-decoration-client-protocol.h"
@@ -322,6 +323,114 @@ test_kde(struct harness *h)
 	wl_display_disconnect(c.display);
 }
 
+struct desktop {
+	struct harness *h;
+	struct wl_surface *surface;
+	struct zwlr_layer_surface_v1 *layer_surface;
+	struct wl_buffer *buffer;
+	bool mapped;
+};
+
+static void
+desktop_configure(void *data, struct zwlr_layer_surface_v1 *ls,
+		  uint32_t serial, uint32_t width, uint32_t height)
+{
+	struct desktop *d = data;
+
+	zwlr_layer_surface_v1_ack_configure(ls, serial);
+	if (!d->mapped) {
+		d->buffer = harness_buffer_create(d->h->shm, (int)width,
+						  (int)height);
+		wl_surface_attach(d->surface, d->buffer, 0, 0);
+		d->mapped = true;
+	}
+	wl_surface_commit(d->surface);
+}
+
+static void
+desktop_closed(void *data, struct zwlr_layer_surface_v1 *ls)
+{
+}
+
+static const struct zwlr_layer_surface_v1_listener desktop_listener = {
+	desktop_configure,
+	desktop_closed,
+};
+
+/* Count sample points whose pointer focus is not the desktop. */
+static int
+points_off_desktop(struct harness *h, struct desktop *d)
+{
+	int covered = 0;
+
+	for (int y = 180; y <= 580; y += 20)
+		for (int x = 300; x <= 720; x += 40) {
+			harness_move_pointer(h, x, y);
+			if (h->pointer_focus != d->surface)
+				covered++;
+		}
+	return covered;
+}
+
+/* Destroying a client and its KDE decoration must remove its frame. Otherwise
+ * the frame can cover the desktop after live windows restack. */
+static void
+test_kde_disconnect(struct harness *h)
+{
+	struct desktop desk = { .h = h };
+	struct client c;
+	struct toplevel t;
+
+	desk.surface = wl_compositor_create_surface(h->compositor);
+	desk.layer_surface = zwlr_layer_shell_v1_get_layer_surface(
+		h->layer_shell, desk.surface, NULL,
+		ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND, "desktop");
+	zwlr_layer_surface_v1_add_listener(desk.layer_surface,
+					   &desktop_listener, &desk);
+	zwlr_layer_surface_v1_set_anchor(
+		desk.layer_surface, ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP |
+					    ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM |
+					    ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT |
+					    ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT);
+	zwlr_layer_surface_v1_set_exclusive_zone(desk.layer_surface, -1);
+	wl_surface_commit(desk.surface);
+	for (int i = 0; i < 20 && !harness_layer_info(h, desk.surface)->mapped;
+	     i++)
+		harness_roundtrip(h);
+	harness_wait_frame(h, desk.surface);
+	CHECK(points_off_desktop(h, &desk) == 0,
+	      "something covers the desktop, such as a frame an earlier "
+	      "window left");
+
+	connect_client(&c, h);
+	create_toplevel(&c, &t);
+	struct org_kde_kwin_server_decoration *d =
+		org_kde_kwin_server_decoration_manager_create(c.kde, t.surface);
+
+	org_kde_kwin_server_decoration_request_mode(
+		d, ORG_KDE_KWIN_SERVER_DECORATION_MODE_SERVER);
+	draw(&c, &t);
+	for (int i = 0; i < 6; i++) {
+		wl_display_roundtrip(c.display);
+		harness_roundtrip(h);
+	}
+	usleep(50000);
+	CHECK(points_off_desktop(h, &desk) > 0,
+	      "the decorated window is not shown");
+	wl_display_disconnect(c.display);
+	for (int i = 0; i < 6; i++)
+		harness_roundtrip(h);
+	usleep(50000);
+	int left = points_off_desktop(h, &desk);
+
+	CHECK(left == 0, "%d points still hit a frame after the client left",
+	      left);
+	zwlr_layer_surface_v1_destroy(desk.layer_surface);
+	wl_surface_destroy(desk.surface);
+	wl_buffer_destroy(desk.buffer);
+	harness_roundtrip(h);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -329,6 +438,7 @@ main(int argc, char **argv)
 
 	test_xdg(h);
 	test_kde(h);
+	test_kde_disconnect(h);
 	harness_roundtrip(h);
 	CHECK(harness_stop(h) == 0, "polo did not stop cleanly");
 	return 0;

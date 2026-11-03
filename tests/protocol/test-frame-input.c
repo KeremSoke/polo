@@ -8,11 +8,37 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
 #include <linux/input-event-codes.h>
 
 #include "harness.h"
+#include "server-decoration-client-protocol.h"
+
+static struct org_kde_kwin_server_decoration_manager *kde_manager;
+
+static void
+registry_global(void *data, struct wl_registry *registry, uint32_t name,
+		const char *interface, uint32_t version)
+{
+	if (strcmp(interface,
+		   org_kde_kwin_server_decoration_manager_interface.name) == 0)
+		kde_manager = wl_registry_bind(
+			registry, name,
+			&org_kde_kwin_server_decoration_manager_interface, 1);
+}
+
+static void
+registry_global_remove(void *data, struct wl_registry *registry,
+		       uint32_t name)
+{
+}
+
+static const struct wl_registry_listener registry_listener = {
+	registry_global,
+	registry_global_remove,
+};
 
 static void
 settle(struct harness *h)
@@ -93,6 +119,52 @@ main(int argc, char **argv)
 	CHECK(w->close_requested, "the close button did not close the window");
 
 	harness_window_destroy(w);
+	harness_roundtrip(h);
+
+	/* GTK 3 creates its KDE decoration on wl_surface, then destroys only the
+	 * toplevel. Its frame must still disappear. */
+	struct wl_registry *registry = wl_display_get_registry(h->display);
+
+	wl_registry_add_listener(registry, &registry_listener, NULL);
+	harness_roundtrip(h);
+	CHECK(kde_manager != NULL, "no org_kde_kwin_server_decoration_manager");
+	struct harness_window *below =
+		harness_window_create(h, 700, 500, "below");
+	settle(h);
+	w = harness_window_create(h, 300, 200, "kde");
+	struct org_kde_kwin_server_decoration *kde =
+		org_kde_kwin_server_decoration_manager_create(kde_manager,
+							       w->surface);
+	org_kde_kwin_server_decoration_request_mode(
+		kde, ORG_KDE_KWIN_SERVER_DECORATION_MODE_SERVER);
+	settle(h);
+	harness_window_draw_pending(w);
+	settle(h);
+	info = harness_window_info(w);
+	x = info->x;
+	y = info->y;
+	harness_move_pointer(h, x + 40, y - 8);
+	CHECK(h->pointer_focus != below->surface,
+	      "the titlebar does not cover the window below");
+
+	/* GTK retains wl_surface for a later remap. */
+	CHECK(h->windows[h->n_windows - 1] == w, "the KDE window is not last");
+	h->n_windows--;
+	xdg_toplevel_destroy(w->xdg_toplevel);
+	xdg_surface_destroy(w->xdg_surface);
+	settle(h);
+	usleep(50000);
+	harness_move_pointer(h, x + 41, y - 8);
+	harness_move_pointer(h, x + 40, y - 8);
+	CHECK(h->pointer_focus == below->surface,
+	      "the frame of a destroyed window still takes the pointer");
+	org_kde_kwin_server_decoration_release(kde);
+	wl_surface_destroy(w->surface);
+	wl_buffer_destroy(w->buffer);
+	free(w);
+	org_kde_kwin_server_decoration_manager_destroy(kde_manager);
+	wl_registry_destroy(registry);
+	harness_window_destroy(below);
 	harness_roundtrip(h);
 	CHECK(harness_stop(h) == 0, "polo did not stop cleanly");
 	return 0;

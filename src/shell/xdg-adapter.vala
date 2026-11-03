@@ -651,6 +651,8 @@ namespace Polo.Shell {
             var self = this;
 
             mapped = false;
+            /* Break the window/adapter cycle before the toplevel disappears. */
+            drop_decor ();
             window.unmanaged ();
             desktop.window_destroyed (self);
         }
