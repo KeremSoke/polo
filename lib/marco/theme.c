@@ -3174,6 +3174,8 @@ polo_marco_theme_new(void)
 	PoloTheme *theme;
 
 	theme = g_new0(PoloTheme, 1);
+	theme->custom_color_names =
+		g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
 
 	theme->images_by_filename = g_hash_table_new_full(
 		g_str_hash, g_str_equal, g_free, g_object_unref);
@@ -3247,6 +3249,8 @@ polo_marco_theme_free(PoloTheme *theme)
 		g_hash_table_destroy(theme->color_constants);
 	if (theme->images_by_filename)
 		g_hash_table_destroy(theme->images_by_filename);
+	if (theme->custom_color_names)
+		g_hash_table_destroy(theme->custom_color_names);
 	if (theme->layouts_by_name)
 		g_hash_table_destroy(theme->layouts_by_name);
 	if (theme->draw_op_lists_by_name)
@@ -4416,4 +4420,11 @@ polo_marco_theme_earliest_version_with_button(PoloButtonType type)
 		polo_marco_warning("Unknown button %d\n", type);
 		return 1000;
 	}
+}
+
+const char **
+polo_marco_theme_get_custom_color_names(PoloTheme *theme)
+{
+	return (const char **)g_hash_table_get_keys_as_array(
+		theme->custom_color_names, NULL);
 }

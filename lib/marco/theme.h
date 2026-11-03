@@ -814,6 +814,8 @@ struct _PoloTheme {
 	GQuark quark_title_height;
 	GQuark quark_frame_x_center;
 	GQuark quark_frame_y_center;
+	/* Names requested from the GTK theme by gtk:custom(). */
+	GHashTable *custom_color_names;
 };
 
 struct _PoloPositionExprEnv {
@@ -944,6 +946,32 @@ PoloTheme *
 polo_marco_theme_new(void);
 void
 polo_marco_theme_free(PoloTheme *theme);
+
+/* Returns a title's laid-out height in pixels. */
+int
+polo_marco_frame_text_height(PoloTheme *theme, PoloFrameType type,
+			     PoloFrameFlags flags, const char *system_font,
+			     const char *titlebar_font, double dpi);
+
+/* Renders the specified frame piece into an ARGB32 buffer. titlebar_font is
+ * NULL when the system font is used. */
+void
+polo_marco_frame_render(PoloTheme *theme, PoloThemeColors *colors,
+			PoloFrameType type, PoloFrameFlags flags,
+			int client_width, int client_height, const char *title,
+			const char *system_font, const char *titlebar_font,
+			double dpi, const PoloButtonLayout *button_layout,
+			const PoloButtonState *button_states, int piece_x,
+			int piece_y, guint8 *pixels, int width, int height,
+			int stride);
+
+/* Releases Pango's cached fonts before exit. */
+void
+polo_marco_frame_release_fonts(void);
+
+/* Returns a NULL-terminated array; free the array, not its names. */
+const char **
+polo_marco_theme_get_custom_color_names(PoloTheme *theme);
 
 void
 polo_marco_color_spec_render(PoloColorSpec *spec, PoloThemeColors *style,

@@ -829,6 +829,28 @@ parse_alpha (const char             *str,
   return TRUE;
 }
 
+static void
+note_custom_colors (PoloTheme *theme, const PoloColorSpec *spec)
+{
+  switch (spec->type)
+    {
+    case POLO_COLOR_SPEC_GTK_CUSTOM:
+      g_hash_table_add (theme->custom_color_names,
+                        g_strdup (spec->data.gtkcustom.color_name));
+      note_custom_colors (theme, spec->data.gtkcustom.fallback);
+      break;
+    case POLO_COLOR_SPEC_BLEND:
+      note_custom_colors (theme, spec->data.blend.foreground);
+      note_custom_colors (theme, spec->data.blend.background);
+      break;
+    case POLO_COLOR_SPEC_SHADE:
+      note_custom_colors (theme, spec->data.shade.base);
+      break;
+    default:
+      break;
+    }
+}
+
 static PoloColorSpec*
 parse_color (PoloTheme *theme,
              const char        *str,
@@ -836,16 +858,17 @@ parse_color (PoloTheme *theme,
 {
   char* referent;
 
+  PoloColorSpec *spec;
+
   if (POLO_THEME_ALLOWS (theme, POLO_THEME_COLOR_CONSTANTS) &&
-      polo_marco_theme_lookup_color_constant (theme, str, &referent))
-    {
-      if (referent)
-        return polo_marco_color_spec_new_from_string (referent, err);
-
-      /* no need to free referent: it's a pointer into the actual hash table */
-    }
-
-  return polo_marco_color_spec_new_from_string (str, err);
+      polo_marco_theme_lookup_color_constant (theme, str, &referent) &&
+      referent)
+    spec = polo_marco_color_spec_new_from_string (referent, err);
+  else
+    spec = polo_marco_color_spec_new_from_string (str, err);
+  if (spec)
+    note_custom_colors (theme, spec);
+  return spec;
 }
 
 static gboolean

@@ -47,6 +47,7 @@ namespace Polo.Shell {
         public WindowMenu window_menu { get; private set; }
         public WorkspaceSwitcher workspace_switcher { get; private set; }
         private TilePreview tile_preview;
+        public Decor.Decorations decorations { get; private set; }
 
         public Desktop (Backend.Server server, Policy.Model model, Outputs.Store store, bool drm,
                         Input.XkbConfig system_keyboard) {
@@ -59,8 +60,19 @@ namespace Polo.Shell {
             server.input_device_added.connect (on_input_device_added);
             layer_shell = new LayerShell (server, model, this);
             background = new Settings.Background (server, model, this, layer_shell);
+            decorations = new Decor.Decorations (server.get_shell_ui ());
+            load_decorations ();
             /* In the body: construct blocks run before layer_shell exists. */
             model.layer_struts = layer_shell.all_struts;
+        }
+
+        private void load_decorations () {
+            var prefs = model.prefs;
+            var iface = settings ("org.mate.interface");
+            decorations.set_fonts (iface != null ? iface.get_string ("font-name") : null,
+                                   prefs.titlebar_uses_system_font ? null : prefs.titlebar_font);
+            decorations.set_button_layout (prefs.button_layout);
+            decorations.load_theme (prefs.theme);
         }
 
         construct {

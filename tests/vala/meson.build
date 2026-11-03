@@ -147,3 +147,15 @@ x11_props_test = executable('test-x11-props', 'x11-props.vala',
   dependencies: [polo_policy_dep],
 )
 test('x11-props', x11_props_test, suite: 'unit-vala', protocol: 'tap', args: ['--tap'])
+
+decor_frame_test = executable('test-decor-frame',
+  'decor-frame.vala',
+  meson.project_source_root() / 'src/decor/decorations.vala',
+  meson.project_source_root() / 'src/decor/frame.vala',
+  meson.project_source_root() / 'src/log.vala',
+  vala_args: vala_args + ['--pkg', 'polo-backend', '--pkg', 'polo-marco', '--pkg', 'posix'],
+  c_args: vala_c_args,
+  dependencies: [polo_backend_dep, polo_marco_dep, gio_dep],
+)
+test('decor-frame', decor_frame_test, suite: 'unit-vala', protocol: 'tap', args: ['--tap'],
+  env: ['WESTON_MODULE_MAP=' + weston_module_map, 'GSETTINGS_BACKEND=memory'])

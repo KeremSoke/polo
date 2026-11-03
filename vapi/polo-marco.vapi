@@ -610,6 +610,67 @@ namespace Polo.Marco {
         public int n_right_buttons;
     }
 
+    [CCode (cname = "PoloButtonState", cprefix = "POLO_BUTTON_STATE_", has_type_id = false,
+            cheader_filename = "theme-parser.h")]
+    public enum ButtonState {
+        NORMAL,
+        PRESSED,
+        PRELIGHT,
+        LAST
+    }
+
+    [CCode (cname = "PoloButtonType", cprefix = "POLO_BUTTON_TYPE_", has_type_id = false,
+            cheader_filename = "theme-parser.h")]
+    public enum ButtonType {
+        LEFT_LEFT_BACKGROUND,
+        LEFT_MIDDLE_BACKGROUND,
+        LEFT_RIGHT_BACKGROUND,
+        LEFT_SINGLE_BACKGROUND,
+        RIGHT_LEFT_BACKGROUND,
+        RIGHT_MIDDLE_BACKGROUND,
+        RIGHT_RIGHT_BACKGROUND,
+        RIGHT_SINGLE_BACKGROUND,
+        CLOSE,
+        MAXIMIZE,
+        MINIMIZE,
+        MENU,
+        APPMENU,
+        SHADE,
+        ABOVE,
+        STICK,
+        UNSHADE,
+        UNABOVE,
+        UNSTICK,
+        LAST
+    }
+
+    /* GTK theme colours resolved by polo-shell-ui. */
+    [Compact]
+    [CCode (cname = "PoloThemeColors", free_function = "polo_marco_theme_colors_free",
+            cheader_filename = "theme-parser.h")]
+    public class ThemeColors {
+        [CCode (cname = "polo_marco_theme_colors_new")]
+        public ThemeColors ();
+
+        [CCode (cname = "polo_marco_theme_colors_set_table")]
+        public bool set_table ([CCode (array_length_type = "int")] float[] values);
+
+        [CCode (cname = "polo_marco_theme_colors_set_custom")]
+        public void set_custom (string name, RGBA? color);
+    }
+
+    [CCode (cname = "PoloRGBA", has_type_id = false, cheader_filename = "theme-parser.h")]
+    public struct RGBA {
+        public double red;
+        public double green;
+        public double blue;
+        public double alpha;
+    }
+
+    /* Releases Pango's cached fonts before exit. */
+    [CCode (cname = "polo_marco_frame_release_fonts", cheader_filename = "theme-parser.h")]
+    public void release_fonts ();
+
     /* Owned by its theme. */
     [Compact]
     [CCode (cname = "PoloFrameStyle", free_function = "", cheader_filename = "theme-parser.h")]
@@ -629,6 +690,24 @@ namespace Polo.Marco {
         [CCode (cname = "polo_marco_theme_get_frame_borders")]
         public void get_frame_borders (FrameType type, int text_height, FrameFlags flags,
                                        out ThemeBorders borders);
+
+        [CCode (cname = "polo_marco_theme_get_custom_color_names", array_length = false,
+                array_null_terminated = true)]
+        public (unowned string)[] get_custom_color_names ();
+
+        [CCode (cname = "polo_marco_frame_text_height")]
+        public int text_height (FrameType type, FrameFlags flags, string? system_font,
+                                string? titlebar_font, double dpi);
+
+        /* Renders the specified frame piece into a width × height ARGB32 buffer. */
+        [CCode (cname = "polo_marco_frame_render")]
+        public void render (ThemeColors colors, FrameType type, FrameFlags flags,
+                            int client_width, int client_height, string? title,
+                            string? system_font, string? titlebar_font, double dpi,
+                            ButtonLayout button_layout,
+                            [CCode (array_length = false)] ButtonState[] button_states,
+                            int piece_x, int piece_y, [CCode (array_length = false)] uint8[] pixels,
+                            int width, int height, int stride);
 
         [CCode (cname = "polo_marco_theme_calc_geometry")]
         public void calc_geometry (FrameType type, int text_height, FrameFlags flags,

@@ -291,6 +291,29 @@ custom_colours(void)
 }
 
 static void
+custom_colour_names(void)
+{
+	PoloTheme *theme;
+	const char **names;
+	gboolean found = FALSE;
+
+	if (!g_file_test("/usr/share/themes/Menta/metacity-1",
+			 G_FILE_TEST_IS_DIR)) {
+		g_test_skip("Menta is not installed");
+		return;
+	}
+	theme = polo_marco_theme_load("Menta", NULL);
+	g_assert_nonnull(theme);
+	names = polo_marco_theme_get_custom_color_names(theme);
+	for (int i = 0; names[i]; i++)
+		if (strcmp(names[i], "wm_bg_a") == 0)
+			found = TRUE;
+	g_assert_true(found);
+	g_free(names);
+	polo_marco_theme_free(theme);
+}
+
+static void
 broken(void)
 {
 	char *home = g_dir_make_tmp("polo-theme-XXXXXX", NULL);
@@ -386,6 +409,7 @@ main(int argc, char **argv)
 	g_test_add_func("/theme/rgba", rgba);
 	g_test_add_func("/theme/colour-specs", colour_specs);
 	g_test_add_func("/theme/custom-colours", custom_colours);
+	g_test_add_func("/theme/custom-colour-names", custom_colour_names);
 	g_test_add_func("/theme/expressions", expressions);
 	g_test_add_func("/theme/broken", broken);
 	int status;
