@@ -176,12 +176,58 @@ void test_rounded_corners () {
     }
 }
 
+/* Marco's focused shadow extends 15 pixels up and left, and 21 down and right. */
+void test_shadow () {
+    if (!GLib.FileUtils.test ("/usr/share/themes/Menta/metacity-1", GLib.FileTest.IS_DIR)) {
+        GLib.Test.skip ("Menta is not installed");
+        return;
+    }
+    var decorations = new Polo.Decor.Decorations ();
+    assert (decorations.load_theme ("Menta"));
+    var normal = Polo.Marco.FrameType.NORMAL;
+    unowned Polo.Marco.Theme theme = decorations.get_theme ();
+    int text_height = theme.text_height (normal, FLAGS, "Sans 10", null, Polo.Decor.Decorations.DPI);
+    Polo.Marco.FrameGeometry geometry;
+    theme.calc_geometry (normal, text_height, FLAGS, 300, 200, decorations.button_layout, out geometry);
+    unowned Polo.Marco.Border invisible = geometry.borders.invisible;
+    int visible_width = geometry.width - invisible.left - invisible.right;
+    int visible_height = geometry.height - invisible.top - invisible.bottom;
+
+    var mask = Polo.Marco.ShadowMask.create (Polo.Marco.ShadowType.LARGE, Polo.Marco.SHADOW_OPACITY,
+                                             geometry, FLAGS);
+    int x, y, width, height;
+    mask.get_bounds (out x, out y, out width, out height);
+    assert (x == invisible.left - 15 && y == invisible.top - 15);
+    assert (width == visible_width + 36 && height == visible_height + 36);
+
+    int px, py, pw, ph;
+    mask.get_piece (Polo.Marco.ShadowPiece.LEFT, out px, out py, out pw, out ph);
+    assert (px == 0 && pw == 15);
+    mask.get_piece (Polo.Marco.ShadowPiece.RIGHT, out px, out py, out pw, out ph);
+    assert (pw == 21 && px == width - 21);
+    mask.get_piece (Polo.Marco.ShadowPiece.TOP, out px, out py, out pw, out ph);
+    assert (pw == width && ph == 15 + 4);
+    var pixels = new uint8[pw * ph * 4];
+    mask.render (px, py, pixels, pw, ph, pw * 4);
+    assert (alpha_at (pixels, pw * 4, width / 2, 14) > 0);
+    assert (alpha_at (pixels, pw * 4, width / 2, 15) == 0);
+    assert (alpha_at (pixels, pw * 4, 15, 15) > 0);
+    assert (alpha_at (pixels, pw * 4, 0, 0) < alpha_at (pixels, pw * 4, width / 2, 14));
+
+    var medium = Polo.Marco.ShadowMask.create (Polo.Marco.ShadowType.MEDIUM, Polo.Marco.SHADOW_OPACITY,
+                                               geometry, FLAGS);
+    medium.get_bounds (out x, out y, out width, out height);
+    assert (x == invisible.left - 9 && y == invisible.top - 7);
+    assert (width == visible_width + 18 && height == visible_height + 18);
+}
+
 int main (string[] args) {
     GLib.Test.init (ref args);
     server = start_server ();
     GLib.Test.add_func ("/decor/no-theme", test_no_theme);
     GLib.Test.add_func ("/decor/frame", test_frame);
     GLib.Test.add_func ("/decor/rounded-corners", test_rounded_corners);
+    GLib.Test.add_func ("/decor/shadow", test_shadow);
     int status = GLib.Test.run ();
     server.stop ();
     Polo.Marco.release_fonts ();

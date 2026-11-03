@@ -88,15 +88,19 @@ corner_inset(guint corner, int row)
 		     (radius - (row + 0.5)) * (radius - (row + 0.5))));
 }
 
-/* Clear the invisible borders and rounded corners Marco removes by shaping its
- * frame window in frames.c get_visible_region(). */
-static void
-clear_outside_visible_region(cairo_t *cr, const PoloFrameGeometry *fgeom,
-			     PoloFrameFlags flags)
+int
+polo_marco_frame_window_height(const PoloFrameGeometry *fgeom,
+			       PoloFrameFlags flags)
 {
-	int window_height = (flags & POLO_FRAME_SHADED)
-		? fgeom->borders.total.top
-		: fgeom->height;
+	return (flags & POLO_FRAME_SHADED) ? fgeom->borders.total.top
+					   : fgeom->height;
+}
+
+cairo_region_t *
+polo_marco_frame_visible_region(const PoloFrameGeometry *fgeom,
+				PoloFrameFlags flags)
+{
+	int window_height = polo_marco_frame_window_height(fgeom, flags);
 	cairo_rectangle_int_t frame_rect = {
 		fgeom->borders.invisible.left,
 		fgeom->borders.invisible.top,
@@ -105,8 +109,6 @@ clear_outside_visible_region(cairo_t *cr, const PoloFrameGeometry *fgeom,
 		window_height - fgeom->borders.invisible.bottom -
 			fgeom->borders.invisible.top,
 	};
-	cairo_rectangle_int_t all = { 0, 0, fgeom->width, window_height };
-	cairo_region_t *hidden = cairo_region_create_rectangle(&all);
 	cairo_region_t *visible = cairo_region_create_rectangle(&frame_rect);
 	cairo_rectangle_int_t row;
 	guint i;
@@ -149,14 +151,29 @@ clear_outside_visible_region(cairo_t *cr, const PoloFrameGeometry *fgeom,
 		};
 		cairo_region_subtract_rectangle(visible, &row);
 	}
-	cairo_region_subtract(hidden, visible);
+	return visible;
+}
 
+/* Clear the invisible borders and rounded corners Marco removes by shaping its
+ * frame window in frames.c get_visible_region(). */
+static void
+clear_outside_visible_region(cairo_t *cr, const PoloFrameGeometry *fgeom,
+			     PoloFrameFlags flags)
+{
+	cairo_rectangle_int_t all = {
+		0, 0, fgeom->width, polo_marco_frame_window_height(fgeom, flags)
+	};
+	cairo_region_t *hidden = cairo_region_create_rectangle(&all);
+	cairo_region_t *visible = polo_marco_frame_visible_region(fgeom, flags);
+	int i;
+
+	cairo_region_subtract(hidden, visible);
 	cairo_save(cr);
 	cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
-	for (i = 0; i < (guint)cairo_region_num_rectangles(hidden); i++) {
+	for (i = 0; i < cairo_region_num_rectangles(hidden); i++) {
 		cairo_rectangle_int_t r;
 
-		cairo_region_get_rectangle(hidden, (int)i, &r);
+		cairo_region_get_rectangle(hidden, i, &r);
 		cairo_rectangle(cr, r.x, r.y, r.width, r.height);
 	}
 	cairo_fill(cr);

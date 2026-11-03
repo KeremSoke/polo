@@ -969,6 +969,17 @@ polo_marco_frame_render(PoloTheme *theme, PoloThemeColors *colors,
 void
 polo_marco_frame_release_fonts(void);
 
+/* The frame window's height: only the titlebar when shaded. */
+int
+polo_marco_frame_window_height(const PoloFrameGeometry *fgeom,
+			       PoloFrameFlags flags);
+
+/* Visible frame-window area, excluding invisible borders and rounded corners,
+ * as frames.c get_visible_region() defines it. */
+cairo_region_t *
+polo_marco_frame_visible_region(const PoloFrameGeometry *fgeom,
+				PoloFrameFlags flags);
+
 /* Returns a NULL-terminated array; free the array, not its names. */
 const char **
 polo_marco_theme_get_custom_color_names(PoloTheme *theme);

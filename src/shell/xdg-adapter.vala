@@ -35,6 +35,7 @@ namespace Polo.Shell {
         private int drawn_height = 0;
 
         private Decor.Frame? decor = null;
+        private Decor.Shadow? shadow = null;
 
         private bool mapped_hints = false;
         private int last_min_w;
@@ -151,11 +152,7 @@ namespace Polo.Shell {
             var flags = Decor.FrameState.flags_of (window);
             if (!window.has_frame () || !server_decorated () || theme == null || type == null ||
                 window.has_state (WindowState.FULLSCREEN) || theme.get_frame_style (type, flags) == null) {
-                if (decor != null) {
-                    decor.clear ();
-                    decor.ready.disconnect (desktop.frames_changed);
-                    decor = null;
-                }
+                drop_decor ();
                 return !equal_borders (old, window.borders);
             }
             int text_height = theme.text_height (type, flags, desktop.decorations.system_font,
@@ -186,10 +183,49 @@ namespace Polo.Shell {
             if (type == null) {
                 return;
             }
-            decor.update (type, Decor.FrameState.flags_of (window),
-                          window.frame.width - window.borders.left - window.borders.right,
+            var flags = Decor.FrameState.flags_of (window);
+            decor.update (type, flags, window.frame.width - window.borders.left - window.borders.right,
                           window.frame.height - window.borders.top - window.borders.bottom, window.title);
+            refresh_shadow (flags);
             place_frame ();
+        }
+
+        private void drop_decor () {
+            if (decor != null) {
+                decor.clear ();
+                decor.ready.disconnect (desktop.frames_changed);
+                decor = null;
+            }
+            drop_shadow ();
+        }
+
+        private void drop_shadow () {
+            if (shadow != null) {
+                shadow.clear ();
+                shadow.ready.disconnect (desktop.frames_changed);
+                shadow = null;
+            }
+        }
+
+        /* Match compositor-xrender.c's shadow rules for framed windows; docks never get one. */
+        private bool wants_shadow (Marco.FrameFlags flags) {
+            return desktop.model.prefs.compositing_manager && window.window_type != Marco.WindowType.DOCK &&
+                   !window.has_state (WindowState.MAXIMIZED) && !(Marco.FrameFlags.TILED_LEFT in flags) &&
+                   !(Marco.FrameFlags.TILED_RIGHT in flags);
+        }
+
+        private void refresh_shadow (Marco.FrameFlags flags) {
+            if (!wants_shadow (flags)) {
+                drop_shadow ();
+                return;
+            }
+            if (shadow == null) {
+                shadow = new Decor.Shadow (desktop.server);
+                shadow.ready.connect (desktop.frames_changed);
+            }
+            /* Focused windows use the large shadow. */
+            var type = window.has_state (WindowState.ACTIVE) ? Marco.ShadowType.LARGE : Marco.ShadowType.MEDIUM;
+            shadow.update (type, decor.geometry, flags, desktop.decorations.serial);
         }
 
         private void place_frame () {
@@ -206,12 +242,34 @@ namespace Polo.Shell {
                     view.set_position (x + rect.x, y + rect.y);
                 }
             }
+            if (shadow == null) {
+                return;
+            }
+            for (int i = 0; i < Marco.ShadowPiece.COUNT; i++) {
+                Marco.Rect rect;
+                unowned Backend.PixelBuffer? piece = shadow.get_piece ((Marco.ShadowPiece) i, out rect);
+                unowned Backend.View? view = piece != null ? piece.get_view () : null;
+                if (view != null) {
+                    view.set_position (x + shadow.x + rect.x, y + shadow.y + rect.y);
+                }
+            }
         }
 
         /* Puts frame views below the window on layer, or removes them from all layers. */
         internal void stack_frame (GLib.GenericArray<Backend.View> views, Backend.Layer? layer) {
             if (decor == null) {
                 return;
+            }
+            for (int i = 0; shadow != null && i < Marco.ShadowPiece.COUNT; i++) {
+                Marco.Rect rect;
+                unowned Backend.PixelBuffer? piece = shadow.get_piece ((Marco.ShadowPiece) i, out rect);
+                unowned Backend.View? view = piece != null ? piece.get_view () : null;
+                if (view != null) {
+                    view.move_to_layer (layer);
+                    if (layer != null) {
+                        views.add (view);
+                    }
+                }
             }
             for (int i = 0; i < Decor.Frame.Edge.COUNT; i++) {
                 Marco.Rect rect;
@@ -580,11 +638,7 @@ namespace Polo.Shell {
             drawn_height = 0;
             mapped_hints = false;
             toplevel.get_view ().move_to_layer (null);
-            if (decor != null) {
-                decor.clear ();
-                decor.ready.disconnect (desktop.frames_changed);
-                decor = null;
-            }
+            drop_decor ();
             var old = window;
             new_window ();
             old.unmanaged ();

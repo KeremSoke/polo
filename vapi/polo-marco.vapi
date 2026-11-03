@@ -667,6 +667,49 @@ namespace Polo.Marco {
         public double alpha;
     }
 
+    [CCode (cname = "PoloWindowShadow", cprefix = "POLO_WINDOW_SHADOW_", has_type_id = false,
+            cheader_filename = "shadow.h")]
+    public enum ShadowType {
+        SMALL,
+        MEDIUM,
+        LARGE
+    }
+
+    [CCode (cname = "PoloShadowPiece", cprefix = "POLO_SHADOW_PIECE_", has_type_id = false,
+            cheader_filename = "shadow.h")]
+    public enum ShadowPiece {
+        TOP,
+        BOTTOM,
+        LEFT,
+        RIGHT;
+
+        [CCode (cname = "4")]
+        public const int COUNT;
+    }
+
+    [CCode (cname = "POLO_SHADOW_OPACITY", cheader_filename = "shadow.h")]
+    public const double SHADOW_OPACITY;
+
+    /* Marco's frame shadow, excluding the area covered by the frame. */
+    [Compact]
+    [CCode (cname = "PoloShadowMask", free_function = "polo_marco_shadow_mask_free", cheader_filename = "shadow.h")]
+    public class ShadowMask {
+        [CCode (cname = "polo_marco_shadow_mask_new")]
+        public static ShadowMask? create (ShadowType type, double opacity, FrameGeometry geometry,
+                                          FrameFlags flags);
+
+        /* x and y are relative to the frame window's corner. */
+        [CCode (cname = "polo_marco_shadow_mask_get_bounds")]
+        public void get_bounds (out int x, out int y, out int width, out int height);
+
+        [CCode (cname = "polo_marco_shadow_mask_get_piece")]
+        public void get_piece (ShadowPiece piece, out int x, out int y, out int width, out int height);
+
+        [CCode (cname = "polo_marco_shadow_mask_render")]
+        public void render (int piece_x, int piece_y, [CCode (array_length = false)] uint8[] pixels,
+                            int width, int height, int stride);
+    }
+
     /* Releases Pango's cached fonts before exit. */
     [CCode (cname = "polo_marco_frame_release_fonts", cheader_filename = "theme-parser.h")]
     public void release_fonts ();

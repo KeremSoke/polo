@@ -56,6 +56,7 @@ polo_sources = files(
   'decor/decorations.vala',
   'decor/frame.vala',
   'decor/frame-state.vala',
+  'decor/shadow.vala',
   'core/trust.vala',
   'log.vala',
   'main.vala',

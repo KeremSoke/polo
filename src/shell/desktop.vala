@@ -380,6 +380,8 @@ namespace Polo.Shell {
 
         private void on_prefs_changed () {
             bindings.rebuild (model.prefs);
+            /* Changing general/compositing-manager can add or remove shadows. */
+            restack ();
         }
 
         public void set_command_launcher (owned Input.CommandLauncher? launcher) {
