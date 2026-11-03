@@ -2002,6 +2002,14 @@ static gboolean
 pos_eval_get_variable(PosToken *t, int *result, const PoloPositionExprEnv *env,
 		      GError **err)
 {
+	if (!env) {
+		g_set_error(err, POLO_THEME_ERROR, POLO_THEME_ERROR_FAILED,
+			    _("Coordinate expression needs an environment to "
+			      "evaluate variable \"%s\""),
+			    t->d.v.name);
+		return FALSE;
+	}
+
 	if (env->theme) {
 		if (t->d.v.name_quark == env->theme->quark_width)
 			*result = env->rect.width;

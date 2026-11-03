@@ -29,7 +29,7 @@ env:
   FEDORA_TEST_DEPS: >-
     xorg-x11-server-Xwayland xkeyboard-config mesa-dri-drivers mesa-libEGL
     dbus-daemon procps-ng desktop-file-utils shared-mime-info
-    mate-session-manager adwaita-icon-theme glycin-loaders
+    mate-session-manager adwaita-icon-theme glycin-loaders gtk4
     libasan libubsan
   # io.elementary.vala-lint has no recent release; pin a commit.
   VALA_LINT_REV: 34124fb326f63d9f24339175818425c310ca747c

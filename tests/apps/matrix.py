@@ -92,6 +92,12 @@ def chord(send, keys):
         time.sleep(0.05)
 
 
+def passed(result):
+    return (result["mapped"] and result["focused"] and result["maximized"] and
+            result["fullscreen"] is not False and not result["protocol_errors"] and
+            result["alive"] and result["polo_exit"] == 0)
+
+
 def run(polo, polo_input, name, command, extra, fullscreen_keys, click_first):
     tmp = tempfile.mkdtemp(prefix="pmx-", dir="/tmp")
     home, profile = tmp + "/h", tmp + "/p"
@@ -176,11 +182,19 @@ def run(polo, polo_input, name, command, extra, fullscreen_keys, click_first):
     except subprocess.TimeoutExpired:
         driver.kill()
         status = "stuck"
+    result = {"app": name, "mapped": mapped, "focused": focused, "maximized": maximized,
+              "fullscreen": fullscreen, "protocol_errors": len(errors),
+              "first_error": errors[0][:200] if errors else "", "alive": alive,
+              "polo_exit": status}
+    log.close()
+    polo_log.close()
+    if not passed(result):
+        for filename in ("app.log", "polo.log"):
+            print(f"--- {name}: {filename} ---", file=sys.stderr)
+            with open(tmp + "/" + filename, errors="replace") as output:
+                print(output.read(), file=sys.stderr)
     shutil.rmtree(tmp, ignore_errors=True)
-    return {"app": name, "mapped": mapped, "focused": focused, "maximized": maximized,
-            "fullscreen": fullscreen, "protocol_errors": len(errors),
-            "first_error": errors[0][:200] if errors else "", "alive": alive,
-            "polo_exit": status}
+    return result
 
 
 def main():
@@ -201,9 +215,7 @@ def main():
             continue
         result = run(sys.argv[1], sys.argv[2], name, command, extra, keys, click)
         print(json.dumps(result), flush=True)
-        if not (result["mapped"] and result["focused"] and result["maximized"] and
-                result["fullscreen"] is not False and not result["protocol_errors"] and
-                result["alive"] and result["polo_exit"] == 0):
+        if not passed(result):
             failed += 1
     for name in NOT_SCRIPTED:
         print(json.dumps({"app": name, "skipped": "by hand: docs/app-matrix.md"}), flush=True)
