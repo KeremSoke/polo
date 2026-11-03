@@ -82,7 +82,7 @@ make_gaussian_map(double r)
 
 	size = ((int)ceil((r * 3)) + 1) & ~1;
 	centre = size / 2;
-	c = g_malloc(sizeof(conv) + size * size * sizeof(double));
+	c = g_malloc0(sizeof(conv) + size * size * sizeof(double));
 	c->size = size;
 	c->data = (double *)(c + 1);
 	t = 0.0;
