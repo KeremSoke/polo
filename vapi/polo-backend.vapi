@@ -768,13 +768,17 @@ namespace Polo {
             [CCode (cname = "polo_backend_pixel_buffer_get_size")]
             public void get_size (out int width, out int height, out int scale);
 
-            /* The next frame: ARGB32 premultiplied, writable from any thread
-             * until commit (). Empty without the internal client. */
+            /* The next frame, holding the last one committed: ARGB32
+             * premultiplied, writable from any thread until commit ().
+             * Empty without the internal client. */
             [CCode (cname = "polo_backend_pixel_buffer_begin", array_length_pos = 0.1)]
             public unowned uint8[] begin (out int stride);
 
             [CCode (cname = "polo_backend_pixel_buffer_commit")]
             public void commit ();
+
+            [CCode (cname = "polo_backend_pixel_buffer_commit_damage")]
+            public void commit_damage (int x, int y, int width, int height);
 
             public signal void ready ();
         }

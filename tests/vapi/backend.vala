@@ -128,6 +128,57 @@ void cover_input_device (Polo.Backend.InputDevice device) {
     device.set_send_events (false);
 }
 
+void check_pixel_buffer (Polo.Backend.Server server, GLib.MainContext context) {
+    var buffer = new Polo.Backend.PixelBuffer (server, 4, 2, 1);
+    int stride;
+    unowned uint8[] pixels = buffer.begin (out stride);
+    assert (pixels.length == 4 * 2 * 4 && stride == 16);
+    GLib.Memory.set (pixels, 0x11, pixels.length);
+    buffer.commit ();
+    int turns = 0;
+    while (!buffer.is_ready () && turns < 50) {
+        context.iteration (false);
+        turns++;
+    }
+    assert (buffer.is_ready () && buffer.get_view () != null);
+    for (int round = 0; round < 4; round++) {
+        pixels = buffer.begin (out stride);
+        for (int i = 0; i < pixels.length; i++) {
+            assert (pixels[i] == (i < 4 && round > 0 ? 0x30 + round - 1 : 0x11));
+        }
+        GLib.Memory.set (pixels, 0x30 + round, 4);
+        buffer.commit_damage (0, 0, 1, 1);
+        for (int i = 0; i < 5; i++) {
+            context.iteration (false);
+        }
+    }
+    for (int round = 0; round < 40; round++) {
+        buffer.begin (out stride);
+        buffer.commit ();
+        context.iteration (false);
+    }
+    for (int i = 0; i < 10; i++) {
+        context.iteration (false);
+    }
+    assert (mapped_pixel_buffers () <= 3);
+}
+
+int mapped_pixel_buffers () {
+    string maps;
+    try {
+        GLib.FileUtils.get_contents ("/proc/self/maps", out maps);
+    } catch (GLib.FileError e) {
+        GLib.error ("cannot read the memory map: %s", e.message);
+    }
+    int count = 0;
+    foreach (unowned string line in maps.split ("\n")) {
+        if ("polo-pixel-buffer" in line) {
+            count++;
+        }
+    }
+    return count;
+}
+
 int main () {
     if (GLib.Environment.get_variable ("XDG_RUNTIME_DIR") == null) {
         try {
@@ -425,6 +476,8 @@ int main () {
     for (int i = 0; i < 5; i++) {
         context.iteration (false);
     }
+
+    check_pixel_buffer (server, context);
 
     assert (!Polo.Backend.Server.has_test_protocol () || true);
     var no_backend = new Polo.Backend.Error.BACKEND ("x");

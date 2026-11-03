@@ -89,7 +89,8 @@ struct pb_buffer {
 	struct wl_buffer *buffer;
 	void *pixels;
 	size_t size;
-	gboolean attached;
+	gboolean front;    /* the last frame committed, kept for the next */
+	gboolean released; /* the compositor no longer reads it */
 };
 
 enum {
@@ -113,6 +114,7 @@ struct _PoloBackendPixelBuffer {
 
 	int width, height, scale; /* buffer pixels and buffer scale */
 	struct pb_buffer *back;
+	struct pb_buffer *front;
 	gboolean have_listeners;
 };
 
@@ -134,7 +136,23 @@ pb_buffer_free(struct pb_buffer *b)
 static void
 buffer_release(void *data, struct wl_buffer *buffer)
 {
-	pb_buffer_free(data);
+	struct pb_buffer *b = data;
+
+	if (b->front)
+		b->released = TRUE;
+	else
+		pb_buffer_free(b);
+}
+
+/* The front buffer is freed once it is neither shown nor the last frame. */
+static void
+pb_buffer_retire(struct pb_buffer *b)
+{
+	if (!b)
+		return;
+	b->front = FALSE;
+	if (b->released)
+		pb_buffer_free(b);
 }
 
 static const struct wl_buffer_listener buffer_listener = {
@@ -342,6 +360,7 @@ polo_backend_internal_client_fini(PoloBackendServer *server)
 			wl_surface_destroy(pb->proxy);
 		pb->proxy = NULL;
 		pb->back = NULL; /* freed below with the other shm buffers */
+		pb->front = NULL;
 	}
 	g_list_free(ic->pixel_buffers);
 	while (ic->shm_buffers) {
@@ -428,9 +447,9 @@ polo_backend_pixel_buffer_get_size(PoloBackendPixelBuffer *self, int *width,
 
 /*
  * Memory for the next frame: width × height ARGB32 pixels, premultiplied,
- * native endian (cairo's CAIRO_FORMAT_ARGB32), stride width * 4. It may be
- * written from another thread until commit (). NULL without an internal
- * client.
+ * native endian (cairo's CAIRO_FORMAT_ARGB32), stride width * 4, holding the
+ * last frame committed. It may be written from another thread until
+ * commit (). NULL without an internal client.
  */
 guint8 *
 polo_backend_pixel_buffer_begin(PoloBackendPixelBuffer *self, int *length,
@@ -444,8 +463,12 @@ polo_backend_pixel_buffer_begin(PoloBackendPixelBuffer *self, int *length,
 	ic = self->server->internal_client;
 	if (!self->proxy || !ic || !ic->shm)
 		return NULL;
-	if (!self->back)
+	if (!self->back) {
 		self->back = pb_buffer_new(ic, self->width, self->height);
+		if (self->back && self->front)
+			memcpy(self->back->pixels, self->front->pixels,
+			       self->back->size);
+	}
 	if (!self->back)
 		return NULL;
 	*length = (int)self->back->size;
@@ -455,6 +478,15 @@ polo_backend_pixel_buffer_begin(PoloBackendPixelBuffer *self, int *length,
 void
 polo_backend_pixel_buffer_commit(PoloBackendPixelBuffer *self)
 {
+	polo_backend_pixel_buffer_commit_damage(self, 0, 0, self->width,
+						self->height);
+}
+
+/* Only the rectangle, in buffer pixels, changed since the last frame. */
+void
+polo_backend_pixel_buffer_commit_damage(PoloBackendPixelBuffer *self, int x,
+					int y, int width, int height)
+{
 	struct pb_buffer *b;
 
 	g_return_if_fail(POLO_BACKEND_IS_PIXEL_BUFFER(self));
@@ -462,9 +494,11 @@ polo_backend_pixel_buffer_commit(PoloBackendPixelBuffer *self)
 	if (!b || !self->proxy)
 		return;
 	self->back = NULL;
-	b->attached = TRUE;
+	pb_buffer_retire(self->front);
+	self->front = b;
+	b->front = TRUE;
 	wl_surface_attach(self->proxy, b->buffer, 0, 0);
-	wl_surface_damage_buffer(self->proxy, 0, 0, self->width, self->height);
+	wl_surface_damage_buffer(self->proxy, x, y, width, height);
 	wl_surface_commit(self->proxy);
 	internal_flush(self->server->internal_client);
 }
@@ -495,6 +529,8 @@ polo_backend_pixel_buffer_dispose(GObject *object)
 		pb_buffer_free(self->back);
 		self->back = NULL;
 	}
+	pb_buffer_retire(self->front);
+	self->front = NULL;
 	if (self->proxy) {
 		/* Attached buffers free themselves on release, or with the
 		 * client at shutdown. */

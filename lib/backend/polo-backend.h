@@ -903,6 +903,10 @@ polo_backend_pixel_buffer_begin(PoloBackendPixelBuffer *buffer, int *length,
 void
 polo_backend_pixel_buffer_commit(PoloBackendPixelBuffer *buffer);
 
+void
+polo_backend_pixel_buffer_commit_damage(PoloBackendPixelBuffer *buffer, int x,
+					int y, int width, int height);
+
 /* ---- Foreign toplevel (zwlr_foreign_toplevel_manager_v1 v3) ------------ */
 
 /*
