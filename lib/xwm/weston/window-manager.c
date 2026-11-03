@@ -2627,7 +2627,7 @@ weston_wm_get_visual_and_colormap(struct weston_wm *wm)
 			    wm->colormap, wm->screen->root, wm->visual_id);
 }
 
-static void
+static bool
 weston_wm_get_resources(struct weston_wm *wm)
 {
 	xcb_xfixes_query_version_cookie_t xfixes_cookie;
@@ -2642,7 +2642,8 @@ weston_wm_get_resources(struct weston_wm *wm)
 
 	formats_cookie = xcb_render_query_pict_formats(wm->conn);
 
-	x11_get_atoms(wm->conn, &wm->atom);
+	if (!x11_get_atoms(wm->conn, &wm->atom))
+		return false;
 	wm->xfixes = xcb_get_extension_data(wm->conn, &xcb_xfixes_id);
 	if (!wm->xfixes || !wm->xfixes->present)
 		weston_log("xfixes not available\n");
@@ -2652,6 +2653,8 @@ weston_wm_get_resources(struct weston_wm *wm)
 						 XCB_XFIXES_MINOR_VERSION);
 	xfixes_reply = xcb_xfixes_query_version_reply(wm->conn,
 						      xfixes_cookie, NULL);
+	if (!xfixes_reply)
+		return false;
 
 	weston_log("xfixes version: %d.%d\n",
 	       xfixes_reply->major_version, xfixes_reply->minor_version);
@@ -2661,7 +2664,7 @@ weston_wm_get_resources(struct weston_wm *wm)
 	formats_reply = xcb_render_query_pict_formats_reply(wm->conn,
 							    formats_cookie, 0);
 	if (formats_reply == NULL)
-		return;
+		return true;
 
 	formats = xcb_render_query_pict_formats_formats(formats_reply);
 	for (i = 0; i < formats_reply->num_formats; i++) {
@@ -2679,6 +2682,7 @@ weston_wm_get_resources(struct weston_wm *wm)
 	}
 
 	free(formats_reply);
+	return true;
 }
 
 static void
@@ -2950,7 +2954,14 @@ weston_wm_create(struct weston_xserver *wxs, int fd)
 				     weston_wm_handle_event, wm);
 	wl_event_source_check(wm->source);
 
-	weston_wm_get_resources(wm);
+	if (!weston_wm_get_resources(wm)) {
+		weston_log("the X server went away while the XWM started\n");
+		wl_event_source_remove(wm->source);
+		xcb_disconnect(wm->conn);
+		hash_table_destroy(wm->window_hash);
+		free(wm);
+		return NULL;
+	}
 	weston_wm_get_visual_and_colormap(wm);
 
 	values[0] =

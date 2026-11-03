@@ -26,6 +26,7 @@
 
 #pragma once
 
+#include <stdbool.h>
 #include <xcb/xcb.h>
 
 #define SEND_EVENT_MASK (0x80)
@@ -105,5 +106,5 @@ struct atom_x11 {
 const char *
 get_atom_name(xcb_connection_t *c, xcb_atom_t atom);
 
-void
+bool
 x11_get_atoms(xcb_connection_t *connection, struct atom_x11 *atom);

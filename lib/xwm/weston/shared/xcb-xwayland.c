@@ -62,7 +62,7 @@ get_atom_name(xcb_connection_t *c, xcb_atom_t atom)
 	return buffer;
 }
 
-void
+bool
 x11_get_atoms(xcb_connection_t *connection, struct atom_x11 *atom)
 {
 	unsigned int i;
@@ -150,14 +150,22 @@ x11_get_atoms(xcb_connection_t *connection, struct atom_x11 *atom)
 		cookies[i] =
 			xcb_intern_atom(connection, 0, strlen(atoms[i].name), atoms[i].name);
 
+	bool complete = true;
+
 	for (i = 0; i < ARRAY_LENGTH(atoms); i++) {
 		xcb_intern_atom_reply_t *reply_atom;
 		reply_atom = xcb_intern_atom_reply(connection, cookies[i], NULL);
-		assert(reply_atom);
+		/* Polo: do not let an X server that exits during startup take
+		 * the compositor down with it. */
+		if (!reply_atom) {
+			complete = false;
+			continue;
+		}
 
 		xcb_atom_t rr_atom = reply_atom->atom;
 		*(xcb_atom_t *) ((char *) atom + atoms[i].offset) = rr_atom;
 
 		free(reply_atom);
 	}
+	return complete;
 }
