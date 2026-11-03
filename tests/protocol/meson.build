@@ -133,6 +133,12 @@ if get_option('shell-ui')
     suite: 'protocol',
     timeout: 60,
   )
+  test('alt-tab-hide', executable('test-alt-tab-hide', 'test-alt-tab-hide.c', dependencies: harness_dep),
+    args: [polo_exe, shell_ui_exe],
+    env: shell_ui_gtk_env,
+    suite: 'protocol',
+    timeout: 60,
+  )
   test('shell-ui-visible', executable('test-shell-ui-visible', 'test-shell-ui-visible.c', dependencies: harness_dep),
     args: [polo_exe, shell_ui_exe],
     env: shell_ui_gtk_env,

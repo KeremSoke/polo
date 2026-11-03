@@ -628,6 +628,10 @@ namespace PoloShellUi {
         private Client client;
         private GLib.GenericArray<TabEntry> pending = new GLib.GenericArray<TabEntry> ();
         private TabPopup? popup = null;
+        /* Constructing a popup dispatches Wayland events, so hide or show can arrive before
+         * it is assigned. Each request advances the generation and discards stale popups. */
+        private uint generation = 0;
+        private uint selected_while_creating = 0;
 
         public AltTab (Client client) {
             this.client = client;
@@ -685,12 +689,24 @@ namespace PoloShellUi {
             pending = new GLib.GenericArray<TabEntry> ();
             if (popup != null) {
                 popup.destroy ();
+                popup = null;
             }
+            selected_while_creating = 0;
             var info = new WorkspacePopupInfo () {
                 active = active, screen_width = screen_width, screen_height = screen_height,
                 output_width = output_width, output_height = output_height, icon_size = (int) icon_size
             };
-            popup = new TabPopup (client, entries, monitor, selected, (int) columns, false, (int) icon_size, info);
+            uint mine = ++generation;
+            var created = new TabPopup (client, entries, monitor, selected, (int) columns, false, (int) icon_size,
+                                        info);
+            if (mine != generation) {
+                created.destroy ();
+                return;
+            }
+            if (selected_while_creating != 0) {
+                created.select (selected_while_creating);
+            }
+            popup = created;
             showing_workspaces = true;
         }
 
@@ -734,18 +750,32 @@ namespace PoloShellUi {
             pending = new GLib.GenericArray<TabEntry> ();
             if (popup != null) {
                 popup.destroy ();
+                popup = null;
             }
-            popup = new TabPopup (client, entries, monitor, selected, (int) columns, expand_to_fit,
-                                  (int) icon_size);
+            selected_while_creating = 0;
+            uint mine = ++generation;
+            var created = new TabPopup (client, entries, monitor, selected, (int) columns, expand_to_fit,
+                                        (int) icon_size);
+            if (mine != generation) {
+                created.destroy ();
+                return;
+            }
+            if (selected_while_creating != 0) {
+                created.select (selected_while_creating);
+            }
+            popup = created;
         }
 
         private void on_update_selected (uint selected) {
             if (popup != null) {
                 popup.select (selected);
+            } else {
+                selected_while_creating = selected;
             }
         }
 
         private void on_hide () {
+            generation++;
             if (popup != null) {
                 popup.destroy ();
                 popup = null;
