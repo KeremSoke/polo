@@ -2,15 +2,9 @@
  * Copyright 2026 Kerem Soke
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
- * PoloBackendPixelBuffer: a surface whose pixels Polo draws itself.
- *
- * The pixels travel the way the cursor's do (cursor.c): a private
- * in-process Wayland client attaches ordinary wl_shm buffers to its own
- * wl_surface. That uses only public API and works with both renderers.
- *
- * The server side of the client's surface appears asynchronously (the
- * client's requests are read on a later main-loop iteration), so "ready"
- * is emitted once the view exists; until then there is nothing to place.
+ * A surface Polo draws through an in-process Wayland client and SHM buffers.
+ * The server-side surface arrives on a later main-loop turn, so "ready" is
+ * emitted only after its view exists.
  */
 
 #include <sys/mman.h>
@@ -501,6 +495,26 @@ polo_backend_pixel_buffer_commit_damage(PoloBackendPixelBuffer *self, int x,
 	wl_surface_damage_buffer(self->proxy, x, y, width, height);
 	wl_surface_commit(self->proxy);
 	internal_flush(self->server->internal_client);
+}
+
+void
+polo_backend_pixel_buffer_set_accepts_input(PoloBackendPixelBuffer *self,
+					    gboolean accepts)
+{
+	struct polo_internal_client *ic;
+	struct wl_region *region = NULL;
+
+	g_return_if_fail(POLO_BACKEND_IS_PIXEL_BUFFER(self));
+	ic = self->server->internal_client;
+	if (!self->proxy || !ic)
+		return;
+	if (!accepts)
+		region = wl_compositor_create_region(ic->compositor);
+	wl_surface_set_input_region(self->proxy, region);
+	if (region)
+		wl_region_destroy(region);
+	wl_surface_commit(self->proxy);
+	internal_flush(ic);
 }
 
 static void

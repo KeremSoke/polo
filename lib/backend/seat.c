@@ -1013,3 +1013,15 @@ polo_backend_seat_warp_pointer(PoloBackendSeat *seat, double x, double y)
 	pos.c = weston_coord(x, y);
 	weston_pointer_move_to(pointer, pos);
 }
+
+void
+polo_backend_seat_set_cursor(PoloBackendSeat *seat, PoloBackendCursor cursor)
+{
+	struct weston_pointer *pointer;
+
+	g_return_if_fail(POLO_BACKEND_IS_SEAT(seat));
+
+	pointer = seat->seat ? weston_seat_get_pointer(seat->seat) : NULL;
+	if (pointer && pointer->focus)
+		polo_backend_cursor_set_shape(seat->server, pointer, cursor);
+}

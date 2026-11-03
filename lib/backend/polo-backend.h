@@ -471,6 +471,23 @@ polo_backend_seat_get_pointer_position(PoloBackendSeat *seat, double *x,
 void
 polo_backend_seat_warp_pointer(PoloBackendSeat *seat, double x, double y);
 
+/* Values from wp_cursor_shape_device_v1.shape. */
+typedef enum {
+	POLO_BACKEND_CURSOR_DEFAULT = 1,
+	POLO_BACKEND_CURSOR_E_RESIZE = 18,
+	POLO_BACKEND_CURSOR_N_RESIZE = 19,
+	POLO_BACKEND_CURSOR_NE_RESIZE = 20,
+	POLO_BACKEND_CURSOR_NW_RESIZE = 21,
+	POLO_BACKEND_CURSOR_S_RESIZE = 22,
+	POLO_BACKEND_CURSOR_SE_RESIZE = 23,
+	POLO_BACKEND_CURSOR_SW_RESIZE = 24,
+	POLO_BACKEND_CURSOR_W_RESIZE = 25,
+} PoloBackendCursor;
+
+/* Sets the cursor until the focused surface's next enter event. */
+void
+polo_backend_seat_set_cursor(PoloBackendSeat *seat, PoloBackendCursor cursor);
+
 /*
  * The keyboard's effective real modifiers, as in key events. Key events
  * carry the state before the key; "modifiers-changed" (guint32) gives the
@@ -910,6 +927,11 @@ polo_backend_pixel_buffer_commit(PoloBackendPixelBuffer *buffer);
 void
 polo_backend_pixel_buffer_commit_damage(PoloBackendPixelBuffer *buffer, int x,
 					int y, int width, int height);
+
+/* Sets whether the buffer receives pointer input instead of passing it through. */
+void
+polo_backend_pixel_buffer_set_accepts_input(PoloBackendPixelBuffer *buffer,
+					    gboolean accepts);
 
 /* ---- Foreign toplevel (zwlr_foreign_toplevel_manager_v1 v3) ------------ */
 

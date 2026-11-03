@@ -94,6 +94,19 @@ namespace Polo {
             LOCK
         }
 
+        [CCode (cname = "PoloBackendCursor", cprefix = "POLO_BACKEND_CURSOR_", has_type_id = false)]
+        public enum Cursor {
+            DEFAULT,
+            E_RESIZE,
+            N_RESIZE,
+            NE_RESIZE,
+            NW_RESIZE,
+            S_RESIZE,
+            SE_RESIZE,
+            SW_RESIZE,
+            W_RESIZE
+        }
+
         [CCode (cname = "PoloBackendFilterResult", cprefix = "POLO_BACKEND_FILTER_", has_type_id = false)]
         public enum FilterResult {
             PASS,
@@ -507,6 +520,10 @@ namespace Polo {
             [CCode (cname = "polo_backend_seat_warp_pointer")]
             public void warp_pointer (double x, double y);
 
+            /* Sets the cursor until the focused surface's next enter event. */
+            [CCode (cname = "polo_backend_seat_set_cursor")]
+            public void set_cursor (Cursor cursor);
+
             [CCode (cname = "polo_backend_seat_get_modifiers")]
             public Modifiers get_modifiers ();
 
@@ -784,6 +801,9 @@ namespace Polo {
 
             [CCode (cname = "polo_backend_pixel_buffer_commit_damage")]
             public void commit_damage (int x, int y, int width, int height);
+
+            [CCode (cname = "polo_backend_pixel_buffer_set_accepts_input")]
+            public void set_accepts_input (bool accepts);
 
             public signal void ready ();
         }

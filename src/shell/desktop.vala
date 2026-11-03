@@ -45,6 +45,7 @@ namespace Polo.Shell {
         public Input.MoveResize move_resize { get; private set; }
         public Switcher switcher { get; private set; }
         public WindowMenu window_menu { get; private set; }
+        private FrameInput frame_input;
         public WorkspaceSwitcher workspace_switcher { get; private set; }
         private TilePreview tile_preview;
         public Decor.Decorations decorations { get; private set; }
@@ -106,6 +107,7 @@ namespace Polo.Shell {
             move_resize.tile_preview_hidden.connect (tile_preview.hide);
             switcher = new Switcher (server, model, this, bindings);
             window_menu = new WindowMenu (server, model, this, bindings);
+            frame_input = new FrameInput (this, model);
             workspace_switcher = new WorkspaceSwitcher (server, model, this, bindings);
             model.keyboard_move_handler = (window) => {
                 foreach (var seat in seats) {
@@ -166,6 +168,7 @@ namespace Polo.Shell {
             }
 #endif
             window_menu.shutdown ();
+            frame_input.shutdown ();
             background.shutdown ();
             keyboard.shutdown ();
             server.input_device_added.disconnect (on_input_device_added);
@@ -348,7 +351,7 @@ namespace Polo.Shell {
 
         /* display->grab_op: meta_display_begin_grab_op () refuses a second one. */
         public bool grab_active {
-            get { return move_resize.active || switcher.active || workspace_switcher.active; }
+            get { return move_resize.active || switcher.active || workspace_switcher.active || frame_input.active; }
         }
 
         private Backend.FilterResult on_key (Backend.Seat seat, Backend.KeyEvent event) {
@@ -387,18 +390,31 @@ namespace Polo.Shell {
             actions.set_error_dialog ((owned) dialog);
         }
 
+        private XdgWindow? frame_owner (Backend.View view) {
+            if (view.get_toplevel () != null) {
+                return null;
+            }
+            foreach (var xdg in windows.get_values ()) {
+                if (xdg.mapped && xdg.owns_frame_view (view)) {
+                    return xdg;
+                }
+            }
+            return null;
+        }
+
         private Window? window_of (Backend.View? view) {
             if (view == null) {
                 return null;
             }
             unowned Backend.Toplevel? toplevel = view.get_toplevel ();
-            var xdg = toplevel != null ? windows.lookup (toplevel) : null;
+            var xdg = toplevel != null ? windows.lookup (toplevel) : frame_owner (view);
             return xdg != null && xdg.mapped ? xdg.window : null;
         }
 
         private void on_motion (Backend.Seat seat, double x, double y, uint time_msec, Backend.View? view) {
             model.pointer_moved (x, y);
             model.pointer_entered (window_of (view), time_msec);
+            frame_input.motion (seat, x, y, view != null ? frame_owner (view) : null);
         }
 
         private void on_pointer_warped (int x, int y) {
@@ -442,7 +458,7 @@ namespace Polo.Shell {
                 return Backend.FilterResult.PASS;
             }
             unowned Backend.Toplevel? toplevel = event.view.get_toplevel ();
-            var xdg = toplevel != null ? windows.lookup (toplevel) : null;
+            var xdg = toplevel != null ? windows.lookup (toplevel) : frame_owner (event.view);
             if (xdg == null || !xdg.mapped) {
                 layer_shell.click (event.view);
                 return Backend.FilterResult.PASS;
@@ -451,6 +467,10 @@ namespace Polo.Shell {
             layer_shell.window_clicked ();
 
             bool unmodified = !grabbed (event);
+            if (unmodified && toplevel == null) {
+                return frame_input.press (seat, xdg, event) ? Backend.FilterResult.CONSUME
+                                                            : Backend.FilterResult.PASS;
+            }
             uint resize_button = model.prefs.resize_with_right_button ? BTN_RIGHT : BTN_MIDDLE;
             uint menu_button = model.prefs.resize_with_right_button ? BTN_MIDDLE : BTN_RIGHT;
 
@@ -663,6 +683,7 @@ namespace Polo.Shell {
                 x_windows.remove (x_window.xwindow);
             }
 #endif
+            frame_input.forget (window);
             windows.remove (window.toplevel);
             model.unmanage (window.window);
         }

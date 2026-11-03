@@ -78,6 +78,7 @@ polo_sources = files(
   'shell/tile-preview.vala',
   'shell/shell-ui.vala',
   'shell/switcher.vala',
+  'shell/frame-input.vala',
   'shell/window-menu.vala',
   'shell/workspace-switcher.vala',
   'shell/xdg-adapter.vala',

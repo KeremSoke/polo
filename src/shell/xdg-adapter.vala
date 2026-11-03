@@ -195,8 +195,8 @@ namespace Polo.Shell {
             if (decor == null) {
                 return;
             }
-            int x = window.frame.x - decor.geometry.borders.invisible.left;
-            int y = window.frame.y - decor.geometry.borders.invisible.top;
+            int x, y;
+            frame_origin (out x, out y);
             for (int i = 0; i < Decor.Frame.Edge.COUNT; i++) {
                 Marco.Rect rect;
                 unowned Backend.PixelBuffer? edge = decor.get_edge ((Decor.Frame.Edge) i, out rect);
@@ -223,6 +223,30 @@ namespace Polo.Shell {
                     }
                 }
             }
+        }
+
+        internal unowned Decor.Frame? get_decor () {
+            return decor;
+        }
+
+        internal bool owns_frame_view (Backend.View view) {
+            if (decor == null) {
+                return false;
+            }
+            for (int i = 0; i < Decor.Frame.Edge.COUNT; i++) {
+                Marco.Rect rect;
+                unowned Backend.PixelBuffer? edge = decor.get_edge ((Decor.Frame.Edge) i, out rect);
+                if (edge != null && edge.get_view () == view) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /* The frame's outer corner, invisible borders included. */
+        internal void frame_origin (out int x, out int y) {
+            x = window.frame.x - (decor != null ? decor.geometry.borders.invisible.left : 0);
+            y = window.frame.y - (decor != null ? decor.geometry.borders.invisible.top : 0);
         }
 
         private void on_app_id_changed () {

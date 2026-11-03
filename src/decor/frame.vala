@@ -4,6 +4,37 @@
  */
 
 namespace Polo.Decor {
+    /* MetaFrameControl */
+    public enum FrameControl {
+        NONE,
+        TITLE,
+        DELETE,
+        MENU,
+        APPMENU,
+        MINIMIZE,
+        MAXIMIZE,
+        UNMAXIMIZE,
+        SHADE,
+        UNSHADE,
+        ABOVE,
+        UNABOVE,
+        STICK,
+        UNSTICK,
+        RESIZE_SE,
+        RESIZE_S,
+        RESIZE_SW,
+        RESIZE_N,
+        RESIZE_NE,
+        RESIZE_NW,
+        RESIZE_W,
+        RESIZE_E,
+        CLIENT_AREA;
+
+        public bool is_resize () {
+            return this >= RESIZE_SE && this <= RESIZE_E;
+        }
+    }
+
     /* Renders a window frame as four edges so memory scales with perimeter, not area. */
     public class Frame : GLib.Object {
         public enum Edge {
@@ -44,11 +75,128 @@ namespace Polo.Decor {
             return edges[edge];
         }
 
+        /* Marco frames.c get_control(); coordinates are relative to the outer frame corner. */
+        public FrameControl control_at (int x, int y, Marco.FrameFlags flags) {
+            unowned Marco.Border total = geometry.borders.total;
+            Marco.Rect client = { total.left, total.top, geometry.width - total.left - total.right,
+                                  geometry.height - total.top - total.bottom };
+            if (inside (x, y, client)) {
+                return FrameControl.CLIENT_AREA;
+            }
+            if (inside (x, y, geometry.close_rect.clickable)) {
+                return FrameControl.DELETE;
+            }
+            if (inside (x, y, geometry.min_rect.clickable)) {
+                return FrameControl.MINIMIZE;
+            }
+            if (inside (x, y, geometry.menu_rect.clickable)) {
+                return FrameControl.MENU;
+            }
+            if (inside (x, y, geometry.appmenu_rect.clickable)) {
+                return FrameControl.APPMENU;
+            }
+
+            bool has_vert = Marco.FrameFlags.ALLOWS_VERTICAL_RESIZE in flags;
+            bool has_horiz = Marco.FrameFlags.ALLOWS_HORIZONTAL_RESIZE in flags;
+
+            if (inside (x, y, geometry.title_rect)) {
+                return has_vert && y <= TOP_RESIZE_HEIGHT ? FrameControl.RESIZE_N : FrameControl.TITLE;
+            }
+            if (inside (x, y, geometry.max_rect.clickable)) {
+                return Marco.FrameFlags.MAXIMIZED in flags ? FrameControl.UNMAXIMIZE : FrameControl.MAXIMIZE;
+            }
+            if (inside (x, y, geometry.shade_rect.clickable)) {
+                return FrameControl.SHADE;
+            }
+            if (inside (x, y, geometry.unshade_rect.clickable)) {
+                return FrameControl.UNSHADE;
+            }
+            if (inside (x, y, geometry.above_rect.clickable)) {
+                return FrameControl.ABOVE;
+            }
+            if (inside (x, y, geometry.unabove_rect.clickable)) {
+                return FrameControl.UNABOVE;
+            }
+            if (inside (x, y, geometry.stick_rect.clickable)) {
+                return FrameControl.STICK;
+            }
+            if (inside (x, y, geometry.unstick_rect.clickable)) {
+                return FrameControl.UNSTICK;
+            }
+
+            int bottom = geometry.height - total.bottom - RESIZE_EXTENDS;
+            int right = geometry.width - total.right - RESIZE_EXTENDS;
+            int left = total.left + RESIZE_EXTENDS;
+            int top = geometry.borders.invisible.top + RESIZE_EXTENDS;
+            if (y >= bottom && x >= right) {
+                if (has_vert && has_horiz) {
+                    return FrameControl.RESIZE_SE;
+                } else if (has_vert) {
+                    return FrameControl.RESIZE_S;
+                } else if (has_horiz) {
+                    return FrameControl.RESIZE_E;
+                }
+            } else if (y >= bottom && x <= left) {
+                if (has_vert && has_horiz) {
+                    return FrameControl.RESIZE_SW;
+                } else if (has_vert) {
+                    return FrameControl.RESIZE_S;
+                } else if (has_horiz) {
+                    return FrameControl.RESIZE_W;
+                }
+            } else if (y < top && x <= left) {
+                if (has_vert && has_horiz) {
+                    return FrameControl.RESIZE_NW;
+                } else if (has_vert) {
+                    return FrameControl.RESIZE_N;
+                } else if (has_horiz) {
+                    return FrameControl.RESIZE_W;
+                }
+            } else if (y < top && x >= right) {
+                if (has_vert && has_horiz) {
+                    return FrameControl.RESIZE_NE;
+                } else if (has_vert) {
+                    return FrameControl.RESIZE_N;
+                } else if (has_horiz) {
+                    return FrameControl.RESIZE_E;
+                }
+            } else if (y < geometry.borders.invisible.top + TOP_RESIZE_HEIGHT) {
+                if (has_vert) {
+                    return FrameControl.RESIZE_N;
+                }
+            } else if (y >= bottom) {
+                if (has_vert) {
+                    return FrameControl.RESIZE_S;
+                }
+            } else if (x <= left) {
+                if (has_horiz) {
+                    return FrameControl.RESIZE_W;
+                }
+            } else if (x >= right) {
+                if (has_horiz) {
+                    return FrameControl.RESIZE_E;
+                }
+            }
+
+            return y >= total.top ? FrameControl.NONE : FrameControl.TITLE;
+        }
+
+        private const int RESIZE_EXTENDS = 15;
+        private const int TOP_RESIZE_HEIGHT = 4;
+
+        private static bool inside (int x, int y, Marco.Rect rect) {
+            return x >= rect.x && x < rect.x + rect.width && y >= rect.y && y < rect.y + rect.height;
+        }
+
         public void set_button_state (Marco.ButtonType button, Marco.ButtonState state) {
             if (button_states[button] != state) {
                 button_states[button] = state;
                 drawn = false;
             }
+        }
+
+        public Marco.ButtonState get_button_state (Marco.ButtonType button) {
+            return button_states[button];
         }
 
         /* Redraws only when an input changed; returns true if it drew. */
@@ -104,6 +252,7 @@ namespace Polo.Decor {
             }
             if (edges[edge] == null) {
                 edges[edge] = new Backend.PixelBuffer (server, rect.width, rect.height, 1);
+                edges[edge].set_accepts_input (true);
                 edges[edge].ready.connect (on_edge_ready);
             }
             int stride;
