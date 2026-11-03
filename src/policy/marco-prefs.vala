@@ -686,9 +686,12 @@ namespace Polo {
         private const string[] ENUM_NICKS = {
             "general/focus-mode=click,sloppy,mouse",
             "general/focus-new-windows=smart,strict",
-            "general/action-double-click-titlebar=toggle_shade,toggle_maximize,toggle_maximize_horizontally,toggle_maximize_vertically,minimize,none,lower,menu,last",
-            "general/action-middle-click-titlebar=toggle_shade,toggle_maximize,toggle_maximize_horizontally,toggle_maximize_vertically,minimize,none,lower,menu,last",
-            "general/action-right-click-titlebar=toggle_shade,toggle_maximize,toggle_maximize_horizontally,toggle_maximize_vertically,minimize,none,lower,menu,last",
+            "general/action-double-click-titlebar=toggle_shade,toggle_maximize," +
+            "toggle_maximize_horizontally,toggle_maximize_vertically,minimize,none,lower,menu,last",
+            "general/action-middle-click-titlebar=toggle_shade,toggle_maximize," +
+            "toggle_maximize_horizontally,toggle_maximize_vertically,minimize,none,lower,menu,last",
+            "general/action-right-click-titlebar=toggle_shade,toggle_maximize," +
+            "toggle_maximize_horizontally,toggle_maximize_vertically,minimize,none,lower,menu,last",
             "general/wrap-style=no wrap,classic,toroidal",
             "general/visual-bell-type=invalid,fullscreen,frame_flash",
             "general/placement-mode=automatic,pointer,manual",

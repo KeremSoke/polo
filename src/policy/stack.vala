@@ -259,6 +259,10 @@ namespace Polo.Policy {
                 return;
             }
             int n = (int) sorted.length;
+            if (n == 0) {
+                need_constrain = false;
+                return;
+            }
             var infos = new Marco.StackWindow[n];
             var index = new GLib.HashTable<Window, int> (GLib.direct_hash, GLib.direct_equal);
             for (int i = 0; i < n; i++) {

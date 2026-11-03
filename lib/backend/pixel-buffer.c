@@ -344,8 +344,14 @@ polo_backend_internal_client_fini(PoloBackendServer *server)
 		pb->back = NULL; /* freed below with the other shm buffers */
 	}
 	g_list_free(ic->pixel_buffers);
-	while (ic->shm_buffers)
-		pb_buffer_free(ic->shm_buffers->data);
+	while (ic->shm_buffers) {
+		struct pb_buffer *b = ic->shm_buffers->data;
+
+		ic->shm_buffers =
+			g_list_delete_link(ic->shm_buffers, ic->shm_buffers);
+		b->ic = NULL;
+		pb_buffer_free(b);
+	}
 	if (ic->registry)
 		wl_registry_destroy(ic->registry);
 	if (ic->shm)
@@ -494,7 +500,8 @@ polo_backend_pixel_buffer_dispose(GObject *object)
 		 * client at shutdown. */
 		wl_surface_destroy(self->proxy);
 		self->proxy = NULL;
-		internal_flush(self->server->internal_client);
+		if (self->server)
+			internal_flush(self->server->internal_client);
 	}
 	G_OBJECT_CLASS(polo_backend_pixel_buffer_parent_class)->dispose(object);
 }

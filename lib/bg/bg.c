@@ -121,8 +121,12 @@ pixbuf_draw_gradient(GdkPixbuf *pixbuf, gboolean horizontal,
 	int rowstride = gdk_pixbuf_get_rowstride(pixbuf);
 	guchar *dst = gdk_pixbuf_get_pixels(pixbuf);
 	int n_channels = 3;
-	guchar *gradient = create_gradient(primary, secondary, extent);
+	guchar *gradient;
 	int i;
+
+	if (extent <= 0)
+		return;
+	gradient = create_gradient(primary, secondary, extent);
 
 	if (horizontal) {
 		for (i = 0; i < height; i++) {

@@ -148,8 +148,9 @@ namespace Polo.Outputs {
                         xml.append_printf ("      <width>%d</width><height>%d</height><rate>%s</rate>\n",
                             o.width, o.height, (o.rate / 1000.0).to_string ());
                         xml.append_printf ("      <x>%d</x><y>%d</y><scale>%d</scale>\n", o.x, o.y, o.scale);
-                        xml.append_printf ("      <rotation>%s</rotation><reflect_x>%s</reflect_x><reflect_y>no</reflect_y>\n",
-                            rotations[o.transform % 4], o.transform >= 4 ? "yes" : "no");
+                        xml.append_printf ("      <rotation>%s</rotation>", rotations[o.transform % 4]);
+                        xml.append_printf ("<reflect_x>%s</reflect_x><reflect_y>no</reflect_y>\n",
+                                           o.transform >= 4 ? "yes" : "no");
                         xml.append_printf ("      <primary>%s</primary>\n", o.primary ? "yes" : "no");
                     }
                     xml.append ("    </output>\n");

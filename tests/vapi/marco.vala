@@ -7,20 +7,18 @@
  * Marco's testboxes.c.
  */
 
-using Polo.Marco;
-
-Rect rect (int x, int y, int width, int height) {
-    return Rect () { x = x, y = y, width = width, height = height };
+Polo.Marco.Rect rect (int x, int y, int width, int height) {
+    return Polo.Marco.Rect () { x = x, y = y, width = width, height = height };
 }
 
 /* A 1600x1200 screen with the struts of testboxes.c get_strut_list (1). */
-GLib.SList<Strut?> struts () {
-    var list = new GLib.SList<Strut?> ();
-    list.prepend (Strut () {
-        rect = rect (0, 0, 1600, 20), side = Side.TOP, edge = EdgeType.SCREEN
+GLib.SList<Polo.Marco.Strut?> struts () {
+    var list = new GLib.SList<Polo.Marco.Strut?> ();
+    list.prepend (Polo.Marco.Strut () {
+        rect = rect (0, 0, 1600, 20), side = Polo.Marco.Side.TOP, edge = Polo.Marco.EdgeType.SCREEN
     });
-    list.prepend (Strut () {
-        rect = rect (400, 1160, 1600, 40), side = Side.BOTTOM, edge = EdgeType.SCREEN
+    list.prepend (Polo.Marco.Strut () {
+        rect = rect (400, 1160, 1600, 40), side = Polo.Marco.Side.BOTTOM, edge = Polo.Marco.EdgeType.SCREEN
     });
     return list;
 }
@@ -28,7 +26,7 @@ GLib.SList<Strut?> struts () {
 void test_rects () {
     var a = rect (0, 0, 10, 10);
     var b = rect (5, 5, 10, 10);
-    Rect dest;
+    Polo.Marco.Rect dest;
 
     assert (a.area () == 100);
     assert (a.intersect (b, out dest) && dest.equal (rect (5, 5, 5, 5)));
@@ -44,17 +42,18 @@ void test_rects () {
     /* testboxes.c test_gravity_resize: the bottom-right corner stays. */
     var old_rect = rect (50, 300, 250, 400);
     var resized = old_rect;
-    Rect.resize_with_gravity (old_rect, ref resized, Gravity.SOUTH_EAST, 20, 5);
+    Polo.Marco.Rect.resize_with_gravity (old_rect, ref resized, Polo.Marco.Gravity.SOUTH_EAST, 20, 5);
     assert (resized.equal (rect (280, 695, 20, 5)));
     resized = old_rect;
-    Rect.resize_with_gravity (old_rect, ref resized, Gravity.CENTER, 350, 300);
+    Polo.Marco.Rect.resize_with_gravity (old_rect, ref resized, Polo.Marco.Gravity.CENTER, 350, 300);
     assert (resized.equal (rect (0, 350, 350, 300)));
-    foreach (var gravity in new Gravity[] {
-            Gravity.FORGET, Gravity.NORTH_WEST, Gravity.NORTH, Gravity.NORTH_EAST,
-            Gravity.WEST, Gravity.EAST, Gravity.SOUTH_WEST, Gravity.SOUTH,
-            Gravity.STATIC }) {
+    foreach (var gravity in new Polo.Marco.Gravity[] {
+            Polo.Marco.Gravity.FORGET, Polo.Marco.Gravity.NORTH_WEST, Polo.Marco.Gravity.NORTH,
+            Polo.Marco.Gravity.NORTH_EAST, Polo.Marco.Gravity.WEST, Polo.Marco.Gravity.EAST,
+            Polo.Marco.Gravity.SOUTH_WEST, Polo.Marco.Gravity.SOUTH,
+            Polo.Marco.Gravity.STATIC }) {
         resized = old_rect;
-        Rect.resize_with_gravity (old_rect, ref resized, gravity, 10, 10);
+        Polo.Marco.Rect.resize_with_gravity (old_rect, ref resized, gravity, 10, 10);
         assert (resized.width == 10 && resized.height == 10);
     }
 }
@@ -64,73 +63,76 @@ void test_regions () {
     var all_struts = struts ();
 
     /* testboxes.c test_regions_okay, strut list 1. */
-    var region = Region.get_minimal_spanning_set (screen, all_struts, false);
+    var region = Polo.Marco.Region.get_minimal_spanning_set (screen, all_struts, false);
     assert (region.length () == 2);
-    assert (Region.contains (region, rect (0, 20, 400, 1180)));
-    assert (Region.could_fit (region, rect (0, 0, 1600, 1140)));
-    assert (Region.overlaps (region, rect (0, 0, 10, 30)));
-    assert (!Region.contains (region, rect (0, 0, 10, 10)));
+    assert (Polo.Marco.Region.contains (region, rect (0, 20, 400, 1180)));
+    assert (Polo.Marco.Region.could_fit (region, rect (0, 0, 1600, 1140)));
+    assert (Polo.Marco.Region.overlaps (region, rect (0, 0, 10, 30)));
+    assert (!Polo.Marco.Region.contains (region, rect (0, 0, 10, 10)));
 
     var clamped = rect (0, 0, 3000, 3000);
-    Region.clamp_to_fit (region, FixedDirections.NONE, ref clamped, rect (0, 0, 10, 10));
+    Polo.Marco.Region.clamp_to_fit (region, Polo.Marco.FixedDirections.NONE, ref clamped, rect (0, 0, 10, 10));
     assert (clamped.width == 1600 && clamped.height == 1140);
 
     var clipped = rect (-50, -50, 100, 100);
-    Region.clip (region, FixedDirections.NONE, ref clipped);
+    Polo.Marco.Region.clip (region, Polo.Marco.FixedDirections.NONE, ref clipped);
     assert (clipped.equal (rect (0, 20, 50, 30)));
 
     var shoved = rect (-50, 1190, 100, 100);
-    Region.shove (region, FixedDirections.X | FixedDirections.Y, ref shoved);
-    Region.shove (region, FixedDirections.NONE, ref shoved);
-    assert (Region.contains (region, shoved));
+    Polo.Marco.Region.shove (region, Polo.Marco.FixedDirections.X | Polo.Marco.FixedDirections.Y, ref shoved);
+    Polo.Marco.Region.shove (region, Polo.Marco.FixedDirections.NONE, ref shoved);
+    assert (Polo.Marco.Region.contains (region, shoved));
 
-    region = Region.expand ((owned) region, 1, 2, 3, 4);
-    region = Region.expand_conditionally ((owned) region, 1, 1, 1, 1, 100, 100);
+    region = Polo.Marco.Region.expand ((owned) region, 1, 2, 3, 4);
+    region = Polo.Marco.Region.expand_conditionally ((owned) region, 1, 1, 1, 1, 100, 100);
     assert (region.length () == 2);
 
     var grown = rect (100, 100, 10, 10);
-    Region.expand_to_avoiding_struts (ref grown, screen, Direction.HORIZONTAL, all_struts);
+    Polo.Marco.Region.expand_to_avoiding_struts (ref grown, screen, Polo.Marco.Direction.HORIZONTAL, all_struts);
     assert (grown.x == 0 && grown.width == 1600);
-    Region.expand_to_avoiding_struts (ref grown, screen, Direction.VERTICAL, all_struts);
+    Polo.Marco.Region.expand_to_avoiding_struts (ref grown, screen, Polo.Marco.Direction.VERTICAL, all_struts);
     assert (grown.y == 20 && grown.height == 1140);
-    assert ((Direction.UP == Direction.TOP) && (Direction.DOWN == Direction.BOTTOM));
-    assert ((Direction.LEFT | Direction.RIGHT) == Direction.HORIZONTAL);
+    assert (Polo.Marco.Direction.UP == Polo.Marco.Direction.TOP);
+    assert (Polo.Marco.Direction.DOWN == Polo.Marco.Direction.BOTTOM);
+    assert ((Polo.Marco.Direction.LEFT | Polo.Marco.Direction.RIGHT) == Polo.Marco.Direction.HORIZONTAL);
 
     /* Edges. */
-    var edges = Region.find_onscreen_edges (screen, all_struts);
+    var edges = Polo.Marco.Region.find_onscreen_edges (screen, all_struts);
     assert (edges.length () > 0);
-    unowned Edge? first = edges.data;
+    unowned Polo.Marco.Edge? first = edges.data;
     assert (first.rect.width == 0 || first.rect.height == 0);
-    assert (Region.edge_cmp (first, first) == 0);
-    assert (Region.edge_cmp_ignore_type (first, first) == 0);
+    assert (Polo.Marco.Region.edge_cmp (first, first) == 0);
+    assert (Polo.Marco.Region.edge_cmp_ignore_type (first, first) == 0);
     var aligned = rect (0, 20, 100, 100);
     bool any_aligned = false;
-    foreach (unowned Edge? edge in edges) {
+    foreach (unowned Polo.Marco.Edge? edge in edges) {
         any_aligned |= aligned.edge_aligns (edge);
-        assert (edge.side_type in new Side[] { Side.LEFT, Side.RIGHT, Side.TOP, Side.BOTTOM });
-        assert (edge.edge_type == EdgeType.SCREEN || edge.edge_type == EdgeType.WINDOW ||
-                edge.edge_type == EdgeType.XINERAMA);
+        assert (edge.side_type in new Polo.Marco.Side[] {
+            Polo.Marco.Side.LEFT, Polo.Marco.Side.RIGHT, Polo.Marco.Side.TOP, Polo.Marco.Side.BOTTOM
+        });
+        assert (edge.edge_type == Polo.Marco.EdgeType.SCREEN || edge.edge_type == Polo.Marco.EdgeType.WINDOW ||
+                edge.edge_type == Polo.Marco.EdgeType.XINERAMA);
     }
     assert (any_aligned);
 
-    var windows = new GLib.SList<Rect?> ();
+    var windows = new GLib.SList<Polo.Marco.Rect?> ();
     windows.prepend (rect (0, 20, 300, 300));
-    edges = Region.remove_intersections_with_boxes_from_edges ((owned) edges, windows);
+    edges = Polo.Marco.Region.remove_intersections_with_boxes_from_edges ((owned) edges, windows);
     assert (edges.length () > 0);
 
-    var monitors = new GLib.List<Rect?> ();
+    var monitors = new GLib.List<Polo.Marco.Rect?> ();
     monitors.append (rect (0, 0, 800, 1200));
     monitors.append (rect (800, 0, 800, 1200));
-    var xinerama = Region.find_nonintersected_xinerama_edges (screen, monitors, all_struts);
+    var xinerama = Polo.Marco.Region.find_nonintersected_xinerama_edges (screen, monitors, all_struts);
     assert (xinerama.length () == 2);
 
     double vx, vy;
-    Region.find_linepoint_closest_to_point (0, 0, 10, 0, 5, 5, out vx, out vy);
+    Polo.Marco.Region.find_linepoint_closest_to_point (0, 0, 10, 0, 5, 5, out vx, out vy);
     assert (vx == 5 && vy == 0);
 }
 
 int main () {
-    assert (reference_version () == "1.28.2");
+    assert (Polo.Marco.reference_version () == "1.28.2");
     test_rects ();
     test_regions ();
     return 0;

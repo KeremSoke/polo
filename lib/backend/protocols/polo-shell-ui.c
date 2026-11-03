@@ -327,10 +327,10 @@ polo_backend_shell_ui_global_fini(PoloBackendServer *server)
 		self->resource = NULL;
 	}
 	wl_list_remove(&self->resource_created.link);
-	while (!wl_list_empty(&self->dialogs))
-		dialog_surface_free(
-			wl_container_of(self->dialogs.next,
-					(struct dialog_surface *)NULL, link));
+	struct dialog_surface *dialog, *next_dialog;
+
+	wl_list_for_each_safe(dialog, next_dialog, &self->dialogs, link)
+		dialog_surface_free(dialog);
 	if (self->restore)
 		wl_event_source_remove(self->restore);
 	wl_protocol_logger_destroy(self->logger);

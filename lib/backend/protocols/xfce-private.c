@@ -806,10 +806,8 @@ polo_backend_xfce_private_fini(PoloBackendServer *server)
 		server->xfce_output_global = NULL;
 		wl_list_remove(&server->xfce_seat_created.link);
 	}
-	while (!wl_list_empty(&server->xfce_seats)) {
-		struct xfce_seat *xs;
+	struct xfce_seat *xs, *next;
 
-		xs = wl_container_of(server->xfce_seats.next, xs, link);
+	wl_list_for_each_safe(xs, next, &server->xfce_seats, link)
 		xfce_seat_free(xs);
-	}
 }

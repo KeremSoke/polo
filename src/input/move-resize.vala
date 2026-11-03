@@ -89,23 +89,23 @@ namespace Polo.Input {
         private const int SMALL_INCREMENT = 1;
         private const int NORMAL_INCREMENT = 10;
 
-        private const uint32 XK_Escape = 0xff1b;
-        private const uint32 XK_Left = 0xff51;
-        private const uint32 XK_Up = 0xff52;
-        private const uint32 XK_Right = 0xff53;
-        private const uint32 XK_Down = 0xff54;
-        private const uint32 XK_KP_Home = 0xff95;
-        private const uint32 XK_KP_Left = 0xff96;
-        private const uint32 XK_KP_Up = 0xff97;
-        private const uint32 XK_KP_Right = 0xff98;
-        private const uint32 XK_KP_Down = 0xff99;
-        private const uint32 XK_KP_Prior = 0xff9a;
-        private const uint32 XK_KP_Next = 0xff9b;
-        private const uint32 XK_KP_End = 0xff9c;
-        private const uint32 XK_h = 0x68;
-        private const uint32 XK_j = 0x6a;
-        private const uint32 XK_k = 0x6b;
-        private const uint32 XK_l = 0x6c;
+        private const uint32 XK_ESCAPE = 0xff1b;
+        private const uint32 XK_LEFT = 0xff51;
+        private const uint32 XK_UP = 0xff52;
+        private const uint32 XK_RIGHT = 0xff53;
+        private const uint32 XK_DOWN = 0xff54;
+        private const uint32 XK_KP_HOME = 0xff95;
+        private const uint32 XK_KP_LEFT = 0xff96;
+        private const uint32 XK_KP_UP = 0xff97;
+        private const uint32 XK_KP_RIGHT = 0xff98;
+        private const uint32 XK_KP_DOWN = 0xff99;
+        private const uint32 XK_KP_PRIOR = 0xff9a;
+        private const uint32 XK_KP_NEXT = 0xff9b;
+        private const uint32 XK_KP_END = 0xff9c;
+        private const uint32 XK_H = 0x68;
+        private const uint32 XK_J = 0x6a;
+        private const uint32 XK_K = 0x6b;
+        private const uint32 XK_L = 0x6c;
 
         private Policy.Model model;
 
@@ -406,7 +406,8 @@ namespace Polo.Input {
             }
         }
 
-        private Marco.TileMode calculate_tiling_mode (int x, int y, Window w, Marco.Rect monitor, Marco.Rect work_area) {
+        private Marco.TileMode calculate_tiling_mode (int x, int y, Window w, Marco.Rect monitor,
+                                                      Marco.Rect work_area) {
             bool top = y >= monitor.y && y < work_area.y + SHAKE_THRESHOLD;
             bool bottom = y < monitor.y + monitor.height && y > work_area.y + work_area.height - SHAKE_THRESHOLD;
             if (model.can_tile (w) && x >= monitor.x && x < work_area.x + SHAKE_THRESHOLD) {
@@ -789,7 +790,7 @@ namespace Polo.Input {
         }
 
         private bool process_mouse_move_resize_grab (Backend.KeyEvent event) {
-            if (event.base_keysym != XK_Escape) {
+            if (event.base_keysym != XK_ESCAPE) {
                 return true;
             }
             window.tile_mode = grab_tile_mode;
@@ -822,7 +823,7 @@ namespace Polo.Input {
                 incr = NORMAL_INCREMENT;
             }
 
-            if (keysym == XK_Escape) {
+            if (keysym == XK_ESCAPE) {
                 if (shaken_loose) {
                     model.maximize (window, WindowState.MAXIMIZED);
                 } else {
@@ -832,19 +833,19 @@ namespace Polo.Input {
 
             bool handled = false;
             switch (keysym) {
-                case XK_KP_Home:
-                case XK_KP_Prior:
-                case XK_Up:
-                case XK_KP_Up:
-                case XK_k:
+                case XK_KP_HOME:
+                case XK_KP_PRIOR:
+                case XK_UP:
+                case XK_KP_UP:
+                case XK_K:
                     y -= incr;
                     handled = true;
                     break;
-                case XK_KP_End:
-                case XK_KP_Next:
-                case XK_Down:
-                case XK_KP_Down:
-                case XK_j:
+                case XK_KP_END:
+                case XK_KP_NEXT:
+                case XK_DOWN:
+                case XK_KP_DOWN:
+                case XK_J:
                     y += incr;
                     handled = true;
                     break;
@@ -852,19 +853,19 @@ namespace Polo.Input {
                     break;
             }
             switch (keysym) {
-                case XK_KP_Home:
-                case XK_KP_End:
-                case XK_Left:
-                case XK_KP_Left:
-                case XK_h:
+                case XK_KP_HOME:
+                case XK_KP_END:
+                case XK_LEFT:
+                case XK_KP_LEFT:
+                case XK_H:
                     x -= incr;
                     handled = true;
                     break;
-                case XK_KP_Prior:
-                case XK_KP_Next:
-                case XK_Right:
-                case XK_KP_Right:
-                case XK_l:
+                case XK_KP_PRIOR:
+                case XK_KP_NEXT:
+                case XK_RIGHT:
+                case XK_KP_RIGHT:
+                case XK_L:
                     x += incr;
                     handled = true;
                     break;
@@ -882,10 +883,10 @@ namespace Polo.Input {
         }
 
         private bool process_keyboard_resize_grab_op_change (uint32 keysym) {
-            bool up = keysym == XK_Up || keysym == XK_KP_Up || keysym == XK_k;
-            bool down = keysym == XK_Down || keysym == XK_KP_Down || keysym == XK_j;
-            bool left = keysym == XK_Left || keysym == XK_KP_Left || keysym == XK_h;
-            bool right = keysym == XK_Right || keysym == XK_KP_Right || keysym == XK_l;
+            bool up = keysym == XK_UP || keysym == XK_KP_UP || keysym == XK_K;
+            bool down = keysym == XK_DOWN || keysym == XK_KP_DOWN || keysym == XK_J;
+            bool left = keysym == XK_LEFT || keysym == XK_KP_LEFT || keysym == XK_H;
+            bool right = keysym == XK_RIGHT || keysym == XK_KP_RIGHT || keysym == XK_L;
             GrabOp changed = GrabOp.NONE;
             switch (op) {
                 case GrabOp.KEYBOARD_RESIZING_UNKNOWN:
@@ -919,7 +920,7 @@ namespace Polo.Input {
             if (is_modifier (keysym)) {
                 return true;
             }
-            if (keysym == XK_Escape) {
+            if (keysym == XK_ESCAPE) {
                 restore_initial ();
                 return false;
             }
@@ -961,9 +962,9 @@ namespace Polo.Input {
 
             bool handled = false;
             switch (keysym) {
-                case XK_Up:
-                case XK_KP_Up:
-                case XK_k:
+                case XK_UP:
+                case XK_KP_UP:
+                case XK_K:
                     if (north) {
                         height -= height_inc;
                     } else if (south) {
@@ -971,9 +972,9 @@ namespace Polo.Input {
                     }
                     handled = true;
                     break;
-                case XK_Down:
-                case XK_KP_Down:
-                case XK_j:
+                case XK_DOWN:
+                case XK_KP_DOWN:
+                case XK_J:
                     if (north) {
                         height += height_inc;
                     } else if (south) {
@@ -981,9 +982,9 @@ namespace Polo.Input {
                     }
                     handled = true;
                     break;
-                case XK_Left:
-                case XK_KP_Left:
-                case XK_h:
+                case XK_LEFT:
+                case XK_KP_LEFT:
+                case XK_H:
                     if (east) {
                         width += width_inc;
                     } else if (west) {
@@ -991,9 +992,9 @@ namespace Polo.Input {
                     }
                     handled = true;
                     break;
-                case XK_Right:
-                case XK_KP_Right:
-                case XK_l:
+                case XK_RIGHT:
+                case XK_KP_RIGHT:
+                case XK_L:
                     if (east) {
                         width -= width_inc;
                     } else if (west) {

@@ -74,10 +74,14 @@ namespace Polo.Input {
             bindings.register ("move-to-center", per_window (handle_move_to_center));
             bindings.register ("tile-to-side-e", per_window ((w) => model.toggle_tiled (w, Marco.TileMode.RIGHT)));
             bindings.register ("tile-to-side-w", per_window ((w) => model.toggle_tiled (w, Marco.TileMode.LEFT)));
-            bindings.register ("tile-to-corner-nw", per_window ((w) => model.toggle_tiled (w, Marco.TileMode.TOP_LEFT)));
-            bindings.register ("tile-to-corner-ne", per_window ((w) => model.toggle_tiled (w, Marco.TileMode.TOP_RIGHT)));
-            bindings.register ("tile-to-corner-sw", per_window ((w) => model.toggle_tiled (w, Marco.TileMode.BOTTOM_LEFT)));
-            bindings.register ("tile-to-corner-se", per_window ((w) => model.toggle_tiled (w, Marco.TileMode.BOTTOM_RIGHT)));
+            bindings.register ("tile-to-corner-nw",
+                               per_window ((w) => model.toggle_tiled (w, Marco.TileMode.TOP_LEFT)));
+            bindings.register ("tile-to-corner-ne",
+                               per_window ((w) => model.toggle_tiled (w, Marco.TileMode.TOP_RIGHT)));
+            bindings.register ("tile-to-corner-sw",
+                               per_window ((w) => model.toggle_tiled (w, Marco.TileMode.BOTTOM_LEFT)));
+            bindings.register ("tile-to-corner-se",
+                               per_window ((w) => model.toggle_tiled (w, Marco.TileMode.BOTTOM_RIGHT)));
             bindings.register ("move-to-monitor-n", per_window ((w) => move_to_monitor (w, Direction.UP)));
             bindings.register ("move-to-monitor-s", per_window ((w) => move_to_monitor (w, Direction.DOWN)));
             bindings.register ("move-to-monitor-e", per_window ((w) => move_to_monitor (w, Direction.RIGHT)));

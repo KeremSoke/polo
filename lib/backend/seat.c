@@ -396,12 +396,13 @@ filter_key(struct weston_keyboard_grab *grab,
 		weston_compositor_get_user_data(keyboard->seat->compositor),
 		keyboard->seat);
 
-	if (self && event->key_state == WL_KEYBOARD_KEY_STATE_PRESSED)
+	if (!self)
+		return;
+	if (event->key_state == WL_KEYBOARD_KEY_STATE_PRESSED)
 		self->last_press_usec = g_get_monotonic_time();
-	if (self &&
-	    (x_keyboard_grab_takes_key(self, keyboard, event) ||
-	     polo_shortcuts_takes_key(self->shortcuts,
-				      is_escape_hatch(keyboard, event)))) {
+	if (x_keyboard_grab_takes_key(self, keyboard, event) ||
+	    polo_shortcuts_takes_key(self->shortcuts,
+				     is_escape_hatch(keyboard, event))) {
 		if (event->key_state == WL_KEYBOARD_KEY_STATE_RELEASED &&
 		    take_consumed(self, event->key))
 			return;
@@ -410,7 +411,7 @@ filter_key(struct weston_keyboard_grab *grab,
 		return;
 	}
 
-	if (self && self->key_filter) {
+	if (self->key_filter) {
 		xkb_keycode_t keycode = event->key + 8;
 
 		/* A popup grab took this key's release, so the record is stale.
@@ -445,7 +446,7 @@ filter_key(struct weston_keyboard_grab *grab,
 			return;
 	}
 
-	if (self && polo_text_seat_key(self->text, event))
+	if (polo_text_seat_key(self->text, event))
 		return;
 	self->default_key_interface->key(grab, event);
 }

@@ -392,7 +392,8 @@ namespace Polo.Shell {
                     break;
                 case "_NET_WM_STATE_MAXIMIZED_HORZ":
                 case "_NET_WM_STATE_MAXIMIZED_VERT":
-                    var flag = atom == "_NET_WM_STATE_MAXIMIZED_HORZ" ? WindowState.MAXIMIZED_H : WindowState.MAXIMIZED_V;
+                    var flag = atom == "_NET_WM_STATE_MAXIMIZED_HORZ" ? WindowState.MAXIMIZED_H
+                                                                      : WindowState.MAXIMIZED_V;
                     if (raise) {
                         model.raise (window);
                     }
@@ -405,18 +406,22 @@ namespace Polo.Shell {
                     model.move_resize_now (window);
                     break;
                 case "_NET_WM_STATE_SKIP_PAGER":
-                    window.wm_state_skip_pager = Policy.X11Props.state_after (action, window.has_state (WindowState.SKIP_PAGER));
+                    window.wm_state_skip_pager = Policy.X11Props.state_after (
+                        action, window.has_state (WindowState.SKIP_PAGER));
                     model.recalc_window_features (window);
                     break;
                 case "_NET_WM_STATE_SKIP_TASKBAR":
-                    window.wm_state_skip_taskbar = Policy.X11Props.state_after (action, window.has_state (WindowState.SKIP_TASKBAR));
+                    window.wm_state_skip_taskbar = Policy.X11Props.state_after (
+                        action, window.has_state (WindowState.SKIP_TASKBAR));
                     model.recalc_window_features (window);
                     break;
                 case "_NET_WM_STATE_ABOVE":
-                    model.set_state (window, WindowState.ABOVE, Policy.X11Props.state_after (action, window.has_state (WindowState.ABOVE)));
+                    model.set_state (window, WindowState.ABOVE,
+                                     Policy.X11Props.state_after (action, window.has_state (WindowState.ABOVE)));
                     break;
                 case "_NET_WM_STATE_BELOW":
-                    model.set_state (window, WindowState.BELOW, Policy.X11Props.state_after (action, window.has_state (WindowState.BELOW)));
+                    model.set_state (window, WindowState.BELOW,
+                                     Policy.X11Props.state_after (action, window.has_state (WindowState.BELOW)));
                     break;
                 case "_NET_WM_STATE_DEMANDS_ATTENTION":
                     if (Policy.X11Props.state_after (action, window.has_state (WindowState.DEMANDS_ATTENTION))) {
@@ -427,7 +432,8 @@ namespace Polo.Shell {
                     }
                     break;
                 case "_NET_WM_STATE_STICKY":
-                    model.set_state (window, WindowState.STICKY, Policy.X11Props.state_after (action, window.has_state (WindowState.STICKY)));
+                    model.set_state (window, WindowState.STICKY,
+                                     Policy.X11Props.state_after (action, window.has_state (WindowState.STICKY)));
                     break;
                 default:
                     break;
