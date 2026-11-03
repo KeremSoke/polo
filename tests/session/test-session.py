@@ -364,10 +364,19 @@ def wrapper(polo):
         os.makedirs(real)
         os.symlink(os.path.abspath(polo), real + "/polo")
         env = dict(base_env(tmp), PATH=f"{real}:{os.environ['PATH']}")
+        log = tmp + "/polo.log"
         process = subprocess.Popen([script, "--backend=headless", "--renderer=pixman", "--test-mode",
-                                    "--socket=polo-wrapper-test"], env=env,
+                                    "--socket=polo-wrapper-test", f"--log={log}"], env=env,
                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        check(wait_for(lambda: os.path.exists(tmp + "/polo-wrapper-test")), "polo did not start")
+
+        def registered():
+            try:
+                with open(log) as f:
+                    return "display manager" in f.read()
+            except FileNotFoundError:
+                return False
+
+        check(wait_for(registered), "polo did not start")
         process.terminate()
         check(process.wait(15) == 0, "the wrapper did not hand over to polo")
     finally:
