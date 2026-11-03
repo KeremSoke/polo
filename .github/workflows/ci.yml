@@ -12,7 +12,7 @@ permissions:
 env:
   # Fedora 44 dependencies: keep in sync with README.md "Building".
   FEDORA_DEPS: >-
-    gcc git meson ninja-build python3 pkgconf-pkg-config
+    gcc gcc-c++ git meson ninja-build python3 pkgconf-pkg-config
     vala valadoc
     glib2-devel gtk3-devel gtk-layer-shell-devel
     wayland-devel wayland-protocols-devel libxkbcommon-devel
@@ -22,7 +22,14 @@ env:
     libxcb-devel xcb-util-wm-devel xcb-util-errors-devel xcb-util-cursor-devel
     libXcursor-devel xorg-x11-server-Xwayland-devel
     libcanberra-devel pulseaudio-libs-devel libSM-devel libICE-devel
-    python3-xlib json-glib-devel marco
+    mate-desktop-devel
+    python3-xlib python3-pyyaml python3-gobject json-glib-devel marco
+  # What the tests run: Xwayland itself, keymaps, software GL, a session bus,
+  # and the MATE schemas, icons and image loaders the session tests read.
+  FEDORA_TEST_DEPS: >-
+    xorg-x11-server-Xwayland xkeyboard-config mesa-dri-drivers mesa-libEGL
+    dbus-daemon procps-ng desktop-file-utils shared-mime-info
+    mate-session-manager adwaita-icon-theme glycin-loaders
   # io.elementary.vala-lint has no recent release; pin a commit.
   VALA_LINT_REV: 34124fb326f63d9f24339175818425c310ca747c
 
@@ -41,7 +48,7 @@ jobs:
             setup: -Dstrict=true -Dtest-protocol=true -Db_sanitize=address,undefined -Db_lundef=false
     steps:
       - name: Install dependencies
-        run: dnf -y install $FEDORA_DEPS
+        run: dnf -y install $FEDORA_DEPS $FEDORA_TEST_DEPS
       - uses: actions/checkout@v4
       - name: Cache Weston checkout
         uses: actions/cache@v4

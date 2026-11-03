@@ -48,6 +48,13 @@ void wait_until (owned GLib.SourceFunc done, string what) {
 }
 
 int main (string[] args) {
+    if (GLib.Environment.get_variable ("XDG_RUNTIME_DIR") == null) {
+        try {
+            GLib.Environment.set_variable ("XDG_RUNTIME_DIR", GLib.DirUtils.make_tmp ("polo-vapi-XXXXXX"), true);
+        } catch (GLib.FileError e) {
+            GLib.error ("no runtime directory: %s", e.message);
+        }
+    }
     assert (Polo.Xwm.vendored_from () == "Weston 16.0.1 xwayland/");
     if (GLib.Environment.find_program_in_path ("Xwayland") == null) {
         return SKIP;

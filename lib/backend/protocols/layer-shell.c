@@ -88,8 +88,6 @@ struct polo_layer_surface {
 	uint32_t width, height; /* 0: unspecified, compositor decides */
 
 	struct wl_list popup_list;
-	/* Configure cycle: the first buffer-less commit after mapping or unmapping
-	 * receives a configure. */
 	bool initialized;
 	bool configured;                /* a configure was acked */
 	bool initial_configure_pending; /* initial commit not answered yet */

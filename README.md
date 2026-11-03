@@ -33,7 +33,7 @@ Over time, Polo will absorb the window-management responsibilities (almost alrea
 ### Fedora 44
 
 ```sh
-sudo dnf install gcc git meson ninja-build python3 pkgconf-pkg-config \
+sudo dnf install gcc gcc-c++ git meson ninja-build python3 pkgconf-pkg-config \
     vala valadoc \
     glib2-devel gtk3-devel gtk-layer-shell-devel \
     wayland-devel wayland-protocols-devel libxkbcommon-devel \
@@ -43,13 +43,13 @@ sudo dnf install gcc git meson ninja-build python3 pkgconf-pkg-config \
     libxcb-devel xcb-util-wm-devel xcb-util-errors-devel xcb-util-cursor-devel \
     libXcursor-devel xorg-x11-server-Xwayland-devel \
     libcanberra-devel pulseaudio-libs-devel libSM-devel libICE-devel \
-    python3-xlib python3-pyyaml json-glib-devel
+    mate-desktop-devel python3-xlib python3-pyyaml json-glib-devel
 ```
 
 ### Debian 13 / Ubuntu 26.04
 
 ```sh
-sudo apt install gcc git meson ninja-build python3 pkg-config \
+sudo apt install gcc g++ git meson ninja-build python3 pkg-config \
     valac valadoc \
     libglib2.0-dev libgtk-3-dev libgtk-layer-shell-dev \
     libwayland-dev wayland-protocols libxkbcommon-dev \
@@ -59,7 +59,7 @@ sudo apt install gcc git meson ninja-build python3 pkg-config \
     libxcb1-dev libxcb-ewmh-dev libxcb-icccm4-dev libxcb-errors-dev \
     libxcb-cursor-dev libxcursor-dev xwayland \
     libcanberra-dev libpulse-dev libsm-dev libice-dev \
-    python3-xlib python3-yaml libjson-glib-dev
+    libmate-desktop-dev python3-xlib python3-yaml libjson-glib-dev
 ```
 
 Polo needs Vala ≥ 0.56, GLib ≥ 2.80, Meson ≥ 1.4 and wayland-protocols ≥ 1.46

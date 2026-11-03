@@ -129,6 +129,13 @@ void cover_input_device (Polo.Backend.InputDevice device) {
 }
 
 int main () {
+    if (GLib.Environment.get_variable ("XDG_RUNTIME_DIR") == null) {
+        try {
+            GLib.Environment.set_variable ("XDG_RUNTIME_DIR", GLib.DirUtils.make_tmp ("polo-vapi-XXXXXX"), true);
+        } catch (GLib.FileError e) {
+            GLib.error ("no runtime directory: %s", e.message);
+        }
+    }
     assert (Polo.Backend.libweston_version ().has_prefix ("16."));
 
     try {
