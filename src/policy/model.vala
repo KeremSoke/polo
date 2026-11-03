@@ -934,6 +934,7 @@ namespace Polo.Policy {
                                           bool calc_placement = false, bool denied_focus = false,
                                           bool grab_frame_action = false) {
             if (outputs.length == 0) {
+                window.adapter.calc_borders ();
                 window.set_client_rect (requested);
                 window.adapter.configure (window.frame);
                 window.geometry_changed ();
@@ -941,6 +942,7 @@ namespace Polo.Policy {
             }
 
             var old_rect = window.client_rect ();
+            window.adapter.calc_borders ();
             var new_rect = requested;
             if ((flags & (Marco.MoveResizeFlags.IS_MOVE_ACTION | Marco.MoveResizeFlags.IS_RESIZE_ACTION)) ==
                 Marco.MoveResizeFlags.IS_RESIZE_ACTION) {

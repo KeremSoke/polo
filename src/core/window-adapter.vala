@@ -23,6 +23,9 @@ namespace Polo {
         /* The edges the window is tiled against, as WindowState.TILED_*. */
         public virtual void set_tiled (WindowState edges) {}
 
+        /* Updates window.borders for the current window state. */
+        public virtual void calc_borders () {}
+
         /* Give the window keyboard focus on every seat. */
         public abstract void take_focus ();
 

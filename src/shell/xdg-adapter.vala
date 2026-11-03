@@ -137,6 +137,10 @@ namespace Polo.Shell {
             desktop.frames_changed ();
         }
 
+        public void calc_borders () {
+            update_borders ();
+        }
+
         /* Updates Marco's visible frame borders; returns true if they changed. */
         private bool update_borders () {
             var old = window.borders;
