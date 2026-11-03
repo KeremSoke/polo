@@ -62,6 +62,14 @@ main(int argc, char **argv)
 
 	harness_window_destroy(framed);
 	harness_roundtrip(h);
+
+	/* An undecided toplevel receives server-side decorations. */
+	framed = harness_window_create_with_decoration(h, 200, 150, "default");
+	info = maximize(h, framed);
+	CHECK(info->y > 0, "a window with no preference got no frame: %d,%d",
+	      info->x, info->y);
+	harness_window_destroy(framed);
+	harness_roundtrip(h);
 	CHECK(harness_stop(h) == 0, "polo did not stop cleanly");
 	return 0;
 }

@@ -2,8 +2,9 @@
  * Copyright 2026 Kerem Soke
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
- * org_kde_kwin_server_decoration_manager for Qt 5 and GTK 3. Client is the
- * default; None, Client, and Server are granted as requested.
+ * org_kde_kwin_server_decoration_manager for Qt 5 and GTK 3. Server is the
+ * default, so GTK 3 windows without header bars use Polo's frame. None,
+ * Client, and Server are granted as requested.
  */
 
 #include <libweston/libweston.h>
@@ -89,7 +90,8 @@ manager_create(struct wl_client *client, struct wl_resource *resource,
 				       decoration, decoration_destroyed);
 	org_kde_kwin_server_decoration_send_mode(
 		decoration_resource,
-		ORG_KDE_KWIN_SERVER_DECORATION_MODE_CLIENT);
+		ORG_KDE_KWIN_SERVER_DECORATION_MODE_SERVER);
+	set_server_decorated(decoration, TRUE);
 }
 
 static const struct org_kde_kwin_server_decoration_manager_interface
@@ -111,7 +113,7 @@ manager_bind(struct wl_client *client, void *data, uint32_t version,
 	}
 	wl_resource_set_implementation(resource, &manager_impl, data, NULL);
 	org_kde_kwin_server_decoration_manager_send_default_mode(
-		resource, ORG_KDE_KWIN_SERVER_DECORATION_MANAGER_MODE_CLIENT);
+		resource, ORG_KDE_KWIN_SERVER_DECORATION_MANAGER_MODE_SERVER);
 }
 
 gboolean

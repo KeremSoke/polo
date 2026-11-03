@@ -2,8 +2,9 @@
  * Copyright 2026 Kerem Soke
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
- * Tests client-side decoration negotiation: changing a requested mode triggers
- * xdg_surface.configure, and invalid use is rejected.
+ * Tests decoration negotiation: server-side is the default, client-side is
+ * granted when requested, mode changes trigger xdg_surface.configure, and
+ * invalid use is rejected.
  */
 
 #include <errno.h>
@@ -190,6 +191,10 @@ test_xdg(struct harness *h)
 		c.xdg, t.xdg_toplevel);
 	zxdg_toplevel_decoration_v1_add_listener(t.decoration,
 						 &decoration_listener, &t);
+	wl_display_roundtrip(c.display);
+	CHECK(t.decoration_configures > 0 &&
+		      t.mode == ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE,
+	      "a new decoration is not server-side: told mode %u", t.mode);
 	zxdg_toplevel_decoration_v1_set_mode(
 		t.decoration, ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE);
 	draw(&c, &t);
@@ -203,7 +208,7 @@ test_xdg(struct harness *h)
 		if (i == 0)
 			zxdg_toplevel_decoration_v1_set_mode(
 				t.decoration,
-				ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE);
+				ZXDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE);
 		else
 			zxdg_toplevel_decoration_v1_unset_mode(t.decoration);
 		wl_display_roundtrip(c.display);
@@ -211,8 +216,8 @@ test_xdg(struct harness *h)
 		CHECK(t.decoration_configures == before + 1,
 		      "no reply to a change of mode on a mapped toplevel");
 		CHECK(t.mode ==
-			      (i == 0 ? ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE
-				      : ZXDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE),
+			      (i == 0 ? ZXDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE
+				      : ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE),
 		      "told mode %u", t.mode);
 		CHECK(t.surface_configures > t.surface_configures_at_mode,
 		      "no xdg_surface.configure after the decoration "
@@ -284,7 +289,7 @@ test_kde(struct harness *h)
 
 	connect_client(&c, h);
 	CHECK(c.kde_default ==
-		      ORG_KDE_KWIN_SERVER_DECORATION_MANAGER_MODE_CLIENT,
+		      ORG_KDE_KWIN_SERVER_DECORATION_MANAGER_MODE_SERVER,
 	      "default mode %d", c.kde_default);
 	create_toplevel(&c, &t);
 	struct org_kde_kwin_server_decoration *d =
@@ -294,15 +299,15 @@ test_kde(struct harness *h)
 						    NULL);
 	wl_display_roundtrip(c.display);
 	CHECK(kde_modes == 1 &&
-		      kde_mode == ORG_KDE_KWIN_SERVER_DECORATION_MODE_CLIENT,
+		      kde_mode == ORG_KDE_KWIN_SERVER_DECORATION_MODE_SERVER,
 	      "created in mode %u", kde_mode);
 
 	org_kde_kwin_server_decoration_request_mode(
-		d, ORG_KDE_KWIN_SERVER_DECORATION_MODE_SERVER);
+		d, ORG_KDE_KWIN_SERVER_DECORATION_MODE_CLIENT);
 	wl_display_roundtrip(c.display);
 	CHECK(kde_modes == 2 &&
-		      kde_mode == ORG_KDE_KWIN_SERVER_DECORATION_MODE_SERVER,
-	      "granted %u for Server", kde_mode);
+		      kde_mode == ORG_KDE_KWIN_SERVER_DECORATION_MODE_CLIENT,
+	      "granted %u for Client", kde_mode);
 
 	org_kde_kwin_server_decoration_request_mode(
 		d, ORG_KDE_KWIN_SERVER_DECORATION_MODE_NONE);

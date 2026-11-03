@@ -2,8 +2,9 @@
  * Copyright 2026 Kerem Soke
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
- * zxdg_decoration_manager_v1. A toplevel that asks for server-side
- * decorations gets them; client-side remains the default. A toplevel
+ * zxdg_decoration_manager_v1. Server-side is the default and is used when a
+ * toplevel has no preference; client-side is granted when requested. A
+ * toplevel
  * destroyed before its decoration leaves the decoration inert rather than an
  * orphaned error, so a client that tears down in the wrong order keeps running.
  */
@@ -64,7 +65,7 @@ decoration_unset_mode(struct wl_client *client, struct wl_resource *resource)
 {
 	struct decoration *decoration = wl_resource_get_user_data(resource);
 
-	decoration->mode = ZXDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE;
+	decoration->mode = ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE;
 	send_mode(decoration);
 }
 
@@ -149,7 +150,7 @@ manager_get_toplevel_decoration(struct wl_client *client,
 		return;
 	}
 	decoration->toplevel = toplevel;
-	decoration->mode = ZXDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE;
+	decoration->mode = ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE;
 	decoration->toplevel_destroy.notify = toplevel_destroyed;
 	wl_resource_add_destroy_listener(toplevel,
 					 &decoration->toplevel_destroy);

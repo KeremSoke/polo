@@ -166,6 +166,11 @@ struct harness_window *
 harness_window_create_decorated(struct harness *h, int width, int height,
 				const char *title);
 
+/* Creates one with a decoration object but no preferred mode. */
+struct harness_window *
+harness_window_create_with_decoration(struct harness *h, int width, int height,
+				      const char *title);
+
 /* A filled ARGB8888 SHM buffer of the given size. */
 struct wl_buffer *
 harness_buffer_create(struct wl_shm *shm, int width, int height);

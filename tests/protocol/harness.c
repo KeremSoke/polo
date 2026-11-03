@@ -730,7 +730,7 @@ static const struct xdg_toplevel_listener toplevel_listener = {
 
 static struct harness_window *
 window_create(struct harness *h, int width, int height, const char *title,
-	      bool decorated)
+	      bool decorated, bool ask_server_side)
 {
 	struct harness_window *w = calloc(1, sizeof *w);
 	int i;
@@ -750,9 +750,10 @@ window_create(struct harness *h, int width, int height, const char *title,
 		w->decoration =
 			zxdg_decoration_manager_v1_get_toplevel_decoration(
 				h->decoration_manager, w->xdg_toplevel);
-		zxdg_toplevel_decoration_v1_set_mode(
-			w->decoration,
-			ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE);
+		if (ask_server_side)
+			zxdg_toplevel_decoration_v1_set_mode(
+				w->decoration,
+				ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE);
 	}
 	wl_surface_commit(w->surface);
 
@@ -778,14 +779,21 @@ struct harness_window *
 harness_window_create(struct harness *h, int width, int height,
 		      const char *title)
 {
-	return window_create(h, width, height, title, false);
+	return window_create(h, width, height, title, false, false);
 }
 
 struct harness_window *
 harness_window_create_decorated(struct harness *h, int width, int height,
 				const char *title)
 {
-	return window_create(h, width, height, title, true);
+	return window_create(h, width, height, title, true, true);
+}
+
+struct harness_window *
+harness_window_create_with_decoration(struct harness *h, int width, int height,
+				      const char *title)
+{
+	return window_create(h, width, height, title, true, false);
 }
 
 static void
