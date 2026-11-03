@@ -8,7 +8,17 @@
  #include "weston-log-internal.h"
  
  /**
-@@ -3187,7 +3188,9 @@
+@@ -3177,7 +3178,8 @@
+ 		container_of(listener, struct weston_buffer_release_reference,
+ 			     destroy_listener);
+ 
+-	assert((struct wl_resource *)data == ref->buffer_release->resource);
++	assert(data == ref->buffer_release->resource ||
++	       data == ref->buffer_release);
+ 	ref->buffer_release = NULL;
+ }
+ 
+@@ -3187,7 +3189,9 @@
  	struct wl_resource *resource = buffer_release->resource;
  	int release_fence_fd = buffer_release->fence_fd;
  
@@ -19,7 +29,36 @@
  		zwp_linux_buffer_release_v1_send_fenced_release(
  			resource, release_fence_fd);
  	} else {
-@@ -5300,6 +5303,10 @@
+@@ -3195,7 +3199,12 @@
+ 			resource);
+ 	}
+ 
+-	wl_resource_destroy(resource);
++	if (resource) {
++		wl_resource_destroy(resource);
++	} else {
++		wl_signal_emit(&buffer_release->destroy_signal, buffer_release);
++		buffer_release->destroy(buffer_release);
++	}
+ }
+ 
+ WL_EXPORT void
+@@ -3214,8 +3223,12 @@
+ 
+ 	if (buffer_release) {
+ 		buffer_release->ref_count++;
+-		wl_resource_add_destroy_listener(buffer_release->resource,
+-						 &ref->destroy_listener);
++		if (buffer_release->resource)
++			wl_resource_add_destroy_listener(buffer_release->resource,
++							 &ref->destroy_listener);
++		else
++			wl_signal_add(&buffer_release->destroy_signal,
++				      &ref->destroy_listener);
+ 	}
+ 
+ 	ref->buffer_release = buffer_release;
+@@ -5300,6 +5313,10 @@
  		return;
  	}
  
@@ -121,16 +160,21 @@
  	/** commit_timing_v1 - target repaint time for content updates for
  	 *  surfaces with no output
  	 */
-@@ -1814,6 +1816,8 @@
+@@ -1814,6 +1816,13 @@
  	/* The fence fd, if any, associated with this release. If the fence fd
  	 * is -1 then this is considered an immediate release. */
  	int fence_fd;
 +	/* If set, called instead of sending the release events. */
 +	void (*released)(struct weston_buffer_release *buffer_release);
++	/* Without a resource: emitted as the release goes, then freed with
++	 * destroy. A resource would take an object id from the client's
++	 * server range that the client never hears of. */
++	struct wl_signal destroy_signal;
++	void (*destroy)(struct weston_buffer_release *buffer_release);
  };
  
  struct weston_buffer_release_reference {
-@@ -2039,6 +2043,9 @@
+@@ -2039,6 +2048,9 @@
  	/* wp_tearing_control_v1 */
  	bool may_tear;
  
@@ -140,7 +184,7 @@
  	/* wp_fifo_v1 */
  	bool fifo_barrier;
  	bool fifo_wait;
-@@ -2195,6 +2202,7 @@
+@@ -2195,6 +2207,7 @@
  
  	/* zwp_surface_synchronization_v1 resource for this surface */
  	struct wl_resource *synchronization_resource;
@@ -148,7 +192,7 @@
  	int acquire_fence_fd;
  	struct weston_buffer_release_reference buffer_release_ref;
  
-@@ -2609,6 +2617,12 @@
+@@ -2609,6 +2622,12 @@
  void
  weston_compositor_get_time(struct timespec *time);
  
@@ -171,9 +215,41 @@
  	[ 'linux-explicit-synchronization', 'unstable', 'v1' ],
  	[ 'presentation-time', 'stable' ],
  	[ 'pointer-constraints', 'unstable', 'v1' ],
+--- a/libweston/renderer-gl/gl-renderer.c
++++ b/libweston/renderer-gl/gl-renderer.c
+@@ -2813,9 +2813,10 @@
+ 		 * client.
+ 		 */
+ 		if (fence_fd == -1) {
+-			linux_explicit_synchronization_send_server_error(
+-				buffer_release->resource,
+-				"Failed to create release fence");
++			if (buffer_release->resource)
++				linux_explicit_synchronization_send_server_error(
++					buffer_release->resource,
++					"Failed to create release fence");
+ 			fd_clear(&buffer_release->fence_fd);
+ 			continue;
+ 		}
+--- a/libweston/renderer-vulkan/vulkan-renderer.c
++++ b/libweston/renderer-vulkan/vulkan-renderer.c
+@@ -2010,9 +2010,10 @@
+ 		 * client.
+ 		 */
+ 		if (fence_fd == -1) {
+-			linux_explicit_synchronization_send_server_error(
+-				buffer_release->resource,
+-				"Failed to create release fence");
++			if (buffer_release->resource)
++				linux_explicit_synchronization_send_server_error(
++					buffer_release->resource,
++					"Failed to create release fence");
+ 			fd_clear(&buffer_release->fence_fd);
+ 			continue;
+ 		}
 --- /dev/null
 +++ b/libweston/linux-drm-syncobj.c
-@@ -0,0 +1,595 @@
+@@ -0,0 +1,587 @@
 +/*
 + * Copyright 2026 Kerem Soke
 + *
@@ -216,7 +292,6 @@
 +#include "libweston-internal.h"
 +#include "linux-drm-syncobj-v1-server-protocol.h"
 +#include "linux-drm-syncobj.h"
-+#include "linux-explicit-synchronization-unstable-v1-server-protocol.h"
 +#include "shared/fd-util.h"
 +#include "shared/xalloc.h"
 +
@@ -305,36 +380,29 @@
 +}
 +
 +static void
-+release_resource_destroyed(struct wl_resource *resource)
++release_destroy(struct weston_buffer_release *base)
 +{
-+	struct release *release = wl_resource_get_user_data(resource);
++	struct release *release = wl_container_of(base, release, base);
 +
 +	fd_clear(&release->base.fence_fd);
 +	timeline_unref(release->timeline);
 +	free(release);
 +}
 +
++/* No wl_resource: one with a server-allocated id the client never hears of
++ * leaves a gap in its ids, and libwayland-client then rejects the next object
++ * the server creates for it (a clipboard offer, for one). */
 +static bool
 +attach_release(struct weston_surface *surface, struct syncobj_surface *object)
 +{
-+	struct wl_client *client = wl_resource_get_client(object->resource);
 +	struct release *release = xzalloc(sizeof *release);
 +
-+	/* The server assigns this resource ID, so it is not sent to the client.
-+	 * weston_buffer_release_reference listens to it. */
-+	release->base.resource = wl_resource_create(
-+		client, &zwp_linux_buffer_release_v1_interface, 1, 0);
-+	if (!release->base.resource) {
-+		free(release);
-+		wl_client_post_no_memory(client);
-+		return false;
-+	}
 +	release->base.fence_fd = -1;
 +	release->base.released = release_signal;
++	release->base.destroy = release_destroy;
++	wl_signal_init(&release->base.destroy_signal);
 +	release->timeline = timeline_ref(object->release_timeline);
 +	release->point = object->release_point;
-+	wl_resource_set_implementation(release->base.resource, NULL, release,
-+				       release_resource_destroyed);
 +	weston_buffer_release_reference(&surface->pending.buffer_release_ref,
 +					&release->base);
 +	return true;

@@ -39,6 +39,7 @@ struct binds {
 	struct wl_compositor *compositor;
 	struct wl_shm *shm;
 	struct xdg_wm_base *wm_base;
+	struct wl_data_device_manager *data;
 };
 
 static int drm_fd = -1;
@@ -64,6 +65,9 @@ global(void *data, struct wl_registry *registry, uint32_t name,
 	else if (strcmp(interface, xdg_wm_base_interface.name) == 0)
 		b->wm_base = wl_registry_bind(registry, name,
 					      &xdg_wm_base_interface, 1);
+	else if (strcmp(interface, wl_data_device_manager_interface.name) == 0)
+		b->data = wl_registry_bind(registry, name,
+					   &wl_data_device_manager_interface, 3);
 }
 
 static void
@@ -227,6 +231,68 @@ error_case_new(struct harness *h, struct error_case *c)
 	timeline_new(&c->b, &c->timeline);
 }
 
+static uint32_t first_offer_id;
+
+static void
+data_offer(void *data, struct wl_data_device *device, struct wl_data_offer *offer)
+{
+	if (!first_offer_id)
+		first_offer_id = wl_proxy_get_id((struct wl_proxy *)offer);
+}
+
+static void
+data_enter(void *data, struct wl_data_device *device, uint32_t serial,
+	   struct wl_surface *surface, wl_fixed_t x, wl_fixed_t y, struct wl_data_offer *offer)
+{
+}
+
+static void
+data_leave(void *data, struct wl_data_device *device)
+{
+}
+
+static void
+data_motion(void *data, struct wl_data_device *device, uint32_t time, wl_fixed_t x,
+	    wl_fixed_t y)
+{
+}
+
+static void
+data_drop(void *data, struct wl_data_device *device)
+{
+}
+
+static void
+data_selection(void *data, struct wl_data_device *device, struct wl_data_offer *offer)
+{
+}
+
+static const struct wl_data_device_listener data_device_listener = {
+	data_offer, data_enter, data_leave, data_motion, data_drop, data_selection,
+};
+
+static void
+source_target(void *data, struct wl_data_source *source, const char *mime)
+{
+}
+
+static void
+source_send(void *data, struct wl_data_source *source, const char *mime, int32_t fd)
+{
+	close(fd);
+}
+
+static void
+source_cancelled(void *data, struct wl_data_source *source)
+{
+}
+
+static const struct wl_data_source_listener data_source_listener = {
+	.target = source_target,
+	.send = source_send,
+	.cancelled = source_cancelled,
+};
+
 int
 main(int argc, char **argv)
 {
@@ -364,6 +430,28 @@ main(int argc, char **argv)
 		settle(h, 10);
 	CHECK(point_signalled(release, 2) && point_signalled(release, 3),
 	      "the queued updates did not follow in order");
+
+	/* Release points take no object ids from the client: the first object
+	 * the server makes for it, a clipboard offer, is the first of its range,
+	 * or libwayland-client drops the connection (Chromium did). */
+	CHECK(b.data != NULL, "no wl_data_device_manager");
+	struct wl_data_device *device =
+		wl_data_device_manager_get_data_device(b.data, h->seat);
+
+	wl_data_device_add_listener(device, &data_device_listener, NULL);
+	struct wl_data_source *source = wl_data_device_manager_create_data_source(b.data);
+
+	wl_data_source_add_listener(source, &data_source_listener, NULL);
+	wl_data_source_offer(source, "text/plain");
+	wl_data_device_set_selection(device, source, h->last_keyboard_serial);
+	for (int i = 0; i < 20 && !first_offer_id && !wl_display_get_error(h->display); i++)
+		settle(h, 10);
+	CHECK(wl_display_get_error(h->display) == 0,
+	      "the client's connection broke on the clipboard offer");
+	CHECK(first_offer_id == 0xff000000, "the first server object is 0x%x, not 0xff000000",
+	      first_offer_id);
+	wl_data_source_destroy(source);
+	wl_data_device_release(device);
 
 	/* The window going with an update still waiting. */
 	struct window gone;
