@@ -225,7 +225,12 @@ namespace Polo.Policy {
 
         /* Collect the struts that build this workspace's work areas. */
         private GLib.SList<Marco.Strut?> struts_on (int workspace) {
-            var struts = layer_struts != null ? layer_struts () : new GLib.SList<Marco.Strut?> ();
+            GLib.SList<Marco.Strut?> struts;
+            if (layer_struts != null) {
+                struts = layer_struts ();
+            } else {
+                struts = new GLib.SList<Marco.Strut?> ();
+            }
             foreach (var window in windows) {
                 if (window.workspace != -1 && window.workspace != workspace) {
                     continue;
