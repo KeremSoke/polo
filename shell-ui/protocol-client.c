@@ -43,6 +43,7 @@ enum {
 	SIGNAL_SHOW_OSD,
 	SIGNAL_SHOW_DIALOG,
 	SIGNAL_HIDE_DIALOG,
+	SIGNAL_LOOKUP_COLOR,
 	N_SIGNALS,
 };
 
@@ -142,7 +143,8 @@ switcher_icon_pixels(void *data, struct polo_shell_ui_v1 *shell_ui, uint32_t id,
 		       (size_t)size * 4);
 	cairo_surface_mark_dirty(surface);
 	munmap(pixels, length);
-	g_signal_emit(data, signals[SIGNAL_SWITCHER_ICON_PIXELS], 0, id, surface);
+	g_signal_emit(data, signals[SIGNAL_SWITCHER_ICON_PIXELS], 0, id,
+		      surface);
 	cairo_surface_destroy(surface);
 }
 
@@ -256,6 +258,12 @@ hide_dialog(void *data, struct polo_shell_ui_v1 *shell_ui, uint32_t dialog_id)
 	g_signal_emit(data, signals[SIGNAL_HIDE_DIALOG], 0, dialog_id);
 }
 
+static void
+lookup_color(void *data, struct polo_shell_ui_v1 *shell_ui, const char *name)
+{
+	g_signal_emit(data, signals[SIGNAL_LOOKUP_COLOR], 0, name);
+}
+
 static const struct polo_shell_ui_v1_listener shell_ui_listener = {
 	.switcher_entry = switcher_entry,
 	.switcher_icon_name = switcher_icon_name,
@@ -274,6 +282,7 @@ static const struct polo_shell_ui_v1_listener shell_ui_listener = {
 	.show_osd = show_osd,
 	.show_dialog = show_dialog,
 	.hide_dialog = hide_dialog,
+	.lookup_color = lookup_color,
 };
 
 struct registry_scan {
@@ -387,6 +396,22 @@ polo_shell_ui_client_dialog_response(PoloShellUiClient *self, guint dialog_id,
 }
 
 void
+polo_shell_ui_client_custom_color(PoloShellUiClient *self, const char *name,
+				  const float *rgba)
+{
+	struct wl_array array;
+
+	g_return_if_fail(POLO_SHELL_UI_IS_CLIENT(self));
+	wl_array_init(&array);
+	if (rgba)
+		memcpy(wl_array_add(&array, 4 * sizeof(float)), rgba,
+		       4 * sizeof(float));
+	polo_shell_ui_v1_custom_color(self->shell_ui, name, &array);
+	wl_array_release(&array);
+	wl_display_flush(self->wl_display);
+}
+
+void
 polo_shell_ui_client_color_table(PoloShellUiClient *self, const float *colors,
 				 int n_colors)
 {
@@ -428,11 +453,11 @@ polo_shell_ui_client_class_init(PoloShellUiClientClass *klass)
 		"switcher-thumbnail", type, G_SIGNAL_RUN_LAST, 0, NULL, NULL,
 		NULL, G_TYPE_NONE, 2, G_TYPE_UINT, CAIRO_GOBJECT_TYPE_SURFACE);
 	signals[SIGNAL_SWITCHER_ICON_NAME] = g_signal_new(
-		"switcher-icon-name", type, G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL,
-		G_TYPE_NONE, 2, G_TYPE_UINT, G_TYPE_STRING);
+		"switcher-icon-name", type, G_SIGNAL_RUN_LAST, 0, NULL, NULL,
+		NULL, G_TYPE_NONE, 2, G_TYPE_UINT, G_TYPE_STRING);
 	signals[SIGNAL_SWITCHER_ICON_PIXELS] = g_signal_new(
-		"switcher-icon-pixels", type, G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL,
-		G_TYPE_NONE, 2, G_TYPE_UINT, CAIRO_GOBJECT_TYPE_SURFACE);
+		"switcher-icon-pixels", type, G_SIGNAL_RUN_LAST, 0, NULL, NULL,
+		NULL, G_TYPE_NONE, 2, G_TYPE_UINT, CAIRO_GOBJECT_TYPE_SURFACE);
 	signals[SIGNAL_SHOW_SWITCHER] = g_signal_new(
 		"show-switcher", type, G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL,
 		G_TYPE_NONE, 5, GDK_TYPE_MONITOR, G_TYPE_UINT, G_TYPE_UINT,
@@ -481,6 +506,9 @@ polo_shell_ui_client_class_init(PoloShellUiClientClass *klass)
 	signals[SIGNAL_HIDE_DIALOG] =
 		g_signal_new("hide-dialog", type, G_SIGNAL_RUN_LAST, 0, NULL,
 			     NULL, NULL, G_TYPE_NONE, 1, G_TYPE_UINT);
+	signals[SIGNAL_LOOKUP_COLOR] =
+		g_signal_new("lookup-color", type, G_SIGNAL_RUN_LAST, 0, NULL,
+			     NULL, NULL, G_TYPE_NONE, 1, G_TYPE_STRING);
 }
 
 static void

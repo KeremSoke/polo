@@ -77,8 +77,36 @@ typedef enum {
 	POLO_ARROW_NONE,
 } PoloArrowType;
 
-/* The GTK colours a theme can name, resolved by whoever draws (M11.3). */
+/* GTK theme colours: fg, bg, light, dark, mid, text, base, and text_aa for
+ * each standard GTK state; named gtk:custom() colours are separate. */
+#define POLO_THEME_COLOR_COMPONENTS 8
+#define POLO_THEME_COLOR_STATES 5
+
 typedef struct _PoloThemeColors PoloThemeColors;
+
+PoloThemeColors *
+polo_marco_theme_colors_new(void);
+
+void
+polo_marco_theme_colors_free(PoloThemeColors *colors);
+
+/* RGBA values in component-major polo_shell_ui_v1.color_table order. */
+gboolean
+polo_marco_theme_colors_set_table(PoloThemeColors *colors, const float *values,
+				  int n_values);
+
+/* NULL forgets the name, so the theme's fallback applies. */
+void
+polo_marco_theme_colors_set_custom(PoloThemeColors *colors, const char *name,
+				   const PoloRGBA *color);
+
+gboolean
+polo_marco_theme_colors_get(const PoloThemeColors *colors, int component,
+			    PoloStateFlags state, PoloRGBA *color);
+
+gboolean
+polo_marco_theme_colors_lookup_custom(const PoloThemeColors *colors,
+				      const char *name, PoloRGBA *color);
 
 /* Marco's common.h */
 typedef enum {

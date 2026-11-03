@@ -53,6 +53,11 @@ void
 polo_shell_ui_client_color_table(PoloShellUiClient *client,
 				 const float *colors, int n_colors);
 
+/* Pass four RGBA floats, or NULL if the GTK theme has no value for name. */
+void
+polo_shell_ui_client_custom_color(PoloShellUiClient *client, const char *name,
+				  const float *rgba);
+
 G_END_DECLS
 
 #endif

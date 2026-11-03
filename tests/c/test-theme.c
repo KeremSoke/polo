@@ -8,6 +8,7 @@
  */
 
 #include <glib/gstdio.h>
+#include <pango/pangocairo.h>
 #include <string.h>
 
 #include "theme-parser.h"
@@ -158,6 +159,137 @@ loads(gconstpointer data)
 	polo_marco_theme_free(theme);
 }
 
+static PoloThemeColors *
+grey_colours(void)
+{
+	PoloThemeColors *colors = polo_marco_theme_colors_new();
+	float values[POLO_THEME_COLOR_COMPONENTS * POLO_THEME_COLOR_STATES * 4];
+
+	for (int i = 0;
+	     i < POLO_THEME_COLOR_COMPONENTS * POLO_THEME_COLOR_STATES; i++) {
+		float v = (float)(i % 7) / 6;
+
+		values[i * 4] = v;
+		values[i * 4 + 1] = v;
+		values[i * 4 + 2] = 1 - v;
+		values[i * 4 + 3] = 1;
+	}
+	g_assert_true(polo_marco_theme_colors_set_table(colors, values,
+							G_N_ELEMENTS(values)));
+	return colors;
+}
+
+/* Draws one frame and returns the number of painted titlebar pixels. */
+static int
+draw(PoloTheme *theme, PoloThemeColors *colors, const char *name,
+     PoloFrameType type, PoloFrameFlags flags)
+{
+	PoloButtonLayout layout;
+	PoloFrameGeometry geometry;
+	PoloButtonState states[POLO_BUTTON_TYPE_LAST] = { 0 };
+	cairo_surface_t *surface;
+	cairo_t *cr;
+	PangoLayout *title;
+	PangoRectangle extents;
+	const char *dir = g_getenv("POLO_THEME_PNG_DIR");
+	int painted = 0;
+
+	polo_marco_parse_button_layout("menu:minimize,maximize,close", FALSE,
+				       &layout);
+	surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 1, 1);
+	cr = cairo_create(surface);
+	title = pango_cairo_create_layout(cr);
+	pango_layout_set_text(title, "A window title", -1);
+	pango_layout_get_pixel_extents(title, NULL, &extents);
+	cairo_destroy(cr);
+	cairo_surface_destroy(surface);
+
+	polo_marco_theme_calc_geometry(theme, type, extents.height, flags, 320,
+				       200, &layout, &geometry);
+	surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32,
+					     geometry.width, geometry.height);
+	cr = cairo_create(surface);
+	polo_marco_theme_draw_frame(theme, colors, cr, type, flags, 320, 200,
+				    title, extents.height, &layout, states,
+				    NULL, NULL);
+	g_assert_cmpint(cairo_status(cr), ==, CAIRO_STATUS_SUCCESS);
+	cairo_surface_flush(surface);
+	{
+		const guint32 *data =
+			(const guint32 *)cairo_image_surface_get_data(surface);
+		int stride = cairo_image_surface_get_stride(surface) / 4;
+		int top = geometry.borders.total.top;
+
+		for (int y = geometry.borders.invisible.top; y < top; y++)
+			for (int x = 0; x < geometry.width; x++)
+				if (data[y * stride + x] >> 24)
+					painted++;
+	}
+	if (dir) {
+		char *file = g_strdup_printf(
+			"%s/%s-%d-%s.png", dir, name, type,
+			flags & POLO_FRAME_HAS_FOCUS ? "focused" : "unfocused");
+
+		cairo_surface_write_to_png(surface, file);
+		g_free(file);
+	}
+	g_object_unref(title);
+	cairo_destroy(cr);
+	cairo_surface_destroy(surface);
+	return painted;
+}
+
+static void
+draws(gconstpointer data)
+{
+	const ThemeCase *c = data;
+	GError *error = NULL;
+	PoloTheme *theme = polo_marco_theme_load(c->name, &error);
+
+	g_assert_no_error(error);
+	PoloThemeColors *colors = grey_colours();
+	PoloFrameFlags allowed = POLO_FRAME_ALLOWS_DELETE |
+		POLO_FRAME_ALLOWS_MINIMIZE | POLO_FRAME_ALLOWS_MAXIMIZE |
+		POLO_FRAME_ALLOWS_MENU | POLO_FRAME_ALLOWS_MOVE;
+
+	g_assert_nonnull(theme);
+	for (int type = 0; type < POLO_FRAME_TYPE_LAST; type++) {
+		if (!polo_marco_theme_get_frame_style(theme, type,
+						      POLO_FRAME_HAS_FOCUS))
+			continue;
+		draw(theme, colors, c->name, type,
+		     allowed | POLO_FRAME_HAS_FOCUS);
+		draw(theme, colors, c->name, type, allowed);
+	}
+	g_assert_cmpint(draw(theme, colors, c->name, POLO_FRAME_TYPE_NORMAL,
+			     allowed | POLO_FRAME_HAS_FOCUS),
+			>, 0);
+	polo_marco_theme_colors_free(colors);
+	polo_marco_theme_free(theme);
+}
+
+static void
+custom_colours(void)
+{
+	PoloThemeColors *colors = polo_marco_theme_colors_new();
+	PoloRGBA red = { 1, 0, 0, 1 }, got;
+	PoloColorSpec *spec = polo_marco_color_spec_new_from_string(
+		"gtk:custom(wm_title,#00ff00)", NULL);
+
+	g_assert_nonnull(spec);
+	polo_marco_color_spec_render(spec, colors, &got);
+	g_assert_cmpfloat(got.green, ==, 1);
+	polo_marco_theme_colors_set_custom(colors, "wm_title", &red);
+	polo_marco_color_spec_render(spec, colors, &got);
+	g_assert_cmpfloat(got.red, ==, 1);
+	g_assert_cmpfloat(got.green, ==, 0);
+	polo_marco_theme_colors_set_custom(colors, "wm_title", NULL);
+	polo_marco_color_spec_render(spec, colors, &got);
+	g_assert_cmpfloat(got.green, ==, 1);
+	polo_marco_color_spec_free(spec);
+	polo_marco_theme_colors_free(colors);
+}
+
 static void
 broken(void)
 {
@@ -230,7 +362,10 @@ add_installed(void)
 				c->dir = metacity;
 				g_hash_table_add(seen, c->name);
 				path = g_strdup_printf("/theme/loads/%s", name);
-				g_test_add_data_func_full(path, c, loads,
+				g_test_add_data_func(path, c, loads);
+				g_free(path);
+				path = g_strdup_printf("/theme/draws/%s", name);
+				g_test_add_data_func_full(path, c, draws,
 							  free_case);
 				g_free(path);
 			} else {
@@ -250,8 +385,13 @@ main(int argc, char **argv)
 	g_test_init(&argc, &argv, NULL);
 	g_test_add_func("/theme/rgba", rgba);
 	g_test_add_func("/theme/colour-specs", colour_specs);
+	g_test_add_func("/theme/custom-colours", custom_colours);
 	g_test_add_func("/theme/expressions", expressions);
 	g_test_add_func("/theme/broken", broken);
+	int status;
+
 	add_installed();
-	return g_test_run();
+	status = g_test_run();
+	pango_cairo_font_map_set_default(NULL);
+	return status;
 }

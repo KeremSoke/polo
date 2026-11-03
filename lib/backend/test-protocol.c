@@ -350,6 +350,15 @@ test_shell_ui_samples(struct wl_client *client, struct wl_resource *resource)
 }
 
 static void
+test_shell_ui_lookup_color(struct wl_client *client,
+			   struct wl_resource *resource, const char *name)
+{
+	PoloBackendServer *server = wl_resource_get_user_data(resource);
+
+	polo_backend_shell_ui_lookup_color(server->shell_ui, name);
+}
+
+static void
 test_shell_ui_dialog(struct wl_client *client, struct wl_resource *resource,
 		     uint32_t dialog_id, uint32_t kind, const char *payload)
 {
@@ -418,9 +427,22 @@ shell_ui_color_table(PoloBackendShellUi *ui, GBytes *colors,
 {
 	gsize size;
 	const float *values = g_bytes_get_data(colors, &size);
-	g_autofree char *text =
+	g_free(server->test_color_table);
+	server->test_color_table =
 		g_strdup_printf("color_table %g %g", values[0],
 				values[size / sizeof(float) - 1]);
+	broadcast_shell_ui_request(server, server->test_color_table);
+}
+
+static void
+shell_ui_custom_color(PoloBackendShellUi *ui, const char *name, GBytes *rgba,
+		      PoloBackendServer *server)
+{
+	const float *c = rgba ? g_bytes_get_data(rgba, NULL) : NULL;
+	g_autofree char *text = c
+		? g_strdup_printf("custom_color %s %g %g %g %g", name, c[0],
+				  c[1], c[2], c[3])
+		: g_strdup_printf("custom_color %s none", name);
 
 	broadcast_shell_ui_request(server, text);
 }
@@ -440,6 +462,7 @@ static const struct polo_test_v1_interface test_implementation = {
 	.gesture = test_gesture,
 	.shell_ui_samples = test_shell_ui_samples,
 	.shell_ui_dialog = test_shell_ui_dialog,
+	.shell_ui_lookup_color = test_shell_ui_lookup_color,
 };
 
 static void
@@ -469,6 +492,9 @@ test_bind(struct wl_client *client, void *data, uint32_t version, uint32_t id)
 			polo_backend_client_get_pid(
 				polo_backend_shell_ui_get_client(
 					server->shell_ui)));
+	if (version >= 4 && server->test_color_table)
+		polo_test_v1_send_shell_ui_request(resource,
+						   server->test_color_table);
 }
 
 gboolean
@@ -494,7 +520,7 @@ polo_backend_test_protocol_init(PoloBackendServer *server, GError **error)
 		server->compositor, &server->screenshot_authority,
 		authorize_screenshot);
 	server->test_global = wl_global_create(
-		server->display, &polo_test_v1_interface, 5, server, test_bind);
+		server->display, &polo_test_v1_interface, 6, server, test_bind);
 	if (!server->test_global) {
 		g_set_error(error, POLO_BACKEND_ERROR,
 			    POLO_BACKEND_ERROR_FAILED,
@@ -511,6 +537,8 @@ polo_backend_test_protocol_init(PoloBackendServer *server, GError **error)
 			 G_CALLBACK(shell_ui_dialog_response), server);
 	g_signal_connect(server->shell_ui, "color-table",
 			 G_CALLBACK(shell_ui_color_table), server);
+	g_signal_connect(server->shell_ui, "custom-color",
+			 G_CALLBACK(shell_ui_custom_color), server);
 	polo_log_scope_warning(polo_backend_log_scope("polo"),
 			       "test mode: polo_test_v1 is enabled");
 	g_signal_connect(server, "system-bell", G_CALLBACK(on_system_bell),

@@ -210,6 +210,16 @@ hide_dialog(void *data, struct polo_shell_ui_v1 *ui, uint32_t dialog_id)
 	wl_array_release(&colors);
 }
 
+static void
+lookup_color(void *data, struct polo_shell_ui_v1 *ui, const char *name)
+{
+	struct wl_array empty;
+
+	wl_array_init(&empty);
+	polo_shell_ui_v1_custom_color(ui, name, &empty);
+	wl_array_release(&empty);
+}
+
 static const struct polo_shell_ui_v1_listener shell_ui_listener = {
 	.switcher_entry = switcher_entry,
 	.switcher_thumbnail = switcher_thumbnail,
@@ -228,6 +238,7 @@ static const struct polo_shell_ui_v1_listener shell_ui_listener = {
 	.show_osd = show_osd,
 	.show_dialog = show_dialog,
 	.hide_dialog = hide_dialog,
+	.lookup_color = lookup_color,
 };
 
 static void

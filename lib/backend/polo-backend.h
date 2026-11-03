@@ -1216,6 +1216,11 @@ void
 polo_backend_shell_ui_hide_dialog(PoloBackendShellUi *shell_ui,
 				  guint dialog_id);
 
+/* The shell UI replies through custom-color with four RGBA floats or NULL. */
+void
+polo_backend_shell_ui_lookup_color(PoloBackendShellUi *shell_ui,
+				   const char *name);
+
 /* The dialog id polo-shell-ui gave @toplevel's surface (dialog_surface), or 0. */
 guint
 polo_backend_shell_ui_get_dialog(PoloBackendShellUi *shell_ui,

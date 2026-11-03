@@ -907,6 +907,7 @@ polo_backend_server_finalize(GObject *object)
 	g_hash_table_unref(server->clients);
 	g_hash_table_unref(server->views);
 	g_free(server->socket_name);
+	g_free(server->test_color_table);
 	g_free(server->cursor_theme);
 
 	G_OBJECT_CLASS(polo_backend_server_parent_class)->finalize(object);

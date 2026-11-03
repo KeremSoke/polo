@@ -271,5 +271,22 @@
       </description>
       <arg name="colors" type="array"/>
     </request>
+
+    <event name="lookup_color">
+      <description summary="look up a GTK theme colour">
+        Resolves the GTK @define-color used by Marco's gtk:custom(name,
+        fallback). The client replies once with custom_color.
+      </description>
+      <arg name="name" type="string"/>
+    </event>
+
+    <request name="custom_color">
+      <description summary="reply to lookup_color">
+        rgba is empty when the GTK theme does not define name; otherwise it
+        contains one RGBA colour as four native-endian floats.
+      </description>
+      <arg name="name" type="string"/>
+      <arg name="rgba" type="array"/>
+    </request>
   </interface>
 </protocol>

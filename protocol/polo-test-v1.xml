@@ -14,7 +14,7 @@
     tests check policy decisions rather than libweston internals.
   </description>
 
-  <interface name="polo_test_v1" version="5">
+  <interface name="polo_test_v1" version="6">
     <request name="destroy" type="destructor"/>
 
     <request name="get_window_info">
@@ -187,5 +187,13 @@
       </description>
       <arg name="text" type="string"/>
     </event>
+
+    <request name="shell_ui_lookup_color" since="6">
+      <description summary="ask polo-shell-ui for a GTK theme colour">
+        The custom_color reply is forwarded as shell_ui_request
+        "custom_color NAME R G B A" or "custom_color NAME none".
+      </description>
+      <arg name="name" type="string"/>
+    </request>
   </interface>
 </protocol>

@@ -289,6 +289,7 @@ struct _PoloDrawInfo {
 	int title_layout_width;
 	int title_layout_height;
 	const PoloFrameGeometry *fgeom;
+	PoloTheme *theme;
 };
 
 /**
@@ -943,6 +944,45 @@ PoloTheme *
 polo_marco_theme_new(void);
 void
 polo_marco_theme_free(PoloTheme *theme);
+
+void
+polo_marco_color_spec_render(PoloColorSpec *spec, PoloThemeColors *style,
+			     PoloRGBA *color);
+void
+polo_marco_draw_op_draw_with_style(const PoloDrawOp *op,
+				   PoloThemeColors *style_gtk, cairo_t *cr,
+				   const PoloDrawInfo *info,
+				   PoloRect logical_region);
+void
+polo_marco_draw_op_list_draw_with_style(const PoloDrawOpList *op_list,
+					PoloThemeColors *style_gtk, cairo_t *cr,
+					const PoloDrawInfo *info,
+					PoloRect rect);
+void
+polo_marco_frame_style_draw_with_style(
+	PoloTheme *theme, PoloFrameStyle *style, PoloThemeColors *style_gtk,
+	cairo_t *cr, const PoloFrameGeometry *fgeom, int client_width,
+	int client_height, PangoLayout *title_layout, int text_height,
+	PoloButtonState button_states[POLO_BUTTON_TYPE_LAST],
+	GdkPixbuf *mini_icon, GdkPixbuf *icon);
+void
+polo_marco_theme_draw_frame(
+	PoloTheme *theme, PoloThemeColors *style_gtk, cairo_t *cr,
+	PoloFrameType type, PoloFrameFlags flags, int client_width,
+	int client_height, PangoLayout *title_layout, int text_height,
+	const PoloButtonLayout *button_layout,
+	PoloButtonState button_states[POLO_BUTTON_TYPE_LAST],
+	GdkPixbuf *mini_icon, GdkPixbuf *icon);
+double
+polo_marco_theme_get_title_scale(PoloTheme *theme, PoloFrameType type,
+				 PoloFrameFlags flags);
+void
+polo_marco_gradient_spec_render(const PoloGradientSpec *spec,
+				const PoloAlphaGradientSpec *alpha_spec,
+				cairo_t *cr, PoloThemeColors *context, gint x,
+				gint y, gint width, gint height);
+cairo_pattern_t *
+polo_marco_alpha_gradient_spec_get_mask(const PoloAlphaGradientSpec *spec);
 gboolean
 polo_marco_theme_validate(PoloTheme *theme, GError **error);
 GdkPixbuf *

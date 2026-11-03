@@ -9,12 +9,14 @@ marco_lib = static_library('polo-marco',
   'stack-constraints.c',
   'theme.c',
   'theme-compat.c',
+  'theme-draw.c',
+  'gradient.c',
   'theme-parser.c',
-  dependencies: [glib_dep, dependency('pango'), dependency('cairo'), dependency('gdk-pixbuf-2.0'), cc.find_library('m')],
+  dependencies: [glib_dep, dependency('pango'), dependency('pangocairo'), dependency('cairo'), dependency('gdk-pixbuf-2.0'), cc.find_library('m')],
 )
 
 polo_marco_dep = declare_dependency(
   link_with: marco_lib,
   include_directories: include_directories('.'),
-  dependencies: [glib_dep, dependency('pango'), dependency('cairo'), dependency('gdk-pixbuf-2.0'), cc.find_library('m')],
+  dependencies: [glib_dep, dependency('pango'), dependency('pangocairo'), dependency('cairo'), dependency('gdk-pixbuf-2.0'), cc.find_library('m')],
 )

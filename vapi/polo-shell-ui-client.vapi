@@ -33,6 +33,10 @@ namespace PoloShellUi {
         [CCode (cname = "polo_shell_ui_client_color_table")]
         public void color_table ([CCode (array_length_type = "int")] float[] colors);
 
+        [CCode (cname = "polo_shell_ui_client_custom_color")]
+        public void custom_color (string name, [CCode (array_length = false)] float[]? rgba);
+
+        public signal void lookup_color (string name);
         public signal void switcher_entry (uint id, string title, string? app_id, uint flags);
         public signal void switcher_thumbnail (uint id, Cairo.ImageSurface thumbnail);
         public signal void switcher_icon_name (uint id, string name);
@@ -55,5 +59,12 @@ namespace PoloShellUi {
         public signal void show_osd (uint kind, Gdk.Monitor? monitor, string? text, int value);
         public signal void show_dialog (uint dialog_id, uint kind, Gdk.Monitor? monitor, string? payload);
         public signal void hide_dialog (uint dialog_id);
+    }
+
+    /* Sends the colour table and responds to lookup_color. */
+    [CCode (cname = "PoloShellUiColorResolver", cheader_filename = "color-resolver.h")]
+    public class ColorResolver : GLib.Object {
+        [CCode (cname = "polo_shell_ui_color_resolver_new")]
+        public ColorResolver (Client client);
     }
 }

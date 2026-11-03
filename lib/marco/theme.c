@@ -58,19 +58,7 @@
 #include <stdlib.h>
 #include <math.h>
 
-#define GDK_COLOR_RGBA(color)                                                  \
-	((guint32)(0xff | ((int)((color).red * 255) << 24) |                   \
-		   ((int)((color).green * 255) << 16) |                        \
-		   ((int)((color).blue * 255) << 8)))
-
-#define GDK_COLOR_RGB(color)                                                   \
-	((guint32)(((int)((color).red * 255) << 16) |                          \
-		   ((int)((color).green * 255) << 8) |                         \
-		   ((int)((color).blue * 255))))
-
 #define DEBUG_FILL_STRUCT(s) memset((s), 0xef, sizeof(*(s)))
-#define CLAMP_UCHAR(v) ((guchar)(CLAMP(((int)v), (int)0, (int)255)))
-#define INTENSITY(r, g, b) ((r) * 0.30 + (g) * 0.59 + (b) * 0.11)
 
 /**
  * Sets all the fields of a border to dummy values.
@@ -2876,11 +2864,14 @@ polo_marco_frame_style_unref(PoloFrameStyle *style)
 	}
 }
 
-static PoloDrawOpList *
+PoloDrawOpList *
 get_button(PoloFrameStyle *style, PoloButtonType type, PoloButtonState state)
 {
 	PoloDrawOpList *op_list;
 	PoloFrameStyle *parent;
+
+	if (state >= POLO_BUTTON_STATE_LAST)
+		return NULL;
 
 	parent = style;
 	op_list = NULL;
@@ -3400,7 +3391,7 @@ polo_marco_theme_load_image(PoloTheme *theme, const char *filename,
 	return pixbuf;
 }
 
-static PoloFrameStyle *
+PoloFrameStyle *
 theme_get_style(PoloTheme *theme, PoloFrameType type, PoloFrameFlags flags)
 {
 	PoloFrameState state;

@@ -14,7 +14,7 @@ shell_ui_protocol = [
 
 gtk_dep = dependency('gtk+-3.0', version: '>= 3.24')
 shell_ui_client_lib = static_library('polo-shell-ui-client',
-  'protocol-client.c', shell_ui_protocol,
+  'protocol-client.c', 'color-resolver.c', shell_ui_protocol,
   dependencies: [gtk_dep, dependency('gtk+-wayland-3.0'), dependency('wayland-client')],
 )
 

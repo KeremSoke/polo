@@ -72,7 +72,8 @@ struct _PoloBackendServer {
 	gpointer test_settings_data;
 	GDestroyNotify test_settings_destroy;
 	struct wl_global *test_global;
-	struct wl_list test_resources;           /* polo_test_v1 */
+	struct wl_list test_resources; /* polo_test_v1 */
+	char *test_color_table; /* Latest color table, cached for clients that bind later. */
 	struct wl_listener screenshot_authority; /* test mode */
 	struct wl_global *layer_shell_global;
 	struct wl_global *foreign_toplevel_global;

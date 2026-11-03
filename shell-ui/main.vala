@@ -11,6 +11,7 @@ namespace PoloShellUi {
         private AltTab alt_tab;
         private WindowMenu window_menu;
         private Dialogs dialogs;
+        private ColorResolver colors;
 
         public Helper (Client client) {
             Object (client: client);
@@ -20,6 +21,7 @@ namespace PoloShellUi {
             alt_tab = new AltTab (client);
             window_menu = new WindowMenu (client);
             dialogs = new Dialogs (client);
+            colors = new ColorResolver (client);
         }
     }
 

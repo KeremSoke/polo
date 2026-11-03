@@ -953,6 +953,9 @@ namespace Polo {
             public void show_osd (OsdKind kind, Output? output, string? text, int value);
             [CCode (cname = "polo_backend_shell_ui_show_dialog")]
             public void show_dialog (uint dialog_id, DialogKind kind, Output? output, string? payload);
+            [CCode (cname = "polo_backend_shell_ui_lookup_color")]
+            public void lookup_color (string name);
+
             [CCode (cname = "polo_backend_shell_ui_hide_dialog")]
             public void hide_dialog (uint dialog_id);
             /* Returns the dialog id for @toplevel's surface, or 0. */
@@ -964,6 +967,7 @@ namespace Polo {
             public signal void switcher_select (uint id);
             public signal void menu_action (uint window_id, MenuOp op, int workspace);
             public signal void dialog_response (uint dialog_id, int response, string? text);
+            public signal void custom_color (string name, GLib.Bytes? rgba);
             public signal void color_table (GLib.Bytes colors);
         }
 

@@ -51,6 +51,7 @@ enum {
 	SIGNAL_MENU_ACTION,
 	SIGNAL_DIALOG_RESPONSE,
 	SIGNAL_COLOR_TABLE,
+	SIGNAL_CUSTOM_COLOR,
 	N_SIGNALS,
 };
 
@@ -165,6 +166,25 @@ handle_color_table(struct wl_client *client, struct wl_resource *resource,
 	g_signal_emit(self, signals[SIGNAL_COLOR_TABLE], 0, bytes);
 }
 
+static void
+handle_custom_color(struct wl_client *client, struct wl_resource *resource,
+		    const char *name, struct wl_array *rgba)
+{
+	PoloBackendShellUi *self = wl_resource_get_user_data(resource);
+	g_autoptr(GBytes) bytes = NULL;
+
+	if (rgba->size != 0 && rgba->size != 4 * sizeof(float)) {
+		wl_resource_post_error(
+			resource, POLO_SHELL_UI_V1_ERROR_INVALID_COLOR_TABLE,
+			"custom_color has %zu bytes, not 0 or %zu", rgba->size,
+			4 * sizeof(float));
+		return;
+	}
+	if (rgba->size)
+		bytes = g_bytes_new(rgba->data, rgba->size);
+	g_signal_emit(self, signals[SIGNAL_CUSTOM_COLOR], 0, name, bytes);
+}
+
 static const struct polo_shell_ui_v1_interface shell_ui_impl = {
 	.destroy = handle_destroy,
 	.switcher_select = handle_switcher_select,
@@ -172,6 +192,7 @@ static const struct polo_shell_ui_v1_interface shell_ui_impl = {
 	.dialog_surface = handle_dialog_surface,
 	.dialog_response = handle_dialog_response,
 	.color_table = handle_color_table,
+	.custom_color = handle_custom_color,
 };
 
 static struct weston_pointer *
@@ -675,6 +696,14 @@ polo_backend_shell_ui_show_dialog(PoloBackendShellUi *self, guint dialog_id,
 }
 
 void
+polo_backend_shell_ui_lookup_color(PoloBackendShellUi *self, const char *name)
+{
+	g_return_if_fail(POLO_BACKEND_IS_SHELL_UI(self));
+	if (self->resource)
+		polo_shell_ui_v1_send_lookup_color(self->resource, name);
+}
+
+void
 polo_backend_shell_ui_hide_dialog(PoloBackendShellUi *self, guint dialog_id)
 {
 	g_return_if_fail(POLO_BACKEND_IS_SHELL_UI(self));
@@ -707,6 +736,9 @@ polo_backend_shell_ui_class_init(PoloBackendShellUiClass *klass)
 	signals[SIGNAL_COLOR_TABLE] = g_signal_new(
 		"color-table", G_TYPE_FROM_CLASS(klass), G_SIGNAL_RUN_LAST, 0,
 		NULL, NULL, NULL, G_TYPE_NONE, 1, G_TYPE_BYTES);
+	signals[SIGNAL_CUSTOM_COLOR] = g_signal_new(
+		"custom-color", G_TYPE_FROM_CLASS(klass), G_SIGNAL_RUN_LAST, 0,
+		NULL, NULL, NULL, G_TYPE_NONE, 2, G_TYPE_STRING, G_TYPE_BYTES);
 }
 
 static void

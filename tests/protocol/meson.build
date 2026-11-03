@@ -180,6 +180,12 @@ if get_option('shell-ui')
     suite: 'protocol',
     timeout: 60,
   )
+  test('shell-ui-colors', executable('test-shell-ui-colors', 'test-shell-ui-colors.c', dependencies: harness_dep),
+    args: [polo_exe, shell_ui_exe],
+    env: shell_ui_gtk_env,
+    suite: 'protocol',
+    timeout: 60,
+  )
   test('not-responding', executable('test-not-responding', 'test-not-responding.c', dependencies: harness_dep),
     args: [polo_exe, shell_ui_exe],
     env: shell_ui_gtk_env,
