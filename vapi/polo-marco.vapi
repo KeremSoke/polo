@@ -526,4 +526,113 @@ namespace Polo.Marco {
     /* Marco release used as the C-port reference. */
     [CCode (cname = "polo_marco_reference_version")]
     public unowned string reference_version ();
+
+    [CCode (cname = "PoloFrameType", cprefix = "POLO_FRAME_TYPE_", has_type_id = false,
+            cheader_filename = "theme-parser.h")]
+    public enum FrameType {
+        NORMAL,
+        DIALOG,
+        MODAL_DIALOG,
+        UTILITY,
+        MENU,
+        BORDER,
+        ATTACHED,
+        LAST
+    }
+
+    [CCode (cname = "PoloFrameFlags", cprefix = "POLO_FRAME_", has_type_id = false,
+            cheader_filename = "theme-parser.h")]
+    [Flags]
+    public enum FrameFlags {
+        ALLOWS_DELETE,
+        ALLOWS_MENU,
+        ALLOWS_APPMENU,
+        ALLOWS_MINIMIZE,
+        ALLOWS_MAXIMIZE,
+        ALLOWS_VERTICAL_RESIZE,
+        ALLOWS_HORIZONTAL_RESIZE,
+        HAS_FOCUS,
+        SHADED,
+        STUCK,
+        MAXIMIZED,
+        ALLOWS_SHADE,
+        ALLOWS_MOVE,
+        FULLSCREEN,
+        IS_FLASHING,
+        ABOVE,
+        TILED_LEFT,
+        TILED_RIGHT
+    }
+
+    [CCode (cname = "PoloBorder", has_type_id = false, cheader_filename = "theme-parser.h")]
+    public struct Border {
+        public int16 left;
+        public int16 right;
+        public int16 top;
+        public int16 bottom;
+    }
+
+    /* Marco's MetaFrameBorders: what the theme draws, and around it. */
+    [CCode (cname = "PoloThemeBorders", has_type_id = false, cheader_filename = "theme-parser.h")]
+    public struct ThemeBorders {
+        public Border visible;
+        public Border shadow;
+        public Border resize;
+        public Border invisible;
+        public Border total;
+    }
+
+    [CCode (cname = "PoloButtonSpace", has_type_id = false, cheader_filename = "theme-parser.h")]
+    public struct ButtonSpace {
+        public Rect visible;
+        public Rect clickable;
+    }
+
+    [CCode (cname = "PoloFrameGeometry", has_type_id = false, destroy_function = "",
+            cheader_filename = "theme-parser.h")]
+    public struct FrameGeometry {
+        public ThemeBorders borders;
+        public int width;
+        public int height;
+        public Rect title_rect;
+        public ButtonSpace close_rect;
+        public ButtonSpace max_rect;
+        public ButtonSpace min_rect;
+        public ButtonSpace menu_rect;
+        public ButtonSpace appmenu_rect;
+        public ButtonSpace shade_rect;
+        public ButtonSpace above_rect;
+        public ButtonSpace stick_rect;
+        public ButtonSpace unshade_rect;
+        public ButtonSpace unabove_rect;
+        public ButtonSpace unstick_rect;
+        public int n_left_buttons;
+        public int n_right_buttons;
+    }
+
+    /* Owned by its theme. */
+    [Compact]
+    [CCode (cname = "PoloFrameStyle", free_function = "", cheader_filename = "theme-parser.h")]
+    public class FrameStyle {
+    }
+
+    /* A Marco (Metacity) window theme, as meta_theme_load () finds it. */
+    [Compact]
+    [CCode (cname = "PoloTheme", free_function = "polo_marco_theme_free", cheader_filename = "theme-parser.h")]
+    public class Theme {
+        [CCode (cname = "polo_marco_theme_load")]
+        public static Theme? load (string name) throws GLib.Error;
+
+        [CCode (cname = "polo_marco_theme_get_frame_style")]
+        public unowned FrameStyle? get_frame_style (FrameType type, FrameFlags flags);
+
+        [CCode (cname = "polo_marco_theme_get_frame_borders")]
+        public void get_frame_borders (FrameType type, int text_height, FrameFlags flags,
+                                       out ThemeBorders borders);
+
+        [CCode (cname = "polo_marco_theme_calc_geometry")]
+        public void calc_geometry (FrameType type, int text_height, FrameFlags flags,
+                                   int client_width, int client_height, ButtonLayout button_layout,
+                                   out FrameGeometry geometry);
+    }
 }

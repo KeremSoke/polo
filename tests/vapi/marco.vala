@@ -131,9 +131,40 @@ void test_regions () {
     assert (vx == 5 && vy == 0);
 }
 
+void test_theme () {
+    try {
+        Polo.Marco.Theme.load ("PoloNoSuchTheme");
+        assert_not_reached ();
+    } catch (GLib.Error e) {
+        assert (e.message != "");
+    }
+    if (!GLib.FileUtils.test ("/usr/share/themes/Atlanta/metacity-1", GLib.FileTest.IS_DIR)) {
+        return;
+    }
+    Polo.Marco.Theme theme;
+    try {
+        theme = Polo.Marco.Theme.load ("Atlanta");
+    } catch (GLib.Error e) {
+        GLib.error ("Atlanta: %s", e.message);
+    }
+    var flags = Polo.Marco.FrameFlags.HAS_FOCUS | Polo.Marco.FrameFlags.ALLOWS_DELETE;
+    assert (theme.get_frame_style (Polo.Marco.FrameType.NORMAL, flags) != null);
+    Polo.Marco.ThemeBorders borders;
+    theme.get_frame_borders (Polo.Marco.FrameType.NORMAL, 14, flags, out borders);
+    assert (borders.visible.top > borders.visible.bottom);
+    Polo.Marco.ButtonLayout layout;
+    Polo.Marco.parse_button_layout ("menu:minimize,maximize,close", false, out layout);
+    Polo.Marco.FrameGeometry geometry;
+    theme.calc_geometry (Polo.Marco.FrameType.NORMAL, 14, flags, 400, 300, layout, out geometry);
+    assert (geometry.width == 400 + geometry.borders.total.left + geometry.borders.total.right);
+    assert (geometry.close_rect.visible.width > 0 && geometry.n_right_buttons == 1);
+    assert (geometry.title_rect.width > 0);
+}
+
 int main () {
     assert (Polo.Marco.reference_version () == "1.28.2");
     test_rects ();
     test_regions ();
+    test_theme ();
     return 0;
 }

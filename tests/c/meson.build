@@ -10,3 +10,6 @@ test('testboxes', testboxes, suite: 'unit-c')
 # libpolo-bg: MateBG drawing semantics.
 test_bg = executable('test-bg', 'test-bg.c', dependencies: [polo_bg_dep])
 test('bg', test_bg, suite: 'unit-c', protocol: 'tap', args: ['--tap'])
+
+test_theme = executable('test-theme', 'test-theme.c', dependencies: [polo_marco_dep])
+test('theme', test_theme, suite: 'unit-c', protocol: 'tap', args: ['--tap'], timeout: 120)

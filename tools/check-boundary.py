@@ -9,7 +9,8 @@ Rules:
   2  Only lib/backend/ and lib/xwm/ include libweston or wayland-server.
   3  lib/marco/, lib/fx/ and lib/bg/ include only libc, glib.h, cairo,
      pango and their own headers (they stay pure); lib/bg/ may also use
-     gdk-pixbuf (image decoding) and time.h (slideshow start times).
+     gdk-pixbuf (image decoding) and time.h (slideshow start times), and
+     lib/marco/ gdk-pixbuf (theme images, which include SVG).
   4  src/policy/ does not use the backend (polo-backend.vapi) at all.
 
 Usage:
@@ -48,6 +49,7 @@ LIBC_HEADERS = {
 }
 PURE_EXTRA = re.compile(r"^(glib\.h|cairo\.h|cairo/.*|pango/.*)$")
 BG_EXTRA = re.compile(r"^(gdk-pixbuf/gdk-pixbuf\.h|time\.h)$")
+MARCO_EXTRA = re.compile(r"^gdk-pixbuf/gdk-pixbuf\.h$")
 
 BACKEND_USE_RE = re.compile(r"(?<![\w.])(?:Polo\s*\.\s*)?Backend\s*\.|\busing\s+Polo\.Backend\b")
 PKG_PAIR_RE = re.compile(r"""['"]--pkg['"]\s*,\s*['"]([^'"]+)['"]|['"]--pkg=([^'"]+)['"]""")
@@ -118,7 +120,8 @@ def check(root):
     for path, rel in files(root, ["*.c", "*.h"]):
         in_backend = rel.startswith(("lib/backend/", "lib/xwm/"))
         pure = rel.startswith(("lib/marco/", "lib/fx/", "lib/bg/"))
-        extra_ok = BG_EXTRA if rel.startswith("lib/bg/") else None
+        extra_ok = BG_EXTRA if rel.startswith("lib/bg/") else \
+            MARCO_EXTRA if rel.startswith("lib/marco/") else None
         for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
             if not in_backend and LIBWESTON_INCLUDE_RE.match(line):
                 add(2, rel, n, "only lib/backend/ and lib/xwm/ may include libweston or wayland-server")
