@@ -138,11 +138,50 @@ void test_frame () {
     }
 }
 
+uint8 alpha_at (uint8[] pixels, int stride, int x, int y) {
+    return pixels[y * stride + x * 4 + 3];
+}
+
+/* Menta's frames.c visible region has 4-pixel rounded top corners. */
+void test_rounded_corners () {
+    if (!GLib.FileUtils.test ("/usr/share/themes/Menta/metacity-1", GLib.FileTest.IS_DIR)) {
+        GLib.Test.skip ("Menta is not installed");
+        return;
+    }
+    var decorations = new Polo.Decor.Decorations ();
+    assert (decorations.load_theme ("Menta"));
+    decorations.set_fonts ("Sans 10", null);
+    var normal = Polo.Marco.FrameType.NORMAL;
+    unowned Polo.Marco.Theme theme = decorations.get_theme ();
+    int text_height = theme.text_height (normal, FLAGS, "Sans 10", null, Polo.Decor.Decorations.DPI);
+    Polo.Marco.FrameGeometry geometry;
+    theme.calc_geometry (normal, text_height, FLAGS, 300, 200, decorations.button_layout, out geometry);
+    int width = geometry.width;
+    int height = geometry.borders.total.top;
+    int stride = width * 4;
+    var pixels = new uint8[stride * height];
+    var states = new Polo.Marco.ButtonState[Polo.Marco.ButtonType.LAST];
+    theme.render (decorations.get_colors (), normal, FLAGS, 300, 200, "A title", "Sans 10", null,
+                  Polo.Decor.Decorations.DPI, decorations.button_layout, states, 0, 0, pixels,
+                  width, height, stride);
+    int left = geometry.borders.invisible.left;
+    int right = width - geometry.borders.invisible.right - 1;
+    int top = geometry.borders.invisible.top;
+    assert (alpha_at (pixels, stride, left, top) == 0 && alpha_at (pixels, stride, right, top) == 0);
+    assert (alpha_at (pixels, stride, left + 1, top) == 0 && alpha_at (pixels, stride, left, top + 1) == 0);
+    assert (alpha_at (pixels, stride, width / 2, top) != 0);
+    assert (alpha_at (pixels, stride, left, top + 10) != 0 && alpha_at (pixels, stride, right, top + 10) != 0);
+    if (left > 0) {
+        assert (alpha_at (pixels, stride, left - 1, top + 10) == 0);
+    }
+}
+
 int main (string[] args) {
     GLib.Test.init (ref args);
     server = start_server ();
     GLib.Test.add_func ("/decor/no-theme", test_no_theme);
     GLib.Test.add_func ("/decor/frame", test_frame);
+    GLib.Test.add_func ("/decor/rounded-corners", test_rounded_corners);
     int status = GLib.Test.run ();
     server.stop ();
     Polo.Marco.release_fonts ();

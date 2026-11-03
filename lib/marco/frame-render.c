@@ -7,6 +7,7 @@
  * time.
  */
 
+#include <math.h>
 #include <string.h>
 
 #include <pango/pangocairo.h>
@@ -74,6 +75,96 @@ polo_marco_frame_text_height(PoloTheme *theme, PoloFrameType type,
 	return height;
 }
 
+/* Match frames.c get_visible_region(): how far a rounded corner cuts into a
+ * row. */
+static int
+corner_inset(guint corner, int row)
+{
+	const float radius = sqrt(corner) + corner;
+
+	return (int)floor(
+		0.5 + radius -
+		sqrt(radius * radius -
+		     (radius - (row + 0.5)) * (radius - (row + 0.5))));
+}
+
+/* Clear the invisible borders and rounded corners Marco removes by shaping its
+ * frame window in frames.c get_visible_region(). */
+static void
+clear_outside_visible_region(cairo_t *cr, const PoloFrameGeometry *fgeom,
+			     PoloFrameFlags flags)
+{
+	int window_height = (flags & POLO_FRAME_SHADED)
+		? fgeom->borders.total.top
+		: fgeom->height;
+	cairo_rectangle_int_t frame_rect = {
+		fgeom->borders.invisible.left,
+		fgeom->borders.invisible.top,
+		fgeom->width - fgeom->borders.invisible.right -
+			fgeom->borders.invisible.left,
+		window_height - fgeom->borders.invisible.bottom -
+			fgeom->borders.invisible.top,
+	};
+	cairo_rectangle_int_t all = { 0, 0, fgeom->width, window_height };
+	cairo_region_t *hidden = cairo_region_create_rectangle(&all);
+	cairo_region_t *visible = cairo_region_create_rectangle(&frame_rect);
+	cairo_rectangle_int_t row;
+	guint i;
+
+	for (i = 0; i < fgeom->top_left_corner_rounded_radius; i++) {
+		row = (cairo_rectangle_int_t){
+			frame_rect.x, frame_rect.y + (int)i,
+			corner_inset(fgeom->top_left_corner_rounded_radius, i),
+			1
+		};
+		cairo_region_subtract_rectangle(visible, &row);
+	}
+	for (i = 0; i < fgeom->top_right_corner_rounded_radius; i++) {
+		int width =
+			corner_inset(fgeom->top_right_corner_rounded_radius, i);
+
+		row = (cairo_rectangle_int_t){ frame_rect.x + frame_rect.width -
+						       width,
+					       frame_rect.y + (int)i, width,
+					       1 };
+		cairo_region_subtract_rectangle(visible, &row);
+	}
+	for (i = 0; i < fgeom->bottom_left_corner_rounded_radius; i++) {
+		row = (cairo_rectangle_int_t){
+			frame_rect.x,
+			frame_rect.y + frame_rect.height - (int)i - 1,
+			corner_inset(fgeom->bottom_left_corner_rounded_radius,
+				     i),
+			1
+		};
+		cairo_region_subtract_rectangle(visible, &row);
+	}
+	for (i = 0; i < fgeom->bottom_right_corner_rounded_radius; i++) {
+		int width = corner_inset(
+			fgeom->bottom_right_corner_rounded_radius, i);
+
+		row = (cairo_rectangle_int_t){
+			frame_rect.x + frame_rect.width - width,
+			frame_rect.y + frame_rect.height - (int)i - 1, width, 1
+		};
+		cairo_region_subtract_rectangle(visible, &row);
+	}
+	cairo_region_subtract(hidden, visible);
+
+	cairo_save(cr);
+	cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
+	for (i = 0; i < (guint)cairo_region_num_rectangles(hidden); i++) {
+		cairo_rectangle_int_t r;
+
+		cairo_region_get_rectangle(hidden, (int)i, &r);
+		cairo_rectangle(cr, r.x, r.y, r.width, r.height);
+	}
+	cairo_fill(cr);
+	cairo_restore(cr);
+	cairo_region_destroy(visible);
+	cairo_region_destroy(hidden);
+}
+
 void
 polo_marco_frame_render(PoloTheme *theme, PoloThemeColors *colors,
 			PoloFrameType type, PoloFrameFlags flags,
@@ -89,6 +180,7 @@ polo_marco_frame_render(PoloTheme *theme, PoloThemeColors *colors,
 	PangoContext *context = title_context(dpi);
 	PangoLayout *layout = pango_layout_new(context);
 	PoloButtonState states[POLO_BUTTON_TYPE_LAST];
+	PoloFrameGeometry fgeom;
 	cairo_surface_t *surface;
 	cairo_t *cr;
 
@@ -113,6 +205,10 @@ polo_marco_frame_render(PoloTheme *theme, PoloThemeColors *colors,
 				    client_width, client_height, layout,
 				    text_height(context, font), button_layout,
 				    states, NULL, NULL);
+	polo_marco_theme_calc_geometry(theme, type, text_height(context, font),
+				       flags, client_width, client_height,
+				       button_layout, &fgeom);
+	clear_outside_visible_region(cr, &fgeom, flags);
 	cairo_destroy(cr);
 	cairo_surface_flush(surface);
 	cairo_surface_destroy(surface);
