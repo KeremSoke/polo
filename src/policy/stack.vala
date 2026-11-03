@@ -417,7 +417,7 @@ namespace Polo.Policy {
         }
 
         private static bool window_contains_point (Window window, int x, int y) {
-            var r = window.frame;
+            var r = window.outer_rect ();
             return x >= r.x && x < r.x + r.width && y >= r.y && y < r.y + r.height;
         }
 

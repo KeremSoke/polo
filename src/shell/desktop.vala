@@ -814,7 +814,12 @@ namespace Polo.Shell {
                 }
                 xdg.refresh_frame ();
                 xdg.stack_frame (views, server.get_layer ((Backend.LayerKind) kind));
-                views.add (view);
+                /* When shaded, hide the client below its titlebar. */
+                if (window.has_state (WindowState.SHADED) && window.has_frame ()) {
+                    view.move_to_layer (null);
+                } else {
+                    views.add (view);
+                }
             }
             foreach (var kind in per_layer.get_keys ()) {
                 server.get_layer ((Backend.LayerKind) kind).restack (per_layer[kind].data);

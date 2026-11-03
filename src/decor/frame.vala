@@ -224,6 +224,11 @@ namespace Polo.Decor {
             edge_rects[Edge.LEFT] = { 0, total.top, total.left, middle };
             edge_rects[Edge.RIGHT] = { width - total.right, total.top, total.right, middle };
             for (int i = 0; i < Edge.COUNT; i++) {
+                /* A shaded frame has only its top edge. */
+                if (Marco.FrameFlags.SHADED in flags && i != Edge.TOP) {
+                    edges[i] = null;
+                    continue;
+                }
                 draw_edge (theme, (Edge) i, type, flags, client_width, client_height, title);
             }
             drawn = true;

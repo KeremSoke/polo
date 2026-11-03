@@ -293,7 +293,7 @@ namespace Polo.Shell {
             if (!model.prefs.show_tab_border) {
                 return;
             }
-            Marco.Rect rect = window.frame;
+            Marco.Rect rect = window.outer_rect ();
             if (grab.tabbing && !model.showing_on_its_workspace (window) && minimize_target != null) {
                 Marco.Rect icon;
                 if (minimize_target (window, out icon)) {

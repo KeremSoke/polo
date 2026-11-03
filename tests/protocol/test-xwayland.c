@@ -976,6 +976,29 @@ test_ewmh_messages(int argc, char **argv)
 		"prop _NET_WM_STATE _NET_WM_STATE_BELOW _NET_WM_STATE_FOCUSED");
 	x_send(display, send, id, "_NET_WM_STATE", "0", "_NET_WM_STATE_BELOW",
 	       "0", "0", "0", xauth);
+
+    /* Marco leaves shaded windows iconic, with the client below the titlebar. */
+	x_send(display, send, id, "_NET_WM_STATE", "1", "_NET_WM_STATE_SHADED",
+	       "0", "0", "0", xauth);
+	wait_for_line(h, "prop WM_STATE 3 0");
+	CHECK(count_lines_with("_NET_WM_STATE_SHADED") > 0,
+	      "_NET_WM_STATE lacks SHADED");
+	pause_ms(h, 300);
+	CHECK(white_pixels(screenshot(h), &x, &y) <= 400,
+	      "the shaded client is still drawn");
+	int normal = count_lines_with("prop WM_STATE 1 0");
+
+	x_send(display, send, id, "_NET_WM_STATE", "0", "_NET_WM_STATE_SHADED",
+	       "0", "0", "0", xauth);
+	for (int i = 0;
+	     i < 100 && count_lines_with("prop WM_STATE 1 0") == normal; i++)
+		pause_ms(h, 20);
+	CHECK(count_lines_with("prop WM_STATE 1 0") > normal,
+	      "unshading left the window iconic");
+	pause_ms(h, 300);
+	CHECK(white_pixels(screenshot(h), &x, &y) >= 300 * 200 * 9 / 10,
+	      "the unshaded client is not drawn");
+
 	x_send(display, send, id, "_NET_WM_STATE", "1",
 	       "_NET_WM_STATE_SKIP_TASKBAR", "_NET_WM_STATE_SKIP_PAGER", "0",
 	       "0", xauth);

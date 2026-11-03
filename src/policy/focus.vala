@@ -333,7 +333,7 @@ namespace Polo.Policy {
                 for (int i = (int) order.length - 1; i >= 0 && order[i] != window; i--) {
                     var other = order[i];
                     if ((other.workspace == -1 || window.workspace == -1 ||
-                         other.workspace == window.workspace) && window.frame.overlap (other.frame)) {
+                         other.workspace == window.workspace) && window.outer_rect ().overlap (other.outer_rect ())) {
                         obscured = true;
                         break;
                     }

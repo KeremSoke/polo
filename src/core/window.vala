@@ -191,6 +191,15 @@ namespace Polo {
             return borders;
         }
 
+        /* Returns the outer frame; shaded windows expose only the titlebar. */
+        public Marco.Rect outer_rect () {
+            var outer = frame;
+            if (has_frame () && has_state (WindowState.SHADED)) {
+                outer.height = visible_borders ().top;
+            }
+            return outer;
+        }
+
         public Marco.Rect client_rect () {
             var b = visible_borders ();
             return Marco.Rect () {

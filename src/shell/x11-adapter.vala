@@ -517,7 +517,7 @@ namespace Polo.Shell {
             if (!mapped) {
                 return;
             }
-            bool iconic = !desktop.model.is_showing (window);
+            bool iconic = !desktop.model.is_showing (window) || window.has_state (WindowState.SHADED);
             if (iconic != sent_iconic) {
                 sent_iconic = iconic;
                 xwindow.set_wm_state (iconic ? ICCCM_ICONIC_STATE : ICCCM_NORMAL_STATE);

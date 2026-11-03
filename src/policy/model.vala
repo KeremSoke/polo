@@ -1175,7 +1175,7 @@ namespace Polo.Policy {
                 return;
             }
             if (window.has_state (WindowState.SHADED) && v) {
-                window.set_state_flags (WindowState.SHADED, false);
+                unshade (window, last_user_time);
             }
             if (!window.placed) {
                 window.maximize_horizontally_after_placement |= h;
@@ -1358,7 +1358,9 @@ namespace Polo.Policy {
             if (window.has_state (WindowState.FULLSCREEN)) {
                 return;
             }
-            window.set_state_flags (WindowState.SHADED, false);
+            if (window.has_state (WindowState.SHADED)) {
+                unshade (window, last_user_time);
+            }
             save_rect (window);
             window.set_state_flags (WindowState.FULLSCREEN, true);
             window.tile_resized = false;
@@ -1685,6 +1687,34 @@ namespace Polo.Policy {
         /* ---- Window states --------------------------------------------- */
 
         /* Turn state flags on or off; maximize and fullscreen go through Marco's functions. */
+        /* Marco shade: roll up to the titlebar without losing focus. */
+        public void shade (Window window, int64 time) {
+            if (window.has_state (WindowState.SHADED)) {
+                return;
+            }
+            window.set_state_flags (WindowState.SHADED, true);
+            shade_changed (window, time);
+        }
+
+        /* meta_window_unshade () */
+        public void unshade (Window window, int64 time) {
+            if (!window.has_state (WindowState.SHADED)) {
+                return;
+            }
+            window.set_state_flags (WindowState.SHADED, false);
+            shade_changed (window, time);
+        }
+
+        private void shade_changed (Window window, int64 time) {
+            if (window.placed && window.has_state (WindowState.MAPPED)) {
+                move_resize_now (window);
+            }
+            stack_changed ();
+            if (window.has_state (WindowState.MAPPED)) {
+                focus_policy.focus_window (window, time);
+            }
+        }
+
         public void set_state (Window window, WindowState flags, bool on) {
             var before = window.state;
             var size_flags = flags & (WindowState.MAXIMIZED | WindowState.FULLSCREEN);
@@ -1702,6 +1732,14 @@ namespace Polo.Policy {
                     make_fullscreen (window);
                 } else {
                     unmake_fullscreen (window);
+                }
+            }
+            if ((other & WindowState.SHADED) != 0) {
+                other &= ~WindowState.SHADED;
+                if (on) {
+                    shade (window, last_user_time);
+                } else {
+                    unshade (window, last_user_time);
                 }
             }
             if ((other & WindowState.STICKY) != 0) {

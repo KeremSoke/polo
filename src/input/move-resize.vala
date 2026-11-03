@@ -360,7 +360,7 @@ namespace Polo.Input {
                     }
                     var type = w.window_type;
                     stacked.append_val (Marco.EdgeWindow () {
-                        outer = w.frame,
+                        outer = w.outer_rect (),
                         relevant = model.is_showing (w) && w != window && type != Marco.WindowType.DESKTOP &&
                                    type != Marco.WindowType.MENU && type != Marco.WindowType.SPLASHSCREEN,
                         is_dock = type == Marco.WindowType.DOCK
@@ -572,7 +572,7 @@ namespace Polo.Input {
                 new_y = old.y;
             }
             last_user_action_was_snap = snap;
-            edges ().for_move (w.frame, old.x, old.y, ref new_x, ref new_y, snap, false);
+            edges ().for_move (w.outer_rect (), old.x, old.y, ref new_x, ref new_y, snap, false);
             model.move (w, true, new_x, new_y, frame_action);
         }
 
@@ -875,7 +875,7 @@ namespace Polo.Input {
 
             if (handled) {
                 last_user_action_was_snap = smart_snap;
-                edges ().for_move (window.frame, position.x, position.y, ref x, ref y, smart_snap, true);
+                edges ().for_move (window.outer_rect (), position.x, position.y, ref x, ref y, smart_snap, true);
                 model.move (window, true, x, y, frame_action);
                 warp_grab_pointer ();
             }

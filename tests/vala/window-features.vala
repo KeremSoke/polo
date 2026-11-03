@@ -219,10 +219,30 @@ void test_features () {
     assert (!toolbar.has_feature (WindowFeatures.SHADE));
 }
 
+/* A shaded frame's outer rect is only its titlebar. */
+void test_shaded_outer_rect () {
+    var window = new Window (WindowKind.XDG, new FakeAdapter ());
+    window.borders = Marco.FrameBorders () { left = 2, right = 2, top = 25, bottom = 3 };
+    window.frame = Marco.Rect () { x = 100, y = 50, width = 304, height = 228 };
+    var outer = window.outer_rect ();
+    assert (outer.x == 100 && outer.y == 50 && outer.width == 304 && outer.height == 228);
+    var full = Policy.Placement.frame_rect (window);
+
+    window.set_state_flags (WindowState.SHADED, true);
+    outer = window.outer_rect ();
+    assert (outer.x == 100 && outer.y == 50 && outer.width == 304 && outer.height == 25);
+    assert (window.client_rect ().height == 200);
+    assert (Policy.Placement.frame_rect (window).height <= full.height - 200);
+
+    window.features &= ~WindowFeatures.DECORATED;
+    assert (window.outer_rect ().height == 228);
+}
+
 int main (string[] args) {
     Test.init (ref args);
     Test.add_func ("/window-features/normalize", test_normalize);
     Test.add_func ("/window-features/window-type", test_window_type);
     Test.add_func ("/window-features/features", test_features);
+    Test.add_func ("/window-features/shaded-outer-rect", test_shaded_outer_rect);
     return Test.run ();
 }

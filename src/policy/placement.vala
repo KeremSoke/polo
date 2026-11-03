@@ -67,7 +67,7 @@ namespace Polo.Policy {
                 x = w.frame.x - b.left,
                 y = w.frame.y - b.top,
                 width = w.frame.width + b.left + b.right,
-                height = w.frame.height + b.top + b.bottom
+                height = w.outer_rect ().height + b.top + b.bottom
             };
         }
 

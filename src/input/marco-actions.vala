@@ -51,6 +51,7 @@ namespace Polo.Input {
             bindings.register ("toggle-fullscreen", per_window (handle_toggle_fullscreen));
             bindings.register ("toggle-maximized", per_window (handle_toggle_maximized));
             bindings.register ("toggle-above", per_window (handle_toggle_above));
+            bindings.register ("toggle-shaded", per_window (handle_toggle_shaded));
             bindings.register ("maximize", per_window (handle_maximize));
             bindings.register ("unmaximize", per_window (handle_unmaximize));
             bindings.register ("minimize", per_window (handle_minimize));
@@ -217,6 +218,14 @@ namespace Polo.Input {
             model.raise (window);
         }
 
+        private void handle_toggle_shaded (Window window) {
+            if (window.has_state (WindowState.SHADED)) {
+                model.unshade (window, current_event.time_msec);
+            } else if (window.has_feature (WindowFeatures.SHADE)) {
+                model.shade (window, current_event.time_msec);
+            }
+        }
+
         private void handle_maximize (Window window) {
             if (window.has_feature (WindowFeatures.MAXIMIZE)) {
                 model.set_state (window, WindowState.MAXIMIZED, true);
@@ -285,7 +294,7 @@ namespace Polo.Input {
                  above = stack.get_above (above, true)) {
                 if (model.is_showing (above)) {
                     Marco.Rect overlap;
-                    if (window.frame.intersect (above.frame, out overlap)) {
+                    if (window.outer_rect ().intersect (above.outer_rect (), out overlap)) {
                         model.raise (window);
                         return;
                     }
@@ -319,7 +328,7 @@ namespace Polo.Input {
         /* handle_move_to_corner_backend (): against the work area of all xineramas. */
         private void move_to_corner (Window window, bool xchange, bool ychange, bool to_right, bool to_bottom) {
             var work_area = model.work_areas (window.workspace).screen_area;
-            var outer = window.frame;
+            var outer = window.outer_rect ();
             var orig = window.client_rect ();
             int new_x = orig.x;
             int new_y = orig.y;
