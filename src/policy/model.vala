@@ -146,10 +146,12 @@ namespace Polo.Policy {
             }
         }
 
-        private static Marco.Rect translated (Marco.Rect rect, Marco.Rect old, Marco.Rect area) {
-            rect.x = int.max (area.x, int.min (area.x + rect.x - old.x,
+        /* Preserve the offset from the output corner, then clamp to its work area. */
+        private static Marco.Rect translated (Marco.Rect rect, Marco.Rect old, Marco.Rect destination,
+                                              Marco.Rect area) {
+            rect.x = int.max (area.x, int.min (destination.x + rect.x - old.x,
                                               area.x + area.width - rect.width));
-            rect.y = int.max (area.y, int.min (area.y + rect.y - old.y,
+            rect.y = int.max (area.y, int.min (destination.y + rect.y - old.y,
                                               area.y + area.height - rect.height));
             return rect;
         }
@@ -161,9 +163,9 @@ namespace Polo.Policy {
          */
         private void relocate (Window window, Marco.Rect old, Output destination) {
             var area = work_area_for (destination, window.workspace);
-            window.user_rect = translated (window.user_rect, old, area);
-            window.saved_rect = translated (window.saved_rect, old, area);
-            var client = translated (window.client_rect (), old, area);
+            window.user_rect = translated (window.user_rect, old, destination.rect, area);
+            window.saved_rect = translated (window.saved_rect, old, destination.rect, area);
+            var client = translated (window.client_rect (), old, destination.rect, area);
             window.set_client_rect (client);
             if (window.has_state (WindowState.MAPPED)) {
                 move_resize_now (window);

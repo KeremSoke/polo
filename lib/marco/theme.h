@@ -953,7 +953,7 @@ polo_marco_frame_text_height(PoloTheme *theme, PoloFrameType type,
 			     PoloFrameFlags flags, const char *system_font,
 			     const char *titlebar_font, double dpi);
 
-/* Set the root-window scale before loading a theme, which loads images at it. */
+/* The root-window scale: set it before loading a theme, whose images use it. */
 void
 polo_marco_set_image_scale(int scale);
 int

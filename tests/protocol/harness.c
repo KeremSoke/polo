@@ -392,7 +392,7 @@ registry_global(void *data, struct wl_registry *registry, uint32_t name,
 		wl_seat_add_listener(h->seat, &seat_listener, h);
 	} else if (strcmp(interface, polo_test_v1_interface.name) == 0) {
 		h->test = wl_registry_bind(registry, name,
-					   &polo_test_v1_interface, 6);
+					   &polo_test_v1_interface, 7);
 		polo_test_v1_add_listener(h->test, &test_listener, h);
 	} else if (strcmp(interface, zwlr_layer_shell_v1_interface.name) == 0) {
 		h->layer_shell = wl_registry_bind(
@@ -410,6 +410,9 @@ registry_global(void *data, struct wl_registry *registry, uint32_t name,
 static void
 registry_global_remove(void *data, struct wl_registry *registry, uint32_t name)
 {
+	struct harness *h = data;
+
+	h->globals_removed++;
 }
 
 static const struct wl_registry_listener registry_listener = {

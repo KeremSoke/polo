@@ -447,6 +447,17 @@ shell_ui_custom_color(PoloBackendShellUi *ui, const char *name, GBytes *rgba,
 	broadcast_shell_ui_request(server, text);
 }
 
+static void
+test_output_device_changed(struct wl_client *client,
+			   struct wl_resource *resource,
+			   struct wl_resource *output_resource)
+{
+	struct weston_head *head = weston_head_from_resource(output_resource);
+
+	if (head)
+		weston_head_set_device_changed(head);
+}
+
 static const struct polo_test_v1_interface test_implementation = {
 	.destroy = test_destroy,
 	.get_window_info = test_get_window_info,
@@ -463,6 +474,7 @@ static const struct polo_test_v1_interface test_implementation = {
 	.shell_ui_samples = test_shell_ui_samples,
 	.shell_ui_dialog = test_shell_ui_dialog,
 	.shell_ui_lookup_color = test_shell_ui_lookup_color,
+	.output_device_changed = test_output_device_changed,
 };
 
 static void
@@ -520,7 +532,7 @@ polo_backend_test_protocol_init(PoloBackendServer *server, GError **error)
 		server->compositor, &server->screenshot_authority,
 		authorize_screenshot);
 	server->test_global = wl_global_create(
-		server->display, &polo_test_v1_interface, 6, server, test_bind);
+		server->display, &polo_test_v1_interface, 7, server, test_bind);
 	if (!server->test_global) {
 		g_set_error(error, POLO_BACKEND_ERROR,
 			    POLO_BACKEND_ERROR_FAILED,

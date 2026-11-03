@@ -3345,7 +3345,7 @@ polo_marco_theme_validate(PoloTheme *theme, GError **error)
 	return TRUE;
 }
 
-/* Themes load images at the root-window scale; image and icon drawing undo it. */
+/* Theme images load at the root-window scale; image and icon ops undo it. */
 static int image_scale = 1;
 
 void

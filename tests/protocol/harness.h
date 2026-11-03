@@ -81,6 +81,8 @@ struct harness {
 	/* wl_outputs, in registry order. */
 	struct wl_output *outputs[8];
 	int n_outputs;
+	/* wl_registry.global_remove events seen. */
+	int globals_removed;
 
 	/* Mapped windows; any of them can carry a frame callback. */
 	struct harness_window *windows[16];

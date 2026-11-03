@@ -14,7 +14,7 @@
     tests check policy decisions rather than libweston internals.
   </description>
 
-  <interface name="polo_test_v1" version="6">
+  <interface name="polo_test_v1" version="7">
     <request name="destroy" type="destructor"/>
 
     <request name="get_window_info">
@@ -194,6 +194,14 @@
         "custom_color NAME R G B A" or "custom_color NAME none".
       </description>
       <arg name="name" type="string"/>
+    </request>
+
+    <request name="output_device_changed" since="7">
+      <description summary="report new monitor information for an output">
+        Marks the output's head changed, as the DRM backend does after its
+        connector information changes, including a virtual machine resize.
+      </description>
+      <arg name="output" type="object" interface="wl_output"/>
     </request>
   </interface>
 </protocol>
