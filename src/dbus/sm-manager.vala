@@ -422,8 +422,8 @@ namespace Polo.Dbus {
                 fail (invocation, "GeneralError", "Unable to register client");
                 return;
             }
-            invocation.return_value (new GLib.Variant ("(o)", client.path));
             emit ("ClientAdded", new GLib.Variant ("(o)", client.path));
+            invocation.return_value (new GLib.Variant ("(o)", client.path));
         }
 
         private void inhibit (string sender, string app_id, uint xid, string reason, uint flags,
@@ -539,9 +539,6 @@ namespace Polo.Dbus {
 
         public void add_apps (GLib.List<AutostartApp> session_apps) {
             foreach (var app in session_apps) {
-                if (app.is_disabled ()) {
-                    continue;
-                }
                 var exported_app = new App (app);
                 try {
                     exported_app.export (connection);

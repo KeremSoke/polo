@@ -178,7 +178,7 @@ namespace Polo {
         /* IsAutostartConditionHandled */
         public bool handles_condition (string condition) {
             foreach (var app in apps) {
-                if (app.condition_string == condition) {
+                if (app.condition_string == condition && !app.is_disabled ()) {
                     return true;
                 }
             }
