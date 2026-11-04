@@ -70,6 +70,12 @@ if have_xsmp
   )
 endif
 
+test('dconf-profile', python,
+  args: [files('session/test-dconf-profile.py'), meson.project_source_root()],
+  suite: 'session',
+  timeout: 30,
+)
+
 test('saved-session', python,
   args: [files('session/test-saved-session.py'), polo_exe],
   env: vapi_test_env,

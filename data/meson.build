@@ -6,6 +6,11 @@ install_data('polo.desktop',
 # dconf reads only /etc/dconf/profile, whatever the prefix.
 install_data('dconf/profile/polo',
   install_dir: '/etc/dconf/profile')
+install_data('dconf/db/polo.d/00-polo',
+  install_dir: '/etc/dconf/db/polo.d')
+install_data('dconf/db/polo.d/locks/00-polo',
+  install_dir: '/etc/dconf/db/polo.d/locks')
+meson.add_install_script('dconf/update.sh')
 if get_option('systemd')
   systemd_pc = dependency('systemd', required: false)
   systemd_user_dir = get_option('prefix') / 'lib/systemd/user'

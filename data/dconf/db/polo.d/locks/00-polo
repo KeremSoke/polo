@@ -1,0 +1,7 @@
+# Polo replaces these mate-settings-daemon plugins on Wayland.
+/org/mate/settings-daemon/plugins/xrandr/active
+/org/mate/settings-daemon/plugins/keyboard/active
+/org/mate/settings-daemon/plugins/mouse/active
+/org/mate/settings-daemon/plugins/media-keys/active
+/org/mate/settings-daemon/plugins/a11y-keyboard/active
+/org/mate/settings-daemon/plugins/background/active
