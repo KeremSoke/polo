@@ -65,6 +65,7 @@ namespace Polo.Dbus {
 
         public AppMatcher? match_app = null;
         public ConditionCheck? handles_condition = null;
+        public Logind? logind = null;
 
         private GLib.DBusConnection connection;
         private Registration? registration = null;
@@ -598,26 +599,8 @@ namespace Polo.Dbus {
         }
 
         private async void can_shutdown (owned GLib.DBusMethodInvocation invocation) {
-            bool available = false;
             pending++;
-            try {
-                var system = yield GLib.Bus.get (GLib.BusType.SYSTEM, cancellable);
-                foreach (unowned string query in new string[] { "CanPowerOff", "CanReboot", "CanSuspend",
-                                                                 "CanHibernate" }) {
-                    var reply = yield system.call ("org.freedesktop.login1", "/org/freedesktop/login1",
-                                                   "org.freedesktop.login1.Manager", query, null,
-                                                   new GLib.VariantType ("(s)"), GLib.DBusCallFlags.NONE,
-                                                   5000, cancellable);
-                    string answer;
-                    reply.get ("(s)", out answer);
-                    if (answer == "yes" || answer == "challenge") {
-                        available = true;
-                        break;
-                    }
-                }
-            } catch (GLib.Error e) {
-                Logging.scope (LogDomain.POLO).info ("CanShutdown: logind: %s", e.message);
-            }
+            bool available = logind != null && yield logind.can_shutdown ();
             invocation.return_value (new GLib.Variant ("(b)", available));
             pending--;
         }
