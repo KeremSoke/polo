@@ -10,6 +10,7 @@
 namespace PoloShellUi {
     private const uint DIALOG_NOT_RESPONDING = 0;
     private const uint DIALOG_RENAME_WORKSPACE = 1;
+    private const uint DIALOG_END_SESSION = 2;
     private const uint DIALOG_MESSAGE = 3;
     private const string ZENITY_UI = "/org/mate/polo/shell-ui/zenity.ui";
 
@@ -42,12 +43,19 @@ namespace PoloShellUi {
                 dialog = rename_workspace (id, payload);
             } else if (kind == DIALOG_MESSAGE) {
                 dialog = message (id, payload ?? "");
+            } else if (kind == DIALOG_END_SESSION) {
+                dialog = EndSessionDialogs.create (payload);
+                if (dialog != null) {
+                    dialog.response.connect ((response) => answer (id, response, null));
+                }
             }
             if (dialog == null) {
                 client.dialog_response (id, -1, null);
                 return;
             }
-            dialog.title = marco ("Marco");
+            if (kind != DIALOG_END_SESSION) {
+                dialog.title = marco ("Marco");
+            }
             open.insert (id, dialog);
             dialog.realize ();
             client.dialog_surface (id, dialog.get_window ());
