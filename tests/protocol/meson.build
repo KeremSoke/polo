@@ -121,6 +121,12 @@ test('window-menu', executable('test-window-menu', 'test-window-menu.c', depende
   suite: 'protocol',
   timeout: 60,
 )
+test('frame-actions', executable('test-frame-actions', 'test-frame-actions.c', dependencies: harness_dep),
+  args: [polo_exe, fake_shell_ui],
+  env: protocol_test_env,
+  suite: 'protocol',
+  timeout: 60,
+)
 if get_option('shell-ui')
   shell_ui_gtk_env = protocol_test_env
   shell_ui_gtk_env.set('NO_AT_BRIDGE', '1')
@@ -162,6 +168,14 @@ if get_option('shell-ui')
       env: protocol_test_env,
       suite: 'xwayland',
       timeout: 900,
+      verbose: true,
+    )
+    test('decor-visual', python,
+      args: [files('../render/decor/compare.py'), polo_exe, polo_input.full_path(), shell_ui_exe.full_path()],
+      depends: [polo_input, shell_ui_exe],
+      env: shell_ui_gtk_env,
+      suite: 'render',
+      timeout: 600,
       verbose: true,
     )
     test('app-matrix', python,
