@@ -9,24 +9,42 @@ I am working on this, because Wayfire wasn't designed for MATE or other DEs, yet
 ## What works?
 
  - **Compositor** (DRM, rendering, native Wayland windows)
- - **Input** (Keyboard, mouse, shortcuts, layouts, setting)s
- - **Windows** (Focus, movement, resizing, minimization, tiling)
+ - **Input** (Keyboard, mouse, shortcuts, layouts, settings)
+ - **Windows** (Focus, movement, resizing, minimization, tiling, shading)
  - **Workspaces** (Switching, moving windows, names, show desktop)
+ - **Decorations** (Marco/Metacity themes drawn by Polo, shadows, HiDPI, live theme changes)
  - **MATE** (Panel, Caja desktop, workspace switcher)
  - **XWayland** (X11 applications, authentication, startup modes, crash recovery)
- - **Autostart** (like MATE X session did)
- - **Testing** (Seee tests and Marco Oracle readmes (will be written in the future) 
+ - **Session** (`polo --session` replaces mate-session-manager, see below)
+ - **Screen locking** (Fail-safe `ext-session-lock`)
+ - **Idle** (Presence idle, `ext-idle-notify` for idle daemons, screen blanking from the power manager's settings)
+ - **Displays** (`wdisplays` and `kanshi` through wlr-output-management, MATE's `monitors.xml` format)
+ - **Effects** (Wobbly windows)
+ - **Testing** (See tests and Marco Oracle readmes (will be written in the future))
+
+### Session management
+
+In session mode Polo is the session manager, compatible with mate-session-manager 1.28 down to its D-Bus API, so the panel, Caja, mate-power-manager, mate-screensaver, GTK apps, `mate-session-save` and `mate-session-inhibit` talk to it as they did on X11:
+
+ - **Autostart** in MATE's phases (Initialization, Window Manager, Panel, Desktop, Application), with conditions, delays and restarts
+ - **`org.gnome.SessionManager`** (clients, inhibitors, apps, Presence), the same interfaces as mate-session byte for byte
+ - **Log out, shut down, restart** with MATE's dialogs and countdown, and the "Some programs are still running" dialog when an app blocks
+ - **logind** (power off, reboot, suspend, hibernate, switch user, lock before sleep)
+ - **Saved sessions** in `~/.config/mate-session/saved-session`, like mate-session (`auto-save-session`)
+ - **XSMP** for legacy X11 apps that still use libSM
+ - **mate-settings-daemon** keeps running on XWayland; the plugins that can't work on Wayland (xrandr, keyboard, mouse, media keys, accessibility keyboard, background) are locked off in the Polo session only
 
 ## What's missing?
 
- - **Decorations** (Port metacity theming) 
- - **Clipboard** (Partly done) 
+ - **Clipboard** (Partly done, only wayland clipboard protocol is missing) 
  - **X11 hints** 
- - **Session** (Partly done) 
+ - **Media keys, custom shortcuts, accessibility keyboard** (msd's plugins for these are off, Polo takes them over next)
  - **Applets** (Almost all work, mate-panel 1.29 needed for workspace pager) 
- - Other things I want to add like wobbly windows.
+ - **mate-panel's Shut Down** on Wayland shows its own dialog instead of asking the session manager (needs a mate-panel fix)
+ - **mate-screensaver** still locks with an X window; it needs an `ext-session-lock` patch to get Polo's fail-safe lock
+ - **Effects** (Magic Lamp and a Control Center tab for them)
 
-Over time, Polo will absorb the window-management responsibilities (almost alreadt did) and X11-specific integration that previously belonged to Marco or required external workarounds. 
+Over time, Polo will absorb the window-management responsibilities (almost already did) and X11-specific integration that previously belonged to Marco or required external workarounds. 
 
 ## Building
 
@@ -81,6 +99,12 @@ dbus-run-session -- meson devenv -C build polo \
   --backend=drm \
   --exec mate-panel \
   --exec "caja -n --force-desktop"
+```
+
+Or run the whole MATE session (Polo as session manager, autostart, logs in `~/polo-logs/`) from a TTY with:
+
+```sh
+./start-polo.sh
 ```
 
 If you install it, you can choose `MATE (Polo)` from LightDM greeter you use.
