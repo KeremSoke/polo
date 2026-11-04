@@ -98,6 +98,27 @@ namespace Polo {
                            new GLib.Variant ("(ss)", SESSION_TARGET, "replace"), null,
                            GLib.DBusCallFlags.NO_AUTO_START, CALL_TIMEOUT_MS);
         }
+
+        /* gsm_util_setenv (): for Polo and what it starts, D-Bus activation and
+         * systemd's user manager. */
+        public static void setenv (string name, string value) {
+            GLib.Environment.set_variable (name, value, true);
+            try {
+                var bus = GLib.Bus.get_sync (GLib.BusType.SESSION);
+                var activation = new GLib.VariantBuilder (new GLib.VariantType ("a{ss}"));
+                activation.add ("{ss}", name, value);
+                bus.call.begin ("org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                "UpdateActivationEnvironment", new GLib.Variant ("(a{ss})", activation), null,
+                                GLib.DBusCallFlags.NONE, CALL_TIMEOUT_MS, null);
+#if POLO_HAVE_SYSTEMD
+                bus.call.begin (SYSTEMD, SYSTEMD_PATH, SYSTEMD_MANAGER, "SetEnvironment",
+                                new GLib.Variant ("(^as)", new string[] { "%s=%s".printf (name, value) }), null,
+                                GLib.DBusCallFlags.NO_AUTO_START, CALL_TIMEOUT_MS, null);
+#endif
+            } catch (GLib.Error e) {
+                Logging.scope (LogDomain.POLO).info ("Setenv %s: %s", name, e.message);
+            }
+        }
 #endif
 
         public static void register_with_display_manager () {

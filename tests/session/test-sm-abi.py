@@ -14,25 +14,20 @@ the reference's methods, signals, properties, argument names and types.
 Polo's own additions belong under org.mate.Polo.* only.
 """
 
-import os
 import pathlib
 import re
-import shutil
-import subprocess
 import sys
-import tempfile
-import time
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import sm_abi  # noqa: E402
 
 try:
     from gi.repository import Gio, GLib
+    import sm_session
 except ImportError:
     sys.exit(77)
 
-NAME = "org.gnome.SessionManager"
-ROOT = "/org/gnome/SessionManager"
+NAME, ROOT = sm_session.NAME, sm_session.ROOT
 ALLOWED_EXTRA = ("org.freedesktop.DBus.", "org.mate.Polo.")
 
 
@@ -114,62 +109,25 @@ def check_polo(bus, reference):
     return problems
 
 
-def start_polo(polo, tmp):
-    for sub in ("run", "data", "none", "config"):
-        os.makedirs(f"{tmp}/{sub}", mode=0o700, exist_ok=True)
-    env = dict(os.environ, HOME=tmp, XDG_CONFIG_HOME=tmp + "/config",
-               XDG_CONFIG_DIRS=tmp + "/none", XDG_DATA_DIRS=tmp + "/data",
-               XDG_DATA_HOME=tmp + "/none", XDG_RUNTIME_DIR=tmp + "/run",
-               GSETTINGS_BACKEND="memory", POLO_SHELL_UI="")
-    for key in ("WAYLAND_DISPLAY", "WAYLAND_SOCKET", "DISPLAY", "XAUTHORITY", "DCONF_PROFILE",
-                "POLO_TEST_AUTOSTART"):
-        env.pop(key, None)
-    return subprocess.Popen([polo, "--session", "--backend=headless", "--renderer=pixman",
-                             "--test-mode", "--xwayland=off", "--socket=polo-sm-abi-test",
-                             f"--log={tmp}/polo.log"],
-                            env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-
 def main():
     if len(sys.argv) != 3:
         sys.exit("usage: test-sm-abi.py POLO FIXTURES")
-    if "POLO_SM_ABI_BUS" not in os.environ:
-        if not shutil.which("dbus-run-session"):
-            return 77
-        return subprocess.call(["dbus-run-session", "--", sys.executable, *sys.argv],
-                               env=dict(os.environ, POLO_SM_ABI_BUS="1"))
+    status = sm_session.on_private_bus("POLO_SM_ABI_BUS")
+    if status is not None:
+        return status
     polo, fixtures = sys.argv[1], pathlib.Path(sys.argv[2])
     source = load(fixtures / "source")
     live = load(fixtures / "live")
     problems = check_fixtures(source, live)
 
-    tmp = tempfile.mkdtemp(prefix="polo-sm-abi-")
-    process = start_polo(polo, tmp)
+    session = sm_session.Polo(polo)
     try:
-        bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
-        owner = None
-        for _ in range(400):
-            try:
-                owner = bus.call_sync("org.freedesktop.DBus", "/org/freedesktop/DBus",
-                                      "org.freedesktop.DBus", "GetNameOwner",
-                                      GLib.Variant("(s)", (NAME,)), GLib.VariantType("(s)"),
-                                      Gio.DBusCallFlags.NONE, 1000, None)
-                break
-            except GLib.Error:
-                if process.poll() is not None:
-                    break
-                time.sleep(0.025)
-        if owner is None:
-            problems.append(f"polo never owned {NAME}")
+        if session.wait_owned():
+            problems += check_polo(session.bus, source)
         else:
-            problems += check_polo(bus, source)
+            problems.append(f"polo never owned {NAME}")
     finally:
-        process.terminate()
-        try:
-            process.wait(15)
-        except subprocess.TimeoutExpired:
-            process.kill()
-        shutil.rmtree(tmp, ignore_errors=True)
+        session.stop()
 
     for line in problems:
         print(line)

@@ -218,8 +218,19 @@ namespace Polo {
 
             if (CommandLine.session) {
                 session_manager = new Session ();
-                session_manager.logout_requested.connect (() => quit (0));
                 session_manager.own_session_manager ();
+                unowned Dbus.Manager? manager = session_manager.manager;
+                if (manager != null) {
+                    manager.logout_requested.connect (() => end_session ());
+                    manager.shutdown_dialog_requested.connect (() => {
+                        log.warning ("Shutdown: the end-session dialog is not available yet");
+                    });
+                    manager.shutdown_requested.connect ((reboot) => {
+                        log.warning ("%s: powering off is not available yet",
+                                     reboot ? "RequestReboot" : "RequestShutdown");
+                    });
+                    manager.initialization_error.connect (on_initialization_error);
+                }
                 session_env = new SessionEnv ();
                 session_env.publish (server.get_socket_name ());
             }
@@ -257,9 +268,21 @@ namespace Polo {
                 if (!CommandLine.test_mode || GLib.Environment.get_variable ("POLO_TEST_AUTOSTART") == "1") {
                     phases = new SessionPhases (spawn, desktop, server.get_shell_ui (), Autostart.session_apps ());
                     phases.running.connect (SessionEnv.register_with_display_manager);
+                    unowned Dbus.Manager? manager = session_manager.manager;
+                    if (manager != null) {
+                        phases.phase_started.connect ((phase) => {
+                            manager.set_phase (Dbus.ManagerPhase.from_autostart (phase));
+                        });
+                        phases.running.connect (() => manager.set_phase (Dbus.ManagerPhase.RUNNING));
+                        manager.match_app = phases.register_client;
+                        manager.handles_condition = phases.handles_condition;
+                    }
                     phases.run.begin ();
                 } else {
                     SessionEnv.register_with_display_manager ();
+                    if (session_manager.manager != null) {
+                        session_manager.manager.set_phase (Dbus.ManagerPhase.RUNNING);
+                    }
                 }
             }
 
@@ -403,6 +426,31 @@ namespace Polo {
             var source = GLib.SettingsSchemaSource.get_default ();
             var schema = source != null ? source.lookup (id, true) : null;
             return schema != null ? new GLib.Settings.full (schema, null, null) : null;
+        }
+
+        private void end_session () {
+            if (session_manager != null && session_manager.manager != null) {
+                session_manager.manager.session_over ();
+            }
+            quit (0);
+        }
+
+        private void on_initialization_error (string message, bool fatal) {
+            unowned LogScope log = Logging.scope (LogDomain.POLO);
+            log.warning ("initialization error%s: %s", fatal ? " (fatal)" : "", message);
+            string[] argv = { "zenity", "--error", "--title", Shell.NotResponding.marco ("Marco"),
+                              "--text", message };
+            try {
+                var dialog = spawn.launch (argv);
+                if (fatal) {
+                    dialog.wait_async.begin (null, () => quit (1));
+                }
+            } catch (GLib.Error e) {
+                log.warning ("cannot show \"%s\": %s", message, e.message);
+                if (fatal) {
+                    quit (1);
+                }
+            }
         }
 
         /* Reverse order of construction. */

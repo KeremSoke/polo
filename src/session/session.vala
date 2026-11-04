@@ -12,41 +12,23 @@ namespace Polo {
         ANOTHER_SESSION
     }
 
-    /* Minimal SessionManager interface used by session mode. */
-    [DBus (name = "org.gnome.SessionManager")]
-    public class SessionManagerStub : GLib.Object {
-        [DBus (visible = false)]
-        public signal void logout_requested ();
-
-        public void logout (uint mode) throws GLib.DBusError, GLib.IOError {
-            GLib.Idle.add (() => {
-                logout_requested ();
-                return GLib.Source.REMOVE;
-            });
-        }
-    }
-
     public class Session : GLib.Object {
         public const string MANAGER_NAME = "org.gnome.SessionManager";
         private const string PROFILE = "polo";
         private const string PROFILE_PATH = "/etc/dconf/profile/polo";
 
-        private const string MANAGER_PATH = "/org/gnome/SessionManager";
+        /* org.gnome.SessionManager; null until own_session_manager () and if it failed. */
+        public Dbus.Manager? manager { get; private set; default = null; }
 
-        public signal void logout_requested ();
-
-        private GLib.DBusConnection? manager_bus = null;
-        private SessionManagerStub? manager = null;
-        private uint manager_object = 0;
         private uint manager_name = 0;
 
         public void own_session_manager () {
             try {
-                manager_bus = GLib.Bus.get_sync (GLib.BusType.SESSION);
-                manager = new SessionManagerStub ();
-                manager.logout_requested.connect (() => logout_requested ());
-                manager_object = manager_bus.register_object (MANAGER_PATH, manager);
-                manager_name = GLib.Bus.own_name_on_connection (manager_bus, MANAGER_NAME,
+                var bus = GLib.Bus.get_sync (GLib.BusType.SESSION);
+                var exported = new Dbus.Manager (bus);
+                exported.register ();
+                manager = exported;
+                manager_name = GLib.Bus.own_name_on_connection (bus, MANAGER_NAME,
                                                                 GLib.BusNameOwnerFlags.DO_NOT_QUEUE);
             } catch (GLib.Error e) {
                 Logging.scope (LogDomain.POLO).warning ("cannot provide %s: %s", MANAGER_NAME, e.message);
@@ -58,12 +40,10 @@ namespace Polo {
                 GLib.Bus.unown_name (manager_name);
                 manager_name = 0;
             }
-            if (manager_object != 0) {
-                manager_bus.unregister_object (manager_object);
-                manager_object = 0;
+            if (manager != null) {
+                manager.unregister ();
+                manager = null;
             }
-            manager = null;
-            manager_bus = null;
         }
 
         public static void check_no_session_manager () throws SessionError {

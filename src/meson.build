@@ -52,6 +52,10 @@ polo_sources = files(
   'session/env.vala',
   'session/autostart.vala',
   'session/phases.vala',
+  'dbus/registration.vala',
+  'dbus/sm-client.vala',
+  'dbus/sm-inhibitor.vala',
+  'dbus/sm-manager.vala',
   'core/spawn.vala',
   'decor/decorations.vala',
   'decor/frame.vala',
@@ -109,8 +113,14 @@ if get_option('xwayland')
   polo_deps += polo_xwm_dep
 endif
 
+# The session manager's interfaces, as mate-session 1.28 defines them
+sm_resources = import('gnome').compile_resources('sm-resources',
+  meson.project_source_root() / 'data' / 'dbus' / 'fixtures' / 'sm.gresource.xml',
+  source_dir: meson.project_source_root() / 'data' / 'dbus' / 'fixtures' / 'source',
+)
+
 polo_exe = executable('polo',
-  polo_sources,
+  polo_sources, sm_resources,
   vala_args: polo_vala_args,
   c_args: vala_c_args,
   include_directories: config_inc,

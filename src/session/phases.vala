@@ -14,6 +14,7 @@ namespace Polo {
         };
 
         public signal void running ();
+        public signal void phase_started (AutostartPhase phase);
 
         private const uint MESSAGE_DIALOG_ID = 0x40000000;
 
@@ -63,6 +64,7 @@ namespace Polo {
                     return;
                 }
                 Logging.scope (LogDomain.POLO).info ("session phase %s", phase.to_name ());
+                phase_started (phase);
                 yield run_phase (phase);
             }
             if (!stopped) {
@@ -143,6 +145,46 @@ namespace Polo {
             settled (pid);
         }
 
+        public AutostartApp? register_client (string startup_id, string app_id) {
+            AutostartApp? found = null;
+            foreach (var app in apps) {
+                if (startup_id != "" && app.startup_id == startup_id) {
+                    found = app;
+                    break;
+                }
+            }
+            if (found == null && app_id != "") {
+                foreach (var app in apps) {
+                    if (app.id == app_id) {
+                        found = app;
+                        break;
+                    }
+                }
+            }
+            if (found != null) {
+                int pid = -1;
+                pending.foreach ((key, app) => {
+                    if (app == found) {
+                        pid = key;
+                    }
+                });
+                if (pid >= 0) {
+                    settled (pid);
+                }
+            }
+            return found;
+        }
+
+        /* IsAutostartConditionHandled */
+        public bool handles_condition (string condition) {
+            foreach (var app in apps) {
+                if (app.condition_string == condition) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         private void start_later (AutostartApp app) {
             uint timer = 0;
             timer = GLib.Timeout.add_seconds (app.delay, () => {
@@ -183,7 +225,9 @@ namespace Polo {
                 if (is_listed (app, argv[0], x11_components)) {
                     flags |= SpawnFlags.X11;
                 }
-                var process = spawn.launch (argv, flags, app.working_directory);
+                app.startup_id = Dbus.Manager.generate_startup_id ();
+                var process = spawn.launch (argv, flags, app.working_directory,
+                                            { "DESKTOP_AUTOSTART_ID=" + app.startup_id });
                 processes.insert (app, process);
                 watch.begin (app, process);
                 return int.parse (process.get_identifier () ?? "-1");

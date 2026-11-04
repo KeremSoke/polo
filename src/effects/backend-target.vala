@@ -30,7 +30,7 @@ namespace Polo.Effects {
             }
         }
     }
-*/
+
     public class BackendTarget : Target {
         private unowned Backend.Toplevel toplevel;
         private ViewCollector collect;

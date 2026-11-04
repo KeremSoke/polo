@@ -45,6 +45,8 @@ namespace Polo {
         public bool autorestart { get; private set; default = false; }
         public int delay { get; private set; default = -1; }
         public string? condition_string { get; private set; default = null; }
+        /* DESKTOP_AUTOSTART_ID of its latest launch, for RegisterClient. */
+        public string startup_id { get; set; default = ""; }
         public string? command { get; private set; default = null; }
         public string? component { get; set; default = null; }
         public bool required { get { return component != null; } }

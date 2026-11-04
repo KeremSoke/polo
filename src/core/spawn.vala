@@ -30,10 +30,11 @@ namespace Polo {
             this.activation_tokens = activation_tokens;
         }
 
-        public GLib.Subprocess launch (string[] argv, SpawnFlags flags = SpawnFlags.NONE, string? cwd = null)
+        public GLib.Subprocess launch (string[] argv, SpawnFlags flags = SpawnFlags.NONE, string? cwd = null,
+                                       string[]? env = null)
                 throws GLib.Error {
             unowned Backend.Client? client;
-            return start (argv, SpawnFlags.TRUSTED in flags, out client, cwd, SpawnFlags.X11 in flags);
+            return start (argv, SpawnFlags.TRUSTED in flags, out client, cwd, SpawnFlags.X11 in flags, env);
         }
 
         /* client: the trusted socket's server end, until its destroyed signal. */
@@ -46,9 +47,15 @@ namespace Polo {
         }
 
         private GLib.Subprocess start (string[] argv, bool trusted, out unowned Backend.Client? client,
-                                       string? cwd = null, bool x11 = false)
+                                       string? cwd = null, bool x11 = false, string[]? env = null)
                 throws GLib.Error {
             var launcher = new GLib.SubprocessLauncher (GLib.SubprocessFlags.NONE);
+            foreach (unowned string assignment in env ?? new string[0]) {
+                var parts = assignment.split ("=", 2);
+                if (parts.length == 2) {
+                    launcher.setenv (parts[0], parts[1], true);
+                }
+            }
             if (x11) {
                 launcher.setenv ("GDK_BACKEND", "x11", true);
             }

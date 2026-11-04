@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gresources>
+  <gresource prefix="/org/mate/polo/dbus">
+    <file>org.gnome.SessionManager.xml</file>
+    <file>org.gnome.SessionManager.Client.xml</file>
+    <file>org.gnome.SessionManager.ClientPrivate.xml</file>
+    <file>org.gnome.SessionManager.Inhibitor.xml</file>
+    <file>org.gnome.SessionManager.App.xml</file>
+    <file>org.gnome.SessionManager.Presence.xml</file>
+  </gresource>
+</gresources>
