@@ -168,6 +168,7 @@ void test_label () {
     var pixels = new uint8[width * height * 4];
     Polo.Marco.label_render ("Locked", null, width, height, pixels, width * 4);
     assert (pixels[3] == 0xff);
+    Polo.Marco.release_fonts ();
 }
 
 int main () {

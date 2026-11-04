@@ -29,7 +29,15 @@ struct locker {
 	uint32_t serial;
 	int32_t width, height;
 	bool configured;
+	struct wl_proxy *owned[8];
+	int n_owned;
 };
+
+static void
+own(struct locker *l, void *proxy)
+{
+	l->owned[l->n_owned++] = proxy;
+}
 
 static void
 locker_global(void *data, struct wl_registry *registry, uint32_t name,
@@ -120,6 +128,15 @@ locker_lock(struct locker *l)
 static void
 locker_free(struct locker *l)
 {
+	void *proxies[] = { l->lock,       l->output,  l->shm,
+			    l->compositor, l->manager, l->registry };
+
+	for (int i = l->n_owned - 1; i >= 0; i--)
+		wl_proxy_destroy(l->owned[i]);
+	for (size_t i = 0; i < sizeof proxies / sizeof proxies[0]; i++) {
+		if (proxies[i])
+			wl_proxy_destroy(proxies[i]);
+	}
 	wl_display_disconnect(l->display);
 	free(l);
 }
@@ -171,6 +188,7 @@ static void
 unlock(struct harness *h, struct locker *l)
 {
 	ext_session_lock_v1_unlock_and_destroy(l->lock);
+	l->lock = NULL;
 	wl_display_roundtrip(l->display);
 	CHECK(wait_state(h, NULL, "unlocked"),
 	      "unlock_and_destroy did not unlock");
@@ -207,9 +225,11 @@ main(int argc, char **argv)
 	CHECK(a->configured && a->width > 0 && a->height > 0,
 	      "the lock surface was not configured");
 	ext_session_lock_surface_v1_ack_configure(lock_surface, a->serial);
-	wl_surface_attach(surface,
-			  harness_buffer_create(a->shm, a->width, a->height), 0,
-			  0);
+	struct wl_buffer *buffer =
+		harness_buffer_create(a->shm, a->width, a->height);
+
+	own(a, buffer);
+	wl_surface_attach(surface, buffer, 0, 0);
 	wl_surface_commit(surface);
 	wl_display_roundtrip(a->display);
 	CHECK(wl_display_get_error(a->display) == 0,
@@ -225,6 +245,7 @@ main(int argc, char **argv)
 	wl_display_roundtrip(b->display);
 	CHECK(b->finished && !b->locked, "a second lock was not finished");
 	ext_session_lock_v1_destroy(b->lock);
+	b->lock = NULL;
 	locker_free(b);
 	CHECK(strcmp(state(h), "locked") == 0, "the second lock unlocked");
 
@@ -255,6 +276,7 @@ main(int argc, char **argv)
 
 	locker_lock(e);
 	ext_session_lock_v1_destroy(e->lock);
+	e->lock = NULL;
 	wl_display_roundtrip(e->display);
 	CHECK(wait_state(h, NULL, "unlocked"),
 	      "destroy before locked stayed locked");
@@ -266,6 +288,7 @@ main(int argc, char **argv)
 	locker_lock(f);
 	CHECK(wait_locked(h, f), "no locked event for the misbehaving locker");
 	ext_session_lock_v1_destroy(f->lock);
+	f->lock = NULL;
 	wl_display_roundtrip(f->display);
 	CHECK(wl_display_get_error(f->display) != 0,
 	      "destroy after locked was allowed");
@@ -284,6 +307,7 @@ main(int argc, char **argv)
 	u->lock = ext_session_lock_manager_v1_lock(u->manager);
 	ext_session_lock_v1_add_listener(u->lock, &lock_listener, u);
 	ext_session_lock_v1_unlock_and_destroy(u->lock);
+	u->lock = NULL;
 	wl_display_roundtrip(u->display);
 	CHECK(wl_display_get_error(u->display) != 0,
 	      "unlock_and_destroy before locked was allowed");
@@ -302,8 +326,12 @@ main(int argc, char **argv)
 	ext_session_lock_surface_v1_add_listener(lock_surface,
 						 &surface_listener, m);
 	wl_display_roundtrip(m->display);
+	own(m, surface);
+	own(m, lock_surface);
+	buffer = harness_buffer_create(m->shm, 10, 10);
+	own(m, buffer);
 	ext_session_lock_surface_v1_ack_configure(lock_surface, m->serial);
-	wl_surface_attach(surface, harness_buffer_create(m->shm, 10, 10), 0, 0);
+	wl_surface_attach(surface, buffer, 0, 0);
 	wl_surface_commit(surface);
 	wl_display_roundtrip(m->display);
 	CHECK(wl_display_get_error(m->display) != 0,
