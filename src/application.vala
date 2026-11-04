@@ -90,6 +90,7 @@ namespace Polo {
         private SessionPhases? phases = null;
         private Session? session_manager = null;
         private EndSession? end_session = null;
+        private Logind? logind = null;
         private const uint CHILD_TERM_SECONDS = 5;
         private Spawn? spawn;
         private Shell.NotResponding? not_responding;
@@ -221,18 +222,19 @@ namespace Polo {
                 session_manager = new Session ();
                 session_manager.own_session_manager ();
                 unowned Dbus.Manager? manager = session_manager.manager;
+                logind = new Logind ();
+                logind.lock_requested.connect (() => lock_screen.begin ());
+                logind.unlock_requested.connect (() => {
+                    log.info ("Unlock: Polo has no lock screen of its own to unlock yet");
+                });
+                logind.start.begin ();
                 if (manager != null) {
-                    end_session = new EndSession (manager, server.get_shell_ui ());
-                    end_session.finished.connect ((action) => {
-                        if (action != EndAction.LOGOUT) {
-                            log.warning ("%s is not available yet; the session ends without it",
-                                         action == EndAction.REBOOT ? "rebooting" : "powering off");
-                        }
-                        quit (0);
+                    manager.logind = logind;
+                    manager.presence.notify["status"].connect (() => {
+                        logind.set_idle_hint (manager.presence.status == Dbus.PresenceStatus.IDLE);
                     });
-                    end_session.action_unavailable.connect ((response) => {
-                        log.warning ("end-session dialog response %d is not available yet", response);
-                    });
+                    end_session = new EndSession (manager, server.get_shell_ui (), logind);
+                    end_session.finished.connect (() => quit (0));
                     manager.initialization_error.connect (on_initialization_error);
                 }
                 session_env = new SessionEnv ();
@@ -299,6 +301,13 @@ namespace Polo {
             if (end_session != null) {
                 end_session.shutdown ();
                 end_session = null;
+            }
+            if (logind != null) {
+                if (session_manager != null && session_manager.manager != null) {
+                    session_manager.manager.logind = null;
+                }
+                logind.shutdown ();
+                logind = null;
             }
             if (CommandLine.session) {
                 if (shell_ui != null) {
@@ -435,6 +444,30 @@ namespace Polo {
             var source = GLib.SettingsSchemaSource.get_default ();
             var schema = source != null ? source.lookup (id, true) : null;
             return schema != null ? new GLib.Settings.full (schema, null, null) : null;
+        }
+
+        private async void lock_screen () {
+            unowned LogScope log = Logging.scope (LogDomain.POLO);
+            foreach (unowned string command in new string[] { "mate-screensaver-command --lock",
+                                                              "xscreensaver-command -lock" }) {
+                string[] argv = command.split (" ");
+                if (GLib.Environment.find_program_in_path (argv[0]) == null || spawn == null) {
+                    continue;
+                }
+                try {
+                    yield spawn.launch (argv).wait_async ();
+                } catch (GLib.Error e) {
+                    log.warning ("Couldn't lock screen: %s", e.message);
+                }
+                if (logind != null) {
+                    logind.lock_shown ();
+                }
+                return;
+            }
+            log.warning ("Couldn't find any screen locker");
+            if (logind != null) {
+                logind.lock_shown ();
+            }
         }
 
         private void on_initialization_error (string message, bool fatal) {

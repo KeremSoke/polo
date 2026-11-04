@@ -30,8 +30,6 @@ namespace Polo {
         private const uint STOP_TIMEOUT_MS = 1000;
         private const uint TERM_TIMEOUT_MS = 1000;
         private const uint FLAG_FORCEFUL = 1;
-        private const string LOGIND = "org.freedesktop.login1";
-        private const string LOGIND_PATH = "/org/freedesktop/login1";
 
         [CCode (cname = "kill", cheader_filename = "signal.h")]
         private static extern int kill (int pid, int sig);
@@ -45,10 +43,10 @@ namespace Polo {
         private delegate bool Done ();
 
         public signal void finished (EndAction action);
-        public signal void action_unavailable (int response);
 
         private Dbus.Manager manager;
         private Backend.ShellUi shell_ui;
+        private Logind logind;
         private GLib.Settings? session = null;
         private GLib.Settings? lockdown = null;
         private GLib.Cancellable cancellable = new GLib.Cancellable ();
@@ -70,9 +68,10 @@ namespace Polo {
         private Done? done = null;
         private GLib.SourceFunc? woken = null;
 
-        public EndSession (Dbus.Manager manager, Backend.ShellUi shell_ui) {
+        public EndSession (Dbus.Manager manager, Backend.ShellUi shell_ui, Logind logind) {
             this.manager = manager;
             this.shell_ui = shell_ui;
+            this.logind = logind;
             session = settings_if_installed (SESSION_SCHEMA);
             lockdown = settings_if_installed (LOCKDOWN_SCHEMA);
             manager.logout_requested.connect (request_logout);
@@ -145,10 +144,11 @@ namespace Polo {
             confirming = true;
             var actions = new GLib.VariantBuilder (new GLib.VariantType ("as"));
             if (shutdown) {
-                string[] queries = { "CanSuspend", "CanHibernate", "CanReboot", "CanPowerOff" };
+                PowerAction[] queries = { PowerAction.SUSPEND, PowerAction.HIBERNATE, PowerAction.REBOOT,
+                                          PowerAction.POWER_OFF };
                 string[] names = { "suspend", "hibernate", "reboot", "shutdown" };
                 for (int i = 0; i < queries.length; i++) {
-                    if (yield logind_can (queries[i])) {
+                    if (yield logind.can (queries[i])) {
                         actions.add ("s", names[i]);
                     }
                 }
@@ -178,9 +178,44 @@ namespace Polo {
                 case RESPONSE_SWITCH_USER:
                 case RESPONSE_HIBERNATE:
                 case RESPONSE_SLEEP:
-                    action_unavailable (response);
+                    act.begin (response);
                     break;
                 default:
+                    break;
+            }
+        }
+
+        private bool switch_user_locked_down () {
+            return lockdown != null && lockdown.get_boolean ("disable-user-switching");
+        }
+
+        private async void act (int response) {
+            unowned LogScope log = Logging.scope (LogDomain.POLO);
+            uint flag = Dbus.InhibitorFlags.SUSPEND;
+            string name = response == RESPONSE_SLEEP ? "suspend" : "hibernate";
+            if (response == RESPONSE_SWITCH_USER) {
+                if (switch_user_locked_down ()) {
+                    log.warning ("Unable to switch user: User switching has been locked down");
+                    return;
+                }
+                flag = Dbus.InhibitorFlags.SWITCH_USER;
+                name = "switch-user";
+            }
+            confirming = true;
+            bool go = !manager.is_inhibited (flag) || (yield ask_blocking (name, flag)) == RESPONSE_ACCEPT;
+            confirming = false;
+            if (!go || cancellable.is_cancelled ()) {
+                return;
+            }
+            switch (response) {
+                case RESPONSE_SWITCH_USER:
+                    yield logind.switch_to_greeter ();
+                    break;
+                case RESPONSE_SLEEP:
+                    yield logind.perform (PowerAction.SUSPEND);
+                    break;
+                default:
+                    yield logind.perform (PowerAction.HIBERNATE);
                     break;
             }
         }
@@ -208,6 +243,9 @@ namespace Polo {
                 return;
             }
             manager.session_over ();
+            if (action != EndAction.LOGOUT) {
+                yield logind.perform (action == EndAction.REBOOT ? PowerAction.REBOOT : PowerAction.POWER_OFF);
+            }
             finished (action);
         }
 
@@ -243,7 +281,8 @@ namespace Polo {
             if (!manager.is_inhibited (Dbus.InhibitorFlags.LOGOUT)) {
                 return true;
             }
-            if ((yield ask_blocking ()) != RESPONSE_ACCEPT) {
+            string[] names = { "logout", "shutdown", "reboot" };
+            if ((yield ask_blocking (names[(int) action], Dbus.InhibitorFlags.LOGOUT)) != RESPONSE_ACCEPT) {
                 return false;
             }
             mode = Dbus.LogoutMode.FORCE;
@@ -368,32 +407,31 @@ namespace Polo {
             return answer;
         }
 
-        private async int ask_blocking () {
+        private async int ask_blocking (string name, uint flag) {
             blocking = true;
             int response = RESPONSE_ACCEPT;
             do {
-                if (!manager.is_inhibited (Dbus.InhibitorFlags.LOGOUT)) {
+                if (!manager.is_inhibited (flag)) {
                     response = RESPONSE_ACCEPT;
                     break;
                 }
                 reshow = false;
-                response = yield ask (blocking_payload (), RESPONSE_CANCEL);
+                response = yield ask (blocking_payload (name, flag), RESPONSE_CANCEL);
             } while (reshow && !cancellable.is_cancelled ());
             blocking = false;
             return response;
         }
 
-        private GLib.Variant blocking_payload () {
+        private GLib.Variant blocking_payload (string name, uint flag) {
             var list = new GLib.VariantBuilder (new GLib.VariantType ("a(ss)"));
             foreach (unowned Dbus.Inhibitor inhibitor in manager.get_inhibitors ()) {
-                if ((inhibitor.flags & Dbus.InhibitorFlags.LOGOUT) != 0) {
+                if ((inhibitor.flags & flag) != 0) {
                     list.add ("(ss)", inhibitor.app_id, inhibitor.reason);
                 }
             }
-            string[] names = { "logout", "shutdown", "reboot" };
             var payload = new GLib.VariantBuilder (new GLib.VariantType ("a{sv}"));
             payload.add ("{sv}", "dialog", new GLib.Variant.string ("inhibit"));
-            payload.add ("{sv}", "action", new GLib.Variant.string (names[(int) action]));
+            payload.add ("{sv}", "action", new GLib.Variant.string (name));
             payload.add ("{sv}", "inhibitors", list.end ());
             return payload.end ();
         }
@@ -429,38 +467,8 @@ namespace Polo {
             close_dialog (RESPONSE_NONE);
         }
 
-        private async bool logind_can (string method) {
-            try {
-                var system = yield GLib.Bus.get (GLib.BusType.SYSTEM, cancellable);
-                var reply = yield system.call (LOGIND, LOGIND_PATH, LOGIND + ".Manager", method, null,
-                                               new GLib.VariantType ("(s)"), GLib.DBusCallFlags.NONE, 5000,
-                                               cancellable);
-                string result;
-                reply.get ("(s)", out result);
-                return result == "yes" || result == "challenge";
-            } catch (GLib.Error e) {
-                Logging.scope (LogDomain.POLO).info ("%s: logind: %s", method, e.message);
-                return false;
-            }
-        }
-
         private async bool can_switch_user () {
-            if (lockdown != null && lockdown.get_boolean ("disable-user-switching")) {
-                return false;
-            }
-            try {
-                var system = yield GLib.Bus.get (GLib.BusType.SYSTEM, cancellable);
-                var reply = yield system.call (LOGIND, LOGIND_PATH + "/seat/auto", "org.freedesktop.DBus.Properties",
-                                               "Get", new GLib.Variant ("(ss)", LOGIND + ".Seat", "CanMultiSession"),
-                                               new GLib.VariantType ("(v)"), GLib.DBusCallFlags.NONE, 5000,
-                                               cancellable);
-                GLib.Variant value;
-                reply.get ("(v)", out value);
-                return value.is_of_type (GLib.VariantType.BOOLEAN) && value.get_boolean ();
-            } catch (GLib.Error e) {
-                Logging.scope (LogDomain.POLO).info ("CanMultiSession: logind: %s", e.message);
-                return false;
-            }
+            return !switch_user_locked_down () && yield logind.can_multi_session ();
         }
     }
 }

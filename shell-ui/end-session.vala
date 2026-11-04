@@ -297,6 +297,15 @@ namespace PoloShellUi {
                 case "reboot":
                     anyway = msm ("Reboot Anyway");
                     break;
+                case "switch-user":
+                    anyway = msm ("Switch User Anyway");
+                    break;
+                case "suspend":
+                    anyway = msm ("Suspend Anyway");
+                    break;
+                case "hibernate":
+                    anyway = msm ("Hibernate Anyway");
+                    break;
                 default:
                     anyway = msm ("Log Out Anyway");
                     break;
