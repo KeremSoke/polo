@@ -443,6 +443,16 @@ polo_marco_edge_resistance_for_resize(PoloEdgeResistanceData *edge_data,
 				      PoloGravity gravity, gboolean snap,
 				      gboolean is_keyboard_op);
 
+/* White text in font on black, centred with padding; the size to render it at. */
+void
+polo_marco_label_size(const char *text, const char *font, int *width,
+		      int *height);
+
+/* Into width x height ARGB32 pixels with the given stride. */
+void
+polo_marco_label_render(const char *text, const char *font, int width,
+			int height, guint8 *pixels, int stride);
+
 /* Marco release the ports follow. */
 const char *
 polo_marco_reference_version(void);

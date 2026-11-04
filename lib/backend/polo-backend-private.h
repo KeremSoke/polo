@@ -103,6 +103,7 @@ struct _PoloBackendServer {
 	struct wl_global *idle_inhibit_global;
 	struct wl_list idle_inhibitors;
 	struct wl_global *idle_notifier_global;
+	struct polo_session_lock *session_lock;
 	struct wl_list idle_watches;
 	struct wl_listener idle_wake_listener;
 	struct wl_listener idle_idle_listener;
@@ -331,6 +332,30 @@ void
 polo_backend_idle_notify_fini(PoloBackendServer *server);
 
 gboolean
+polo_backend_session_lock_init(PoloBackendServer *server, GError **error);
+
+void
+polo_backend_session_lock_fini(PoloBackendServer *server);
+
+gboolean
+polo_backend_session_lock_active(PoloBackendServer *server);
+
+gboolean
+polo_backend_session_lock_is_abandoned(PoloBackendServer *server);
+
+/* While locked, only the live lock may have focus. */
+gboolean
+polo_backend_session_lock_allows_focus(PoloBackendServer *server,
+				       struct weston_surface *surface);
+
+void
+polo_backend_server_emit_lock_state(PoloBackendServer *server,
+				    PoloBackendLockState state);
+
+void
+polo_backend_server_emit_lock_restart(PoloBackendServer *server);
+
+gboolean
 polo_backend_cursor_shape_init(PoloBackendServer *server, GError **error);
 
 void
@@ -532,9 +557,12 @@ polo_backend_xwayland_keyboard_grab_init(PoloBackendServer *server,
 void
 polo_backend_xwayland_keyboard_grab_fini(PoloBackendServer *server);
 
+/* TRUE: grab belongs to seat until end; it may be granted later, once the
+ * grabbing surface maps. */
 gboolean
 polo_backend_seat_begin_x_keyboard_grab(PoloBackendSeat *seat,
-					struct wl_resource *grab);
+					struct wl_resource *grab,
+					struct weston_surface *surface);
 
 void
 polo_backend_seat_end_x_keyboard_grab(PoloBackendSeat *seat,

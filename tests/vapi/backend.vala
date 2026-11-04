@@ -399,6 +399,11 @@ int main () {
     watch.set_timeout (120000);
     assert (!watch.get_idled ());
     server.unblank_outputs ();
+    assert (server.get_lock_state () == Polo.Backend.LockState.UNLOCKED);
+    server.lock_state_changed.connect ((state) => {});
+    server.lock_restart_requested.connect (() => {});
+    server.set_lock_prompt (null);
+    server.force_unlock ();
     server.set_keyboard_repeat (25, 600);
     server.set_test_settings ((schema, key, value) => value);
     assert (Polo.Backend.Keymap.has_layout ("us", null));

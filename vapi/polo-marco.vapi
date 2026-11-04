@@ -778,4 +778,12 @@ namespace Polo.Marco {
                                    int client_width, int client_height, ButtonLayout button_layout,
                                    out FrameGeometry geometry);
     }
+
+    /* White text in font on black, centred with padding: the size to render it at. */
+    [CCode (cname = "polo_marco_label_size")]
+    public void label_size (string text, string? font, out int width, out int height);
+
+    [CCode (cname = "polo_marco_label_render")]
+    public void label_render (string text, string? font, int width, int height,
+                              [CCode (array_length = false)] uint8[] pixels, int stride);
 }

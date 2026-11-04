@@ -342,6 +342,17 @@ namespace Polo {
             [CCode (cname = "polo_backend_server_unblank_outputs")]
             public void unblank_outputs ();
 
+            [CCode (cname = "polo_backend_server_get_lock_state")]
+            public LockState get_lock_state ();
+
+            /* Sends finished to the lock, if any, and takes the curtain down. */
+            [CCode (cname = "polo_backend_server_force_unlock")]
+            public void force_unlock ();
+
+            /* Shows buffer's view centred above the curtain while locked; null hides it. */
+            [CCode (cname = "polo_backend_server_set_lock_prompt")]
+            public void set_lock_prompt (PixelBuffer? buffer);
+
             /* Valid until stop (). */
             [CCode (cname = "polo_backend_server_get_layer")]
             public unowned Layer get_layer (LayerKind kind);
@@ -398,6 +409,12 @@ namespace Polo {
 
             /* The first input after a second without any. */
             public signal void activity ();
+
+            /* state is a LockState. */
+            public signal void lock_state_changed (int state);
+
+            /* Enter while the lock is abandoned. */
+            public signal void lock_restart_requested ();
 
             [CCode (cname = "polo_backend_server_supports_deformation")]
             public bool supports_deformation ();
@@ -983,6 +1000,15 @@ namespace Polo {
             RENAME_WORKSPACE,
             END_SESSION,
             MESSAGE
+        }
+
+        /* ext_session_lock_v1. ABANDONED: the locker went away while locked; the curtain stays. */
+        [CCode (cname = "PoloBackendLockState", cprefix = "POLO_BACKEND_LOCK_", has_type_id = false)]
+        public enum LockState {
+            UNLOCKED,
+            LOCKING,
+            LOCKED,
+            ABANDONED
         }
 
         /* idled after timeout_msec without input (0: never), resumed on the next input. With

@@ -49,6 +49,14 @@ struct _PoloBackendSeat {
 	gpointer key_filter_data;
 	GDestroyNotify key_filter_destroy;
 	struct wl_resource *x_keyboard_grab;
+	/* A full-output X window's grab */
+	struct wl_resource *x_pending_grab;
+	struct weston_surface *x_grab_surface;
+	struct wl_listener x_grab_surface_destroy;
+	struct wl_listener x_grab_surface_commit;
+	gboolean x_grab_covering;
+	struct weston_surface *x_saved_focus;
+	struct wl_listener x_saved_focus_destroy;
 	struct polo_primary *primary;
 	struct polo_text_seat *text;
 	struct polo_shortcuts *shortcuts;
@@ -85,6 +93,54 @@ G_DEFINE_FINAL_TYPE(PoloBackendSeat, polo_backend_seat, G_TYPE_OBJECT)
 
 static guint32
 real_modifiers(struct weston_keyboard *keyboard);
+
+static gboolean
+media_key(xkb_keysym_t sym)
+{
+	switch (sym) {
+	case XKB_KEY_XF86AudioRaiseVolume:
+	case XKB_KEY_XF86AudioLowerVolume:
+	case XKB_KEY_XF86AudioMute:
+	case XKB_KEY_XF86AudioMicMute:
+	case XKB_KEY_XF86AudioPlay:
+	case XKB_KEY_XF86AudioPause:
+	case XKB_KEY_XF86AudioStop:
+	case XKB_KEY_XF86AudioPrev:
+	case XKB_KEY_XF86AudioNext:
+	case XKB_KEY_XF86MonBrightnessUp:
+	case XKB_KEY_XF86MonBrightnessDown:
+	case XKB_KEY_XF86KbdBrightnessUp:
+	case XKB_KEY_XF86KbdBrightnessDown:
+		return TRUE;
+	default:
+		return FALSE;
+	}
+}
+
+/* While locked, keys go straight to the focus (a lock surface or none); only
+ * media keys still reach the bindings. Enter asks to restart a dead locker. */
+static gboolean
+locked_key(PoloBackendSeat *self, struct weston_keyboard_grab *grab,
+	   const struct weston_key_event *event)
+{
+	struct weston_keyboard *keyboard = grab->keyboard;
+	xkb_keysym_t sym;
+
+	if (!polo_backend_session_lock_active(self->server))
+		return FALSE;
+	sym = keyboard->xkb_state.state
+		? xkb_state_key_get_one_sym(keyboard->xkb_state.state,
+					    event->key + 8)
+		: XKB_KEY_NoSymbol;
+	if (event->key_state == WL_KEYBOARD_KEY_STATE_PRESSED &&
+	    (sym == XKB_KEY_Return || sym == XKB_KEY_KP_Enter) &&
+	    polo_backend_session_lock_is_abandoned(self->server))
+		polo_backend_server_emit_lock_restart(self->server);
+	if (media_key(sym))
+		return FALSE;
+	self->default_key_interface->key(grab, event);
+	return TRUE;
+}
 
 static PoloBackendSeat *
 seat_from_pointer(struct weston_pointer *pointer)
@@ -148,7 +204,8 @@ filter_grab_button(struct weston_pointer_grab *grab,
 
 	if (event->button_state == WL_POINTER_BUTTON_STATE_PRESSED)
 		self->last_press_usec = g_get_monotonic_time();
-	if (self->button_filter) {
+	if (self->button_filter &&
+	    !polo_backend_session_lock_active(self->server)) {
 		PoloBackendButtonEvent ev = {
 			.time_msec =
 				(guint32)(event->base.ts.tv_sec * 1000 +
@@ -201,7 +258,8 @@ filter_grab_axis(struct weston_pointer_grab *grab,
 	struct weston_pointer *pointer = grab->pointer;
 	PoloBackendSeat *self = seat_from_pointer(pointer);
 
-	if (self->axis_filter) {
+	if (self->axis_filter &&
+	    !polo_backend_session_lock_active(self->server)) {
 		PoloBackendAxisEvent ev = {
 			.time_msec =
 				(guint32)(event->base.ts.tv_sec * 1000 +
@@ -344,6 +402,130 @@ is_escape_hatch(struct weston_keyboard *keyboard,
 }
 
 static gboolean
+surface_covers_output(PoloBackendServer *server, struct weston_surface *surface)
+{
+	struct weston_view *view;
+	struct weston_output *output;
+
+	if (!surface || !weston_surface_is_mapped(surface))
+		return FALSE;
+	wl_list_for_each(view, &surface->views, surface_link)
+	{
+		struct weston_coord_global pos;
+
+		if (!weston_view_is_mapped(view))
+			continue;
+		pos = weston_view_get_pos_offset_global(view);
+		wl_list_for_each(output, &server->compositor->output_list, link)
+		{
+			if (pos.c.x <= output->pos.c.x &&
+			    pos.c.y <= output->pos.c.y &&
+			    pos.c.x + surface->width >=
+				    output->pos.c.x + output->width &&
+			    pos.c.y + surface->height >=
+				    output->pos.c.y + output->height)
+				return TRUE;
+		}
+	}
+	return FALSE;
+}
+
+static void
+x_saved_focus_destroyed(struct wl_listener *listener, void *data)
+{
+	PoloBackendSeat *self =
+		wl_container_of(listener, self, x_saved_focus_destroy);
+
+	wl_list_remove(&self->x_saved_focus_destroy.link);
+	self->x_saved_focus = NULL;
+}
+
+static void
+x_forget_saved_focus(PoloBackendSeat *self)
+{
+	if (!self->x_saved_focus)
+		return;
+	wl_list_remove(&self->x_saved_focus_destroy.link);
+	self->x_saved_focus = NULL;
+}
+
+static void
+x_forget_grab_surface(PoloBackendSeat *self)
+{
+	if (!self->x_grab_surface)
+		return;
+	wl_list_remove(&self->x_grab_surface_destroy.link);
+	wl_list_remove(&self->x_grab_surface_commit.link);
+	self->x_grab_surface = NULL;
+}
+
+static gboolean
+keyboard_focus_is_xserver(PoloBackendSeat *self,
+			  struct weston_keyboard *keyboard);
+
+static void
+x_grant_covering(PoloBackendSeat *self, struct wl_resource *grab)
+{
+	struct weston_keyboard *keyboard = weston_seat_get_keyboard(self->seat);
+	struct weston_surface *surface = self->x_grab_surface;
+
+	x_forget_grab_surface(self);
+	self->x_pending_grab = NULL;
+	if (!keyboard || !surface ||
+	    !polo_backend_session_lock_allows_focus(self->server, surface))
+		return;
+	x_forget_saved_focus(self);
+	if (keyboard->focus && keyboard->focus != surface) {
+		self->x_saved_focus = keyboard->focus;
+		self->x_saved_focus_destroy.notify = x_saved_focus_destroyed;
+		wl_signal_add(&self->x_saved_focus->destroy_signal,
+			      &self->x_saved_focus_destroy);
+	}
+	if (self->x_keyboard_grab && self->x_keyboard_grab != grab)
+		wl_resource_set_user_data(self->x_keyboard_grab, NULL);
+	self->x_keyboard_grab = grab;
+	self->x_grab_covering = TRUE;
+	weston_keyboard_set_focus(keyboard, surface);
+	weston_log("X keyboard grab granted to a full-output X window\n");
+}
+
+static void
+x_grab_surface_committed(struct wl_listener *listener, void *data)
+{
+	PoloBackendSeat *self =
+		wl_container_of(listener, self, x_grab_surface_commit);
+
+	if (self->x_pending_grab &&
+	    surface_covers_output(self->server, self->x_grab_surface))
+		x_grant_covering(self, self->x_pending_grab);
+}
+
+static void
+x_grab_surface_destroyed(struct wl_listener *listener, void *data)
+{
+	PoloBackendSeat *self =
+		wl_container_of(listener, self, x_grab_surface_destroy);
+
+	x_forget_grab_surface(self);
+	self->x_pending_grab = NULL;
+}
+
+static void
+x_end_covering(PoloBackendSeat *self)
+{
+	struct weston_keyboard *keyboard = weston_seat_get_keyboard(self->seat);
+
+	self->x_grab_covering = FALSE;
+	if (keyboard && self->x_saved_focus &&
+	    weston_surface_is_mapped(self->x_saved_focus) &&
+	    (!keyboard->focus || keyboard_focus_is_xserver(self, keyboard)) &&
+	    polo_backend_session_lock_allows_focus(self->server,
+						   self->x_saved_focus))
+		weston_keyboard_set_focus(keyboard, self->x_saved_focus);
+	x_forget_saved_focus(self);
+}
+
+static gboolean
 x_keyboard_grab_takes_key(PoloBackendSeat *self,
 			  struct weston_keyboard *keyboard,
 			  const struct weston_key_event *event)
@@ -355,17 +537,46 @@ x_keyboard_grab_takes_key(PoloBackendSeat *self,
 		return TRUE;
 	wl_resource_set_user_data(self->x_keyboard_grab, NULL);
 	self->x_keyboard_grab = NULL;
+	if (self->x_grab_covering)
+		x_end_covering(self);
 	weston_log("X keyboard grab ended\n");
 	return FALSE;
 }
 
 gboolean
 polo_backend_seat_begin_x_keyboard_grab(PoloBackendSeat *seat,
-					struct wl_resource *grab)
+					struct wl_resource *grab,
+					struct weston_surface *surface)
 {
 	struct weston_keyboard *keyboard = weston_seat_get_keyboard(seat->seat);
 
-	if (!keyboard || !keyboard_focus_is_xserver(seat, keyboard) ||
+	if (!keyboard || polo_backend_session_lock_active(seat->server)) {
+		weston_log("X keyboard grab refused\n");
+		return FALSE;
+	}
+	/* screensaver or lock window grabs without a key press*/
+	if (surface && !seat->x_grab_covering) {
+		x_forget_grab_surface(seat);
+		seat->x_pending_grab = NULL;
+		seat->x_grab_surface = surface;
+		seat->x_grab_surface_destroy.notify = x_grab_surface_destroyed;
+		wl_signal_add(&surface->destroy_signal,
+			      &seat->x_grab_surface_destroy);
+		seat->x_grab_surface_commit.notify = x_grab_surface_committed;
+		wl_signal_add(&surface->commit_signal,
+			      &seat->x_grab_surface_commit);
+		if (surface_covers_output(seat->server, surface)) {
+			x_grant_covering(seat, grab);
+			return TRUE;
+		}
+		if (!keyboard_focus_is_xserver(seat, keyboard)) {
+			seat->x_pending_grab = grab;
+			weston_log("X keyboard grab waits for its window\n");
+			return TRUE;
+		}
+		x_forget_grab_surface(seat);
+	}
+	if (!keyboard_focus_is_xserver(seat, keyboard) ||
 	    !seat->last_press_usec ||
 	    g_get_monotonic_time() - seat->last_press_usec >
 		    X_KEYBOARD_GRAB_ACTION_USEC) {
@@ -383,8 +594,15 @@ void
 polo_backend_seat_end_x_keyboard_grab(PoloBackendSeat *seat,
 				      struct wl_resource *grab)
 {
-	if (seat->x_keyboard_grab == grab)
+	if (seat->x_pending_grab == grab) {
+		seat->x_pending_grab = NULL;
+		x_forget_grab_surface(seat);
+	}
+	if (seat->x_keyboard_grab == grab) {
 		seat->x_keyboard_grab = NULL;
+		if (seat->x_grab_covering)
+			x_end_covering(seat);
+	}
 }
 
 static void
@@ -400,6 +618,8 @@ filter_key(struct weston_keyboard_grab *grab,
 		return;
 	if (event->key_state == WL_KEYBOARD_KEY_STATE_PRESSED)
 		self->last_press_usec = g_get_monotonic_time();
+	if (locked_key(self, grab, event))
+		return;
 	if (x_keyboard_grab_takes_key(self, keyboard, event) ||
 	    polo_shortcuts_takes_key(self->shortcuts,
 				     is_escape_hatch(keyboard, event))) {
@@ -764,6 +984,13 @@ polo_backend_seat_set_keyboard_focus(PoloBackendSeat *seat,
 		return;
 
 	wv = view ? polo_backend_view_get_weston_view(view) : NULL;
+	if (polo_backend_session_lock_active(seat->server) &&
+	    (!wv ||
+	     !polo_backend_session_lock_allows_focus(seat->server,
+						     wv->surface)))
+		return;
+	if (seat->x_grab_covering)
+		return;
 	if (wv) {
 		weston_view_activate_input(wv, seat->seat,
 					   WESTON_ACTIVATE_FLAG_CLICKED);
@@ -962,6 +1189,13 @@ polo_backend_seat_dispose(GObject *object)
 		wl_resource_set_user_data(self->x_keyboard_grab, NULL);
 		self->x_keyboard_grab = NULL;
 	}
+	if (self->x_pending_grab) {
+		wl_resource_set_user_data(self->x_pending_grab, NULL);
+		self->x_pending_grab = NULL;
+	}
+	x_forget_grab_surface(self);
+	x_forget_saved_focus(self);
+	self->x_grab_covering = FALSE;
 	polo_backend_seat_set_button_filter(self, NULL, NULL, NULL);
 	polo_backend_seat_set_key_filter(self, NULL, NULL, NULL);
 	polo_backend_seat_set_axis_filter(self, NULL, NULL, NULL);

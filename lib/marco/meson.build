@@ -15,6 +15,7 @@ marco_lib = static_library('polo-marco',
   'shadow.c',
   'gradient.c',
   'theme-parser.c',
+  'label.c',
   dependencies: [glib_dep, dependency('pango'), dependency('pangocairo'), dependency('cairo'), dependency('gdk-pixbuf-2.0'), cc.find_library('m')],
 )
 

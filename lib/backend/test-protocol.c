@@ -275,6 +275,17 @@ test_get_setting(struct wl_client *client, struct wl_resource *resource,
 		return;
 	}
 	if (strcmp(schema, "polo-test") == 0 &&
+	    strcmp(key, "session-lock") == 0) {
+		static const char *const names[] = { "unlocked", "locking",
+						     "locked", "abandoned" };
+
+		polo_test_v1_send_setting(
+			resource, schema, key,
+			names[polo_backend_server_get_lock_state(
+				wl_resource_get_user_data(resource))]);
+		return;
+	}
+	if (strcmp(schema, "polo-test") == 0 &&
 	    strcmp(key, "idle-inhibited") == 0) {
 		polo_test_v1_send_setting(
 			resource, schema, key,

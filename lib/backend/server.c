@@ -38,6 +38,8 @@ enum {
 	SIGNAL_SHUTDOWN,
 	SIGNAL_FRAME,
 	SIGNAL_ACTIVITY,
+	SIGNAL_LOCK_STATE_CHANGED,
+	SIGNAL_LOCK_RESTART_REQUESTED,
 	N_SIGNALS,
 };
 
@@ -403,6 +405,20 @@ polo_backend_server_emit_activity(PoloBackendServer *server)
 }
 
 void
+polo_backend_server_emit_lock_state(PoloBackendServer *server,
+				    PoloBackendLockState state)
+{
+	g_signal_emit(server, signals[SIGNAL_LOCK_STATE_CHANGED], 0,
+		      (int)state);
+}
+
+void
+polo_backend_server_emit_lock_restart(PoloBackendServer *server)
+{
+	g_signal_emit(server, signals[SIGNAL_LOCK_RESTART_REQUESTED], 0);
+}
+
+void
 polo_backend_server_emit_frame(PoloBackendServer *server,
 			       PoloBackendOutput *output, gint64 usec)
 {
@@ -656,6 +672,9 @@ polo_backend_server_start(PoloBackendServer *server,
 	if (!polo_backend_idle_notify_init(server, error))
 		return FALSE;
 
+	if (!polo_backend_session_lock_init(server, error))
+		return FALSE;
+
 	if (!polo_backend_text_input_init(server, error))
 		return FALSE;
 
@@ -838,6 +857,7 @@ polo_backend_server_stop(PoloBackendServer *server)
 		polo_backend_xdg_decoration_fini(server);
 		polo_backend_primary_selection_fini(server);
 		polo_backend_text_input_fini(server);
+		polo_backend_session_lock_fini(server);
 		polo_backend_idle_notify_fini(server);
 		polo_backend_idle_fini(server);
 		polo_backend_idle_inhibit_fini(server);
@@ -1027,6 +1047,13 @@ polo_backend_server_class_init(PoloBackendServerClass *klass)
 	signals[SIGNAL_ACTIVITY] = g_signal_new(
 		"activity", G_TYPE_FROM_CLASS(klass), G_SIGNAL_RUN_LAST, 0,
 		NULL, NULL, NULL, G_TYPE_NONE, 0);
+	signals[SIGNAL_LOCK_STATE_CHANGED] =
+		g_signal_new("lock-state-changed", G_TYPE_FROM_CLASS(klass),
+			     G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL,
+			     G_TYPE_NONE, 1, G_TYPE_INT);
+	signals[SIGNAL_LOCK_RESTART_REQUESTED] = g_signal_new(
+		"lock-restart-requested", G_TYPE_FROM_CLASS(klass),
+		G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL, G_TYPE_NONE, 0);
 }
 
 static void

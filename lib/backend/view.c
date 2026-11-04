@@ -148,6 +148,7 @@ void
 polo_backend_view_move_to_layer(PoloBackendView *view, PoloBackendLayer *layer)
 {
 	g_return_if_fail(POLO_BACKEND_IS_VIEW(view));
+	g_return_if_fail(!layer || layer->kind != POLO_BACKEND_LAYER_LOCK);
 	if (!view->view)
 		return;
 

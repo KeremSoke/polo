@@ -282,6 +282,27 @@ polo_backend_server_blank_outputs(PoloBackendServer *server);
 void
 polo_backend_server_unblank_outputs(PoloBackendServer *server);
 
+/* ext_session_lock_v1. ABANDONED: the locker went away while locked; the
+ * curtain stays until a new lock unlocks or Polo forces it. */
+typedef enum {
+	POLO_BACKEND_LOCK_UNLOCKED,
+	POLO_BACKEND_LOCK_LOCKING,
+	POLO_BACKEND_LOCK_LOCKED,
+	POLO_BACKEND_LOCK_ABANDONED,
+} PoloBackendLockState;
+
+PoloBackendLockState
+polo_backend_server_get_lock_state(PoloBackendServer *server);
+
+/* Sends finished to the lock, if any, and takes the curtain down. */
+void
+polo_backend_server_force_unlock(PoloBackendServer *server);
+
+/* Shows buffer's view centred above the curtain while locked, NULL hides it. */
+void
+polo_backend_server_set_lock_prompt(PoloBackendServer *server,
+				    PoloBackendPixelBuffer *buffer);
+
 #define POLO_BACKEND_TYPE_IDLE_WATCH (polo_backend_idle_watch_get_type())
 G_DECLARE_FINAL_TYPE(PoloBackendIdleWatch, polo_backend_idle_watch,
 		     POLO_BACKEND, IDLE_WATCH, GObject)

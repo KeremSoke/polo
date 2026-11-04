@@ -18,6 +18,7 @@ client_protocols = {
   'virtual-keyboard-unstable-v1': meson.project_source_root() / 'protocol' / 'virtual-keyboard-unstable-v1.xml',
   'idle-inhibit-unstable-v1': wayland_protocols_dir / 'unstable' / 'idle-inhibit' / 'idle-inhibit-unstable-v1.xml',
   'ext-idle-notify-v1': wayland_protocols_dir / 'staging' / 'ext-idle-notify' / 'ext-idle-notify-v1.xml',
+  'ext-session-lock-v1': wayland_protocols_dir / 'staging' / 'ext-session-lock' / 'ext-session-lock-v1.xml',
   'keyboard-shortcuts-inhibit-unstable-v1': wayland_protocols_dir / 'unstable' / 'keyboard-shortcuts-inhibit' / 'keyboard-shortcuts-inhibit-unstable-v1.xml',
   'cursor-shape-v1': wayland_protocols_dir / 'staging' / 'cursor-shape' / 'cursor-shape-v1.xml',
   'tablet-v2': wayland_protocols_dir / 'stable' / 'tablet' / 'tablet-v2.xml',
@@ -71,7 +72,7 @@ protocol_test_env.set('POLO_SHELL_UI', '')
 foreach name : ['ssd', 'frame-input', 'shade', 'frame-scale', 'output-replug', 'decor-live', 'pixel-buffer-gl', 'cursor-no-theme', 'windows', 'interactive', 'outputs', 'managed-outputs', 'debug-kill', 'layer-shell', 'xdg-output', 'foreign-toplevel',
               'ext-foreign-toplevel-list', 'popups',
               'xfce-private', 'ext-workspace', 'focus', 'activation', 'keybindings', 'monitor-keybindings', 'edge-resistance', 'global-keybindings',
-              'window-keybindings', 'keyboard-move-resize', 'mouse-actions', 'keyboard-config', 'tiling', 'decoration', 'primary-selection', 'text-input', 'idle-inhibit', 'idle-notify', 'shortcuts-inhibit', 'cursor-shape', 'pointer-gestures', 'xdg-foreign', 'security-context', 'system-bell', 'explicit-sync']
+              'window-keybindings', 'keyboard-move-resize', 'mouse-actions', 'keyboard-config', 'tiling', 'decoration', 'primary-selection', 'text-input', 'idle-inhibit', 'idle-notify', 'session-lock', 'shortcuts-inhibit', 'cursor-shape', 'pointer-gestures', 'xdg-foreign', 'security-context', 'system-bell', 'explicit-sync']
   exe = executable('test-' + name, 'test-' + name + '.c',
     dependencies: name == 'cursor-shape' ? [harness_dep, dependency('xcursor')] : harness_dep)
   test(name, exe,

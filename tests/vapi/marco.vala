@@ -161,10 +161,20 @@ void test_theme () {
     assert (geometry.title_rect.width > 0);
 }
 
+void test_label () {
+    int width, height;
+    Polo.Marco.label_size ("Locked", null, out width, out height);
+    assert (width > 0 && height > 0);
+    var pixels = new uint8[width * height * 4];
+    Polo.Marco.label_render ("Locked", null, width, height, pixels, width * 4);
+    assert (pixels[3] == 0xff);
+}
+
 int main () {
     assert (Polo.Marco.reference_version () == "1.28.2");
     test_rects ();
     test_regions ();
     test_theme ();
+    test_label ();
     return 0;
 }

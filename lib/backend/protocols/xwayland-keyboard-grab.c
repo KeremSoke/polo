@@ -43,6 +43,8 @@ manager_grab_keyboard(struct wl_client *client, struct wl_resource *resource,
 		      struct wl_resource *seat_resource)
 {
 	PoloBackendServer *server = wl_resource_get_user_data(resource);
+	struct weston_surface *surface =
+		wl_resource_get_user_data(surface_resource);
 	struct weston_seat *weston_seat =
 		wl_resource_get_user_data(seat_resource);
 	PoloBackendSeat *seat = weston_seat
@@ -58,7 +60,8 @@ manager_grab_keyboard(struct wl_client *client, struct wl_resource *resource,
 	}
 	wl_resource_set_implementation(grab, &grab_impl, NULL,
 				       grab_resource_destroyed);
-	if (seat && polo_backend_seat_begin_x_keyboard_grab(seat, grab))
+	if (seat &&
+	    polo_backend_seat_begin_x_keyboard_grab(seat, grab, surface))
 		wl_resource_set_user_data(grab, seat);
 }
 
