@@ -55,7 +55,7 @@ namespace Polo.Dbus {
             var invocation = (GLib.DBusMethodInvocation) param_values[6].dup_object ();
             invocation.unref ();
             self.on_method (param_values[1].get_string (), param_values[4].get_string (),
-                            param_values[5].get_variant (), (owned) invocation);
+                            param_values[5].dup_variant (), (owned) invocation);
         }
 
         private static void marshal_property (GLib.Closure closure, out GLib.Value return_value,
@@ -69,7 +69,7 @@ namespace Polo.Dbus {
                                          GLib.Value[] param_values, void* hint, void* data) {
             unowned Registration self = (Registration) data;
             return_value = GLib.Value (typeof (bool));
-            return_value.set_boolean (self.on_set (param_values[4].get_string (), param_values[5].get_variant ()));
+            return_value.set_boolean (self.on_set (param_values[4].get_string (), param_values[5].dup_variant ()));
         }
 
         public static GLib.DBusInterfaceInfo load (string resource, string name) throws GLib.Error {
