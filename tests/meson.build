@@ -42,6 +42,16 @@ test('session', python,
   is_parallel: false,
 )
 
+# Polo's session manager
+test('sm-abi', python,
+  args: [files('session/test-sm-abi.py'), polo_exe, meson.project_source_root() / 'data' / 'dbus' / 'fixtures'],
+  env: vapi_test_env,
+  suite: 'session',
+  timeout: 60,
+  is_parallel: false,
+  should_fail: true,
+)
+
 autostart_dump = executable('autostart-dump',
   'session/autostart-dump.vala', meson.project_source_root() / 'src/session/autostart.vala',
   vala_args: vala_args,
