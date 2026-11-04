@@ -61,6 +61,7 @@ polo_sources = files(
   'dbus/sm-app.vala',
   'dbus/sm-presence.vala',
   'dbus/sm-manager.vala',
+  'dbus/outputs.vala',
   'core/spawn.vala',
   'decor/decorations.vala',
   'decor/frame.vala',
@@ -131,9 +132,14 @@ sm_resources = import('gnome').compile_resources('sm-resources',
   meson.project_source_root() / 'data' / 'dbus' / 'fixtures' / 'sm.gresource.xml',
   source_dir: meson.project_source_root() / 'data' / 'dbus' / 'fixtures' / 'source',
 )
+polo_dbus_resources = import('gnome').compile_resources('polo-dbus-resources',
+  meson.project_source_root() / 'data' / 'dbus' / 'polo.gresource.xml',
+  source_dir: meson.project_source_root() / 'data' / 'dbus',
+  c_name: 'polo_dbus',
+)
 
 polo_exe = executable('polo',
-  polo_sources, sm_resources,
+  polo_sources, sm_resources, polo_dbus_resources,
   vala_args: polo_vala_args,
   c_args: vala_c_args,
   include_directories: config_inc,

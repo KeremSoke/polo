@@ -94,6 +94,7 @@ namespace Polo {
         private IdleTracker? idle_tracker = null;
         private Protocols.SessionLock? session_lock = null;
         private Protocols.OutputManagement? output_management = null;
+        private Dbus.Outputs? outputs_dbus = null;
         private WindowStates? window_states = null;
 #if POLO_HAVE_XSMP
         private XsmpSession? xsmp = null;
@@ -269,6 +270,14 @@ namespace Polo {
                 window_states = new WindowStates ();
                 window_states.load ();
                 model.restore_state = window_states.restore;
+                try {
+                    outputs_dbus = new Dbus.Outputs (GLib.Bus.get_sync (GLib.BusType.SESSION), desktop,
+                                                     server.get_shell_ui ());
+                    outputs_dbus.export ();
+                } catch (GLib.Error e) {
+                    log.warning ("cannot provide %s: %s", Dbus.Outputs.NAME, e.message);
+                    outputs_dbus = null;
+                }
                 session_env = new SessionEnv ();
                 session_env.publish (server.get_socket_name ());
             }
@@ -349,6 +358,10 @@ namespace Polo {
             if (end_session != null) {
                 end_session.shutdown ();
                 end_session = null;
+            }
+            if (outputs_dbus != null) {
+                outputs_dbus.unexport ();
+                outputs_dbus = null;
             }
 #if POLO_HAVE_XSMP
             if (xsmp != null) {

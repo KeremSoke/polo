@@ -326,11 +326,11 @@ namespace Polo.Shell {
             } else {
                 Outputs.Layout.ensure_primary (monitors);
             }
-            commit (monitors, backends);
+            commit (monitors, backends, true);
         }
 
         private bool commit (GLib.GenericArray<Polo.Output> monitors,
-                             GLib.HashTable<Polo.Output, Backend.Output> backends) {
+                             GLib.HashTable<Polo.Output, Backend.Output> backends, bool remember) {
             bool success = true;
             /* Enable destinations before disabling sources, so windows can relocate. */
             for (int pass = 0; pass < 2; pass++) {
@@ -371,7 +371,7 @@ namespace Polo.Shell {
                     head.set_background_color (BACKGROUND_RED, BACKGROUND_GREEN, BACKGROUND_BLUE);
                 }
             }
-            if (drm && success) {
+            if (drm && success && remember) {
                 store.remember (monitors);
             }
             int image_scale = 1;
@@ -381,7 +381,68 @@ namespace Polo.Shell {
             decorations.set_image_scale (image_scale);
             layer_shell.arrange ();
             server.output_state_changed ();
+            layout_changed ();
             return success;
+        }
+
+        public signal void layout_changed ();
+
+        public GLib.GenericArray<Polo.Output> current_outputs () {
+            var current = new GLib.GenericArray<Polo.Output> ();
+            foreach (var head in heads) {
+                current.add (describe (head));
+            }
+            return current;
+        }
+
+        public void remember_current () {
+            if (drm) {
+                store.remember (current_outputs ());
+            }
+        }
+
+        public bool apply_monitors (GLib.GenericArray<Polo.Output> wanted, bool remember) {
+            if (!drm || wanted.length != heads.length) {
+                return false;
+            }
+            var before = new GLib.GenericArray<Polo.Output> ();
+            var after = new GLib.GenericArray<Polo.Output> ();
+            var backends = new GLib.HashTable<Polo.Output, Backend.Output> (GLib.direct_hash, GLib.direct_equal);
+            bool any_enabled = false;
+            foreach (var head in heads) {
+                var current = describe (head);
+                before.add (current);
+                backends.insert (current, head);
+                Polo.Output? match = null;
+                foreach (var candidate in wanted) {
+                    if (candidate.name == current.name) {
+                        match = candidate;
+                    }
+                }
+                if (match == null) {
+                    return false;
+                }
+                if (match.enabled) {
+                    if (!has_mode (current, match.width, match.height, match.rate) ||
+                        match.scale < 1 || match.scale > 8 || match.transform < 0 || match.transform > 7) {
+                        return false;
+                    }
+                    any_enabled = true;
+                }
+                var next = describe (head);
+                next.copy_configuration (match);
+                after.add (next);
+                backends.insert (next, head);
+            }
+            if (!any_enabled) {
+                return false;
+            }
+            Outputs.Layout.ensure_primary (after);
+            if (!commit (after, backends, remember)) {
+                commit (before, backends, false);
+                return false;
+            }
+            return true;
         }
 
         private static bool has_mode (Polo.Output o, int width, int height, int refresh) {
@@ -398,15 +459,10 @@ namespace Polo.Shell {
             if (!drm) {
                 return false;
             }
-            var before = new GLib.GenericArray<Polo.Output> ();
-            var after = new GLib.GenericArray<Polo.Output> ();
-            var backends = new GLib.HashTable<Polo.Output, Backend.Output> (GLib.direct_hash, GLib.direct_equal);
-            bool any_enabled = false;
+            var wanted = new GLib.GenericArray<Polo.Output> ();
+            var vrr = new GLib.HashTable<Backend.Output, bool> (GLib.direct_hash, GLib.direct_equal);
             foreach (var head in heads) {
-                var current = describe (head);
-                before.add (current);
-                backends.insert (current, head);
-                var wanted = describe (head);
+                var next = describe (head);
                 Backend.OutputRequest? request = null;
                 foreach (var candidate in requests) {
                     if (candidate.output == head) {
@@ -416,23 +472,26 @@ namespace Polo.Shell {
                 if (request == null) {
                     return false;
                 }
-                wanted.enabled = request.enabled;
-                if (wanted.enabled) {
-                    if (!has_mode (wanted, request.width, request.height, request.refresh) ||
+                next.enabled = request.enabled;
+                if (next.enabled) {
+                    if (!has_mode (next, request.width, request.height, request.refresh) ||
                         (request.adaptive_sync && !head.get_adaptive_sync_supported ())) {
                         return false;
                     }
-                    wanted.width = request.width;
-                    wanted.height = request.height;
-                    wanted.rate = request.refresh;
-                    wanted.x = request.x;
-                    wanted.y = request.y;
-                    wanted.transform = request.transform;
-                    wanted.scale = (int) GLib.Math.round (request.scale).clamp (1, 8);
-                    any_enabled = true;
+                    next.width = request.width;
+                    next.height = request.height;
+                    next.rate = request.refresh;
+                    next.x = request.x;
+                    next.y = request.y;
+                    next.transform = request.transform;
+                    next.scale = (int) GLib.Math.round (request.scale).clamp (1, 8);
                 }
-                after.add (wanted);
-                backends.insert (wanted, head);
+                vrr.insert (head, request.adaptive_sync);
+                wanted.add (next);
+            }
+            bool any_enabled = false;
+            foreach (var next in wanted) {
+                any_enabled |= next.enabled;
             }
             if (!any_enabled) {
                 return false;
@@ -440,23 +499,17 @@ namespace Polo.Shell {
             if (test) {
                 return true;
             }
-            Outputs.Layout.ensure_primary (after);
-            bool ok = commit (after, backends);
-            for (uint i = 0; ok && i < after.length; i++) {
-                bool vrr = false;
-                foreach (var request in requests) {
-                    if (request.output == backends[after[i]]) {
-                        vrr = request.adaptive_sync;
-                    }
-                }
-                if (after[i].enabled) {
-                    ok = backends[after[i]].set_adaptive_sync (vrr);
+            var before = current_outputs ();
+            if (!apply_monitors (wanted, true)) {
+                return false;
+            }
+            foreach (var head in heads) {
+                if (head.get_enabled () && !head.set_adaptive_sync (vrr[head])) {
+                    apply_monitors (before, true);
+                    return false;
                 }
             }
-            if (!ok) {
-                commit (before, backends);
-            }
-            return ok;
+            return true;
         }
 
         /* ---- Seats and input -------------------------------------------- */

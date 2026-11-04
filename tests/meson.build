@@ -117,6 +117,13 @@ if get_option('test-protocol')
     timeout: 120,
     is_parallel: false,
   )
+  test('outputs1', python,
+    args: [files('session/test-outputs1.py'), polo_exe, fake_shell_ui],
+    env: vapi_test_env,
+    suite: 'session',
+    timeout: 90,
+    is_parallel: false,
+  )
   test('sm-consumers', python,
     args: [files('session/test-sm-consumers.py'), polo_exe, fake_shell_ui],
     env: vapi_test_env,
