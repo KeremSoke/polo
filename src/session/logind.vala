@@ -316,6 +316,11 @@ namespace Polo {
             }
         }
 
+        public async GLib.DBusConnection? bus () {
+            yield start ();
+            return system;
+        }
+
         public void set_idle_hint (bool idle) {
             if (session == null) {
                 return;

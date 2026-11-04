@@ -91,6 +91,7 @@ namespace Polo {
         private Session? session_manager = null;
         private EndSession? end_session = null;
         private Logind? logind = null;
+        private IdleTracker? idle_tracker = null;
         private const uint CHILD_TERM_SECONDS = 5;
         private Spawn? spawn;
         private Shell.NotResponding? not_responding;
@@ -293,8 +294,12 @@ namespace Polo {
                 }
             }
 
+            unowned Dbus.Manager? sm = session_manager != null ? session_manager.manager : null;
+            idle_tracker = new IdleTracker (server, sm != null ? sm.presence : null, logind);
             loop.run ();
             log.info ("shutting down");
+            idle_tracker.shutdown ();
+            idle_tracker = null;
             if (phases != null) {
                 phases.stop ();
             }

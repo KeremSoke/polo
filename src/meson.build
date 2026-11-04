@@ -74,6 +74,7 @@ polo_sources = files(
   'main.vala',
   'protocols/foreign-toplevel.vala',
   'protocols/workspaces.vala',
+  'input/idle-tracker.vala',
   'input/accelerator.vala',
   'input/keyboard.vala',
   'input/bindings.vala',

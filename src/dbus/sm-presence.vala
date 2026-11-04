@@ -25,9 +25,9 @@ namespace Polo.Dbus {
         public string status_text { get { return _status_text; } }
         public uint idle_timeout_ms { get; private set; default = 0; }
         public bool idle_enabled { get; set; default = true; }
+        public bool screensaver_active { get; private set; default = false; }
 
         private uint saved_status = PresenceStatus.AVAILABLE;
-        private bool screensaver_active = false;
         private GLib.DBusConnection connection;
         private Registration? exported = null;
         private GLib.Settings? settings = null;
