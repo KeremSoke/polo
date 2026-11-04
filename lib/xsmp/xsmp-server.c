@@ -62,6 +62,7 @@ enum {
 
 enum {
 	CLIENT_REGISTER_REQUEST,
+	CLIENT_REGISTERED,
 	CLIENT_INTERACT_REQUEST,
 	CLIENT_INTERACT_DONE,
 	CLIENT_SAVE_YOURSELF_REQUEST,
@@ -221,6 +222,7 @@ static Status
 register_client_cb(SmsConn conn, SmPointer data, char *previous_id)
 {
 	PoloXsmpClient *client = data;
+	gboolean fresh = !previous_id || !previous_id[0];
 	Status ok = False;
 
 	g_clear_pointer(&client->reply_id, g_free);
@@ -232,6 +234,9 @@ register_client_cb(SmsConn conn, SmPointer data, char *previous_id)
 	}
 	g_clear_pointer(&client->reply_id, g_free);
 	free(previous_id);
+	if (ok)
+		g_signal_emit(client, client_signals[CLIENT_REGISTERED], 0,
+			      fresh);
 	return ok;
 }
 
@@ -545,6 +550,9 @@ polo_xsmp_client_class_init(PoloXsmpClientClass *klass)
 	client_signals[CLIENT_REGISTER_REQUEST] =
 		g_signal_new("register-request", type, G_SIGNAL_RUN_LAST, 0,
 			     NULL, NULL, NULL, G_TYPE_NONE, 1, G_TYPE_STRING);
+	client_signals[CLIENT_REGISTERED] =
+		g_signal_new("registered", type, G_SIGNAL_RUN_LAST, 0, NULL,
+			     NULL, NULL, G_TYPE_NONE, 1, G_TYPE_BOOLEAN);
 	client_signals[CLIENT_INTERACT_REQUEST] =
 		g_signal_new("interact-request", type, G_SIGNAL_RUN_LAST, 0,
 			     NULL, NULL, NULL, G_TYPE_NONE, 1, G_TYPE_INT);
@@ -681,7 +689,13 @@ update_iceauthority(PoloXsmpServer *server, gboolean adding)
 			}
 			entries = g_slist_prepend(entries, entry);
 		}
-		rewind(fp);
+		if (fseek(fp, 0, SEEK_SET) != 0) {
+			for (GSList *e = entries; e; e = e->next)
+				IceFreeAuthFileEntry(e->data);
+			g_slist_free(entries);
+			fclose(fp);
+			goto out;
+		}
 	} else {
 		int fd;
 

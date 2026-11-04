@@ -84,6 +84,7 @@ namespace Polo.Xsmp {
         public RestartStyle get_restart_style ();
 
         public signal void register_request (string? previous_id);
+        public signal void registered (bool fresh);
         public signal void interact_request (int dialog_type);
         public signal void interact_done (bool cancel_shutdown);
         public signal void save_yourself_request (int save_type, bool shutdown, int interact_style, bool fast,

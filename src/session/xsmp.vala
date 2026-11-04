@@ -33,6 +33,7 @@ namespace Polo {
             this.manager = manager;
             restart_style_hint = 1;
             connection.register_request.connect (on_register_request);
+            connection.registered.connect (on_registered);
             connection.interact_request.connect (on_interact_request);
             connection.interact_done.connect (on_interact_done);
             connection.save_yourself_request.connect (on_save_yourself_request);
@@ -45,6 +46,7 @@ namespace Polo {
 
         private void forget () {
             connection.register_request.disconnect (on_register_request);
+            connection.registered.disconnect (on_registered);
             connection.interact_request.disconnect (on_interact_request);
             connection.interact_done.disconnect (on_interact_done);
             connection.save_yourself_request.disconnect (on_save_yourself_request);
@@ -65,7 +67,10 @@ namespace Polo {
             startup_id = id;
             connection.accept_registration (id);
             status = Dbus.ClientStatus.REGISTERED;
-            if (previous_id == null || previous_id == "") {
+        }
+
+        private void on_registered (bool fresh) {
+            if (fresh) {
                 connection.save_yourself (Xsmp.SaveType.LOCAL, false, Xsmp.InteractStyle.NONE, false);
                 current_save = Xsmp.SaveType.LOCAL;
             }
