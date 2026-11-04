@@ -63,6 +63,12 @@ mode_of(struct client *c, struct zwlr_output_mode_v1 *mode)
 	return NULL;
 }
 
+static struct zwlr_output_mode_v1 *
+mode_to_set(struct head *h)
+{
+	return h->current ? h->current : h->modes[0].mode;
+}
+
 static void
 mode_size(void *data, struct zwlr_output_mode_v1 *mode, int32_t w, int32_t h)
 {
@@ -292,8 +298,8 @@ run(struct harness *h, struct client *c, uint32_t serial, int test, int x2,
 		}
 		ch = zwlr_output_configuration_v1_enable_head(config,
 							      c->heads[i].head);
-		zwlr_output_configuration_head_v1_set_mode(ch,
-							   c->heads[i].current);
+		zwlr_output_configuration_head_v1_set_mode(
+			ch, mode_to_set(&c->heads[i]));
 		if (i == 1)
 			zwlr_output_configuration_head_v1_set_position(ch, x2,
 								       0);
@@ -328,13 +334,15 @@ main(int argc, char **argv)
 	CHECK(c->n_heads == 2, "expected two heads, got %d", c->n_heads);
 	for (int i = 0; i < c->n_heads; i++) {
 		CHECK(c->heads[i].name[0], "head %d has no name", i);
-		CHECK(c->heads[i].n_modes > 0 && c->heads[i].current,
-		      "head %s has no current mode", c->heads[i].name);
-		CHECK(c->heads[i].enabled, "head %s is not enabled",
+		CHECK(c->heads[i].n_modes > 0, "head %s has no modes",
 		      c->heads[i].name);
-		CHECK(c->heads[i].scale == wl_fixed_from_int(1),
-		      "head %s scale is not 1", c->heads[i].name);
 	}
+	CHECK(c->heads[0].enabled && c->heads[0].current,
+	      "the first head is not on");
+	CHECK(c->heads[0].scale == wl_fixed_from_int(1),
+	      "the first head's scale is not 1");
+	CHECK(!c->heads[1].enabled,
+	      "an external head was turned on at startup");
 	struct mode *first = mode_of(c, c->heads[0].current);
 	int x2 = first->width + 100;
 
@@ -385,7 +393,8 @@ main(int argc, char **argv)
 		zwlr_output_configuration_v1_enable_head(config,
 							 bad->heads[0].head);
 
-	zwlr_output_configuration_head_v1_set_mode(ch, bad->heads[1].current);
+	zwlr_output_configuration_head_v1_set_mode(ch,
+						   mode_to_set(&bad->heads[1]));
 	wl_display_roundtrip(bad->display);
 	CHECK(wl_display_get_error(bad->display) != 0,
 	      "another head's mode was accepted");

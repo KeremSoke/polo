@@ -155,22 +155,32 @@ def schemas(tmp):
     return tmp + "/schemas"
 
 
-def locker(tmp):
-    os.makedirs(tmp + "/bin")
-    script = tmp + "/bin/mate-screensaver-command"
-    with open(script, "w") as f:
-        f.write('#!/bin/sh\necho "$@" >> "$FAKE_LOCK_LOG"\n')
-    os.chmod(script, 0o755)
-    return tmp + "/bin"
+class FakeScreenSaver:
+    XML = '<node><interface name="org.mate.ScreenSaver"><method name="Lock"/></interface></node>'
+
+    def __init__(self, bus):
+        self.locks = 0
+        node = Gio.DBusNodeInfo.new_for_xml(self.XML)
+        self.bus = bus
+        self.object = bus.register_object("/org/mate/ScreenSaver", node.interfaces[0], self.on_call, None, None)
+        self.name = Gio.bus_own_name_on_connection(bus, "org.mate.ScreenSaver", Gio.BusNameOwnerFlags.NONE,
+                                                   None, None)
+
+    def on_call(self, connection, sender, path, interface, method, parameters, invocation):
+        self.locks += 1
+        invocation.return_value(None)
+
+    def close(self):
+        Gio.bus_unown_name(self.name)
+        self.bus.unregister_object(self.object)
 
 
 def run(polo, fake_ui, address, tmp):
     fake = FakeLogind(address)
-    lock_log = tmp + "/locks"
+    screensaver = FakeScreenSaver(Gio.bus_get_sync(Gio.BusType.SESSION, None))
     ui_log = tmp + "/ui"
     session = sm_session.Polo(polo, shell_ui=fake_ui, env_extra={
         "POLO_TEST_SYSTEM_BUS": address, "GSETTINGS_SCHEMA_DIR": schemas(tmp),
-        "PATH": locker(tmp) + ":" + os.environ.get("PATH", ""), "FAKE_LOCK_LOG": lock_log,
         "FAKE_SHELL_UI_LOG": ui_log, "FAKE_SHELL_UI_DIALOG_RESPONSE": str(SLEEP)})
     try:
         if not session.wait_owned():
@@ -183,16 +193,14 @@ def run(polo, fake_ui, address, tmp):
         check(call(session.bus, "CanShutdown", reply="(b)") == (True,), "CanShutdown did not ask logind")
 
         fake.emit(LOGIND_PATH, LOGIND + ".Manager", "PrepareForSleep", GLib.Variant("(b)", (True,)))
-        check(until(lambda: "--lock" in pathlib.Path(lock_log).read_text() if os.path.exists(lock_log) else False),
-              "PrepareForSleep did not lock the screen")
+        check(until(lambda: screensaver.locks == 1), "PrepareForSleep did not lock the screen")
         if fake.inhibitors:
             check(until(lambda: released(fake.inhibitors[0][1]), 5), "the sleep inhibitor outlived the lock")
         fake.emit(LOGIND_PATH, LOGIND + ".Manager", "PrepareForSleep", GLib.Variant("(b)", (False,)))
         check(until(lambda: len(fake.inhibitors) == 2), "Polo did not take the sleep inhibitor again on resume")
 
         fake.emit(SESSION_PATH, LOGIND + ".Session", "Lock")
-        check(until(lambda: pathlib.Path(lock_log).read_text().count("--lock") == 2),
-              "the session's Lock signal did not lock the screen")
+        check(until(lambda: screensaver.locks == 2), "the session's Lock signal did not lock the screen")
         fake.set_active(False)
         check(until(lambda: "the session is inactive" in session.tail()), "Polo did not see the session go inactive")
         fake.set_active(True)
@@ -209,6 +217,7 @@ def run(polo, fake_ui, address, tmp):
               f"polo did not end the session: {session.process.poll()}")
     finally:
         status = session.stop()
+        screensaver.close()
         if failures:
             print("logind calls:", fake.calls)
     return status

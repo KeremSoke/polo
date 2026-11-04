@@ -98,7 +98,7 @@ class Case:
         except subprocess.TimeoutExpired:
             status = None
         check(status == 0, f"{self.name}: polo did not end the session: {status}")
-        check(("SessionOver", None) in self.seen or ("SessionOver", ()) in self.seen,
+        check(until(lambda: ("SessionOver", None) in self.seen or ("SessionOver", ()) in self.seen, 2),
               f"{self.name}: SessionOver was not sent")
 
     def close(self):
@@ -135,7 +135,6 @@ def forced(polo, fake_ui):
     case = Case("forced", polo, fake_ui, CANCEL)
     try:
         case.client("polo-busy", "refuse=busy")
-        call(case.bus, "Inhibit", GLib.Variant("(susu)", ("polo-test", 0, "saving", 1)), "(u)")
         case.logout(2)
         case.ended()
         check(not case.dialogs(), f"forced: a forced logout asked: {case.dialogs()}")

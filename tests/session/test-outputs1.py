@@ -49,8 +49,8 @@ class Session:
         self.dir = pathlib.Path(tempfile.mkdtemp(prefix="polo-outputs1-"))
         self.ui_log = self.dir / "ui"
         self.polo = sm_session.Polo(polo, shell_ui=fake_ui, env_extra={
-            "POLO_TEST_MANAGED_OUTPUTS": "1", "POLO_TEST_TWO_OUTPUTS": "1",
-            "FAKE_SHELL_UI_LOG": str(self.ui_log), "FAKE_SHELL_UI_DIALOG_RESPONSE": str(response)})
+            "POLO_TEST_MANAGED_OUTPUTS": "1",
+            "FAKE_SHELL_UI_LOG": str(self.ui_log), "FAKE_SHELL_UI_DIALOG_RESPONSE": str(response)}, outputs=2)
         if not self.polo.wait_owned():
             raise RuntimeError("polo never owned org.gnome.SessionManager")
         self.bus = self.polo.bus
@@ -95,18 +95,25 @@ class Session:
         self.polo.stop()
 
 
+def enable(output, x):
+    width, height, rate, _ = output["modes"][0]
+    return {"name": ("s", output["name"]), "enabled": ("b", True), "width": ("i", width),
+            "height": ("i", height), "refresh": ("i", rate), "x": ("i", x), "y": ("i", 0)}
+
+
 def restore_run(polo, fake_ui):
     s = Session(polo, fake_ui, CANCEL)
     try:
         outputs = s.outputs()
         check(len(outputs) == 2, f"GetOutputs gave {len(outputs)} outputs")
         for o in outputs:
-            check(o["name"] and o["modes"] and o["enabled"] and o["scale"] == 1,
-                  f"GetOutputs: {o.get('name')} is incomplete: {o}")
+            check(o["name"] and o["modes"] and o["scale"] == 1, f"GetOutputs: {o.get('name')} is incomplete: {o}")
         first, second = outputs
+        check(first["enabled"] and not second["enabled"],
+              f"external outputs were not off at startup: {[o['enabled'] for o in outputs]}")
         target = first["width"] + 100
         serial = s.serial()
-        check(s.apply(serial, [{"name": ("s", second["name"]), "x": ("i", target), "y": ("i", 0)}], False) is None,
+        check(s.apply(serial, [enable(second, target)], False) is None,
               "a temporary configuration was refused")
         check(until(lambda: s.second_x() == target), "ApplyConfiguration did not move the output")
         check(until(lambda: s.serial() > serial and s.changes), "no Changed and no new Serial")
@@ -133,7 +140,7 @@ def keep_run(polo, fake_ui):
     try:
         first, second = s.outputs()
         target = first["width"] + 300
-        check(s.apply(s.serial(), [{"name": ("s", second["name"]), "x": ("i", target)}], True) is None,
+        check(s.apply(s.serial(), [enable(second, target)], True) is None,
               "a persistent configuration was refused")
         check(until(lambda: s.dialogs()), "no display confirmation")
         time.sleep(0.5)

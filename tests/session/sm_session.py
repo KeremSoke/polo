@@ -31,7 +31,7 @@ class Polo:
     it starts those, each running sleep in the Application phase; otherwise nothing,
     and the session is Running at once."""
 
-    def __init__(self, polo, autostart=(), shell_ui="", env_extra=None):
+    def __init__(self, polo, autostart=(), shell_ui="", env_extra=None, outputs=1):
         self.tmp = tempfile.mkdtemp(prefix="polo-sm-")
         for sub in ("run", "data", "none", "config/autostart"):
             os.makedirs(f"{self.tmp}/{sub}", mode=0o700, exist_ok=True)
@@ -53,7 +53,8 @@ class Polo:
         self.stderr = open(self.stderr_path, "w")
         self.process = subprocess.Popen(
             [polo, "--session", "--backend=headless", "--renderer=pixman", "--test-mode",
-             "--xwayland=off", "--socket=polo-sm-test", f"--log={self.tmp}/polo.log"],
+             "--xwayland=off", "--socket=polo-sm-test", f"--outputs={outputs}",
+             f"--log={self.tmp}/polo.log"],
             env=env, stdout=subprocess.DEVNULL, stderr=self.stderr)
         self.bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
 
