@@ -31,6 +31,7 @@ namespace Polo {
         private const uint TERM_TIMEOUT_MS = 1000;
         private const uint FLAG_FORCEFUL = 1;
         private const uint FLAG_SAVE = 2;
+        private const uint FLAG_LAST = 4;
 
         [CCode (cname = "kill", cheader_filename = "signal.h")]
         private static extern int kill (int pid, int sig);
@@ -59,6 +60,9 @@ namespace Polo {
         private Dbus.LogoutMode mode = Dbus.LogoutMode.NORMAL;
         private GLib.GenericSet<Dbus.Client> waiting =
             new GLib.GenericSet<Dbus.Client> (GLib.direct_hash, GLib.direct_equal);
+        private GLib.GenericSet<Dbus.Client> last =
+            new GLib.GenericSet<Dbus.Client> (GLib.direct_hash, GLib.direct_equal);
+        private bool cancel_requested = false;
 
         private uint next_dialog = FIRST_DIALOG;
         private uint dialog = 0;
@@ -231,6 +235,7 @@ namespace Polo {
                 return;
             }
             ending = true;
+            cancel_requested = false;
             action = requested;
             mode = requested_mode;
             manager.logout_mode = mode;
@@ -241,6 +246,11 @@ namespace Polo {
             }
             saving ();
             yield end_session ();
+            if (cancel_requested) {
+                cancel ();
+                ending = false;
+                return;
+            }
             if (SavedSession.auto_save_enabled () && !SavedSession.is_login_window ()) {
                 SavedSession.save (manager);
             }
@@ -272,7 +282,7 @@ namespace Polo {
             foreach (var client in waiting.get_values ()) {
                 client.query_end_session (flags ());
             }
-            yield wait (QUERY_TIMEOUT_MS, () => waiting.length == 0);
+            yield wait (QUERY_TIMEOUT_MS, () => waiting.length == 0 || cancel_requested);
             foreach (var client in waiting.get_values ()) {
                 Logging.scope (LogDomain.POLO).warning ("Client '%s' failed to reply before timeout",
                                                         client.path);
@@ -281,14 +291,15 @@ namespace Polo {
                 }
             }
             waiting.remove_all ();
-            if (cancellable.is_cancelled ()) {
+            if (cancellable.is_cancelled () || cancel_requested) {
                 return false;
             }
             if (!manager.is_inhibited (Dbus.InhibitorFlags.LOGOUT)) {
                 return true;
             }
             string[] names = { "logout", "shutdown", "reboot" };
-            if ((yield ask_blocking (names[(int) action], Dbus.InhibitorFlags.LOGOUT)) != RESPONSE_ACCEPT) {
+            if ((yield ask_blocking (names[(int) action], Dbus.InhibitorFlags.LOGOUT)) != RESPONSE_ACCEPT ||
+                cancel_requested) {
                 return false;
             }
             mode = Dbus.LogoutMode.FORCE;
@@ -302,12 +313,30 @@ namespace Polo {
             if (waiting.length == 0) {
                 return;
             }
+            last.remove_all ();
             uint end_flags = flags () | (SavedSession.auto_save_enabled () ? FLAG_SAVE : 0);
             foreach (var client in waiting.get_values ()) {
                 client.end_session (end_flags);
             }
-            yield wait (PHASE_TIMEOUT_MS, () => waiting.length == 0 &&
+            int64 deadline = GLib.get_monotonic_time () + PHASE_TIMEOUT_MS * 1000;
+            yield wait (PHASE_TIMEOUT_MS, () => cancel_requested || waiting.length == 0 &&
                         (mode == Dbus.LogoutMode.FORCE || !manager.is_inhibited (Dbus.InhibitorFlags.LOGOUT)));
+            waiting.remove_all ();
+            if (cancel_requested || last.length == 0) {
+                return;
+            }
+            int64 left = (deadline - GLib.get_monotonic_time ()) / 1000;
+            if (left <= 0) {
+                return;
+            }
+            foreach (var client in last.get_values ()) {
+                waiting.add (client);
+            }
+            last.remove_all ();
+            foreach (var client in waiting.get_values ()) {
+                client.end_session (end_flags | FLAG_LAST);
+            }
+            yield wait ((uint) left, () => cancel_requested || waiting.length == 0);
             waiting.remove_all ();
         }
 
@@ -350,11 +379,20 @@ namespace Polo {
             manager.logout_mode = mode;
         }
 
-        private void on_client_response (Dbus.Client client, bool is_ok, string reason) {
+        private void on_client_response (Dbus.Client client, bool is_ok, bool do_last, bool cancel, string reason) {
             if (manager.phase < Dbus.ManagerPhase.QUERY_END_SESSION) {
                 return;
             }
+            if (cancel) {
+                cancel_requested = true;
+                close_dialog (RESPONSE_CANCEL);
+                resume ();
+                return;
+            }
             waiting.remove (client);
+            if (do_last && manager.phase == Dbus.ManagerPhase.END_SESSION) {
+                last.add (client);
+            }
             if (!is_ok && mode != Dbus.LogoutMode.FORCE) {
                 manager.inhibit_for_client (client, reason != "" ? reason : msm ("Not responding"));
             } else {

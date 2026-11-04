@@ -119,6 +119,11 @@ if get_option('xwayland')
   polo_vala_args += ['--pkg', 'polo-xwm', '--pkg', 'posix', '--define=POLO_HAVE_XWAYLAND']
   polo_deps += polo_xwm_dep
 endif
+if have_xsmp
+  polo_sources += files('session/xsmp.vala')
+  polo_vala_args += ['--pkg', 'polo-xsmp', '--define=POLO_HAVE_XSMP']
+  polo_deps += polo_xsmp_dep
+endif
 
 # The session manager's interfaces, as mate-session 1.28 defines them
 sm_resources = import('gnome').compile_resources('sm-resources',

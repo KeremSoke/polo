@@ -29,7 +29,7 @@ struct curtain {
 struct lock {
 	struct polo_session_lock *sl;
 	struct wl_resource *resource;
-	struct wl_list surfaces; 
+	struct wl_list surfaces;
 	gboolean locked_sent;
 	gboolean finished;
 	gboolean cancelled;
@@ -49,7 +49,7 @@ struct lock_surface {
 	struct weston_output *output;
 	struct wl_listener surface_destroy;
 	struct wl_listener commit;
-	GArray *pending; 
+	GArray *pending;
 	gboolean acked;
 	int32_t width, height;
 };

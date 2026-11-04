@@ -61,7 +61,7 @@ namespace Polo.Dbus {
         public signal void initialization_error (string message, bool fatal);
         public signal void inhibitors_changed ();
         public signal void client_removed (Client client);
-        public signal void client_response (Client client, bool is_ok, string reason);
+        public signal void client_response (Client client, bool is_ok, bool do_last, bool cancel, string reason);
 
         public AppMatcher? match_app = null;
         public ConditionCheck? handles_condition = null;
@@ -184,8 +184,52 @@ namespace Polo.Dbus {
             invocation.return_dbus_error (ERROR_PREFIX + error, message);
         }
 
-        private void on_client_response (Client client, bool is_ok, string reason) {
-            client_response (client, is_ok, reason);
+        private void on_client_response (Client client, bool is_ok, bool do_last, bool cancel, string reason) {
+            client_response (client, is_ok, do_last, cancel, reason);
+        }
+
+        public bool add_xsmp_client (Client client) {
+            try {
+                client.export (connection, false);
+            } catch (GLib.Error e) {
+                Logging.scope (LogDomain.POLO).warning ("cannot export %s: %s", client.path, e.message);
+                return false;
+            }
+            client.end_session_response.connect (on_client_response);
+            clients.insert (client.path, client);
+            emit ("ClientAdded", new GLib.Variant ("(o)", client.path));
+            return true;
+        }
+
+        public string? register_xsmp_client (Client client, string? previous_id) {
+            if (phase >= ManagerPhase.QUERY_END_SESSION) {
+                return null;
+            }
+            if (previous_id == null || previous_id == "") {
+                return generate_startup_id ();
+            }
+            foreach (unowned Client other in clients.get_values ()) {
+                if (other != client && other.startup_id == previous_id) {
+                    return null;
+                }
+            }
+            AutostartApp? app = match_app != null ? match_app (previous_id, "") : null;
+            if (app == null) {
+                return null;
+            }
+            client.app_id = app.id;
+            return previous_id;
+        }
+
+        public void xsmp_client_gone (Client client) {
+            remove_client (client.path);
+        }
+
+        public void request_logout (LogoutMode mode) {
+            if (phase != ManagerPhase.RUNNING || log_out_locked_down ()) {
+                return;
+            }
+            logout_requested (mode);
         }
 
         public bool log_out_locked_down () {

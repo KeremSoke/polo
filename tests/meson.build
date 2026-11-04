@@ -58,6 +58,18 @@ test('sm-manager', python,
   is_parallel: false,
 )
 
+if have_xsmp
+  xsmp_test_client = executable('xsmp-test-client', 'session/xsmp-test-client.c',
+    dependencies: [dependency('sm'), dependency('ice')])
+  test('xsmp', python,
+    args: [files('session/test-xsmp.py'), polo_exe, xsmp_test_client],
+    env: vapi_test_env,
+    suite: 'session',
+    timeout: 90,
+    is_parallel: false,
+  )
+endif
+
 test('saved-session', python,
   args: [files('session/test-saved-session.py'), polo_exe],
   env: vapi_test_env,

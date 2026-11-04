@@ -94,6 +94,9 @@ namespace Polo {
         private IdleTracker? idle_tracker = null;
         private Protocols.SessionLock? session_lock = null;
         private WindowStates? window_states = null;
+#if POLO_HAVE_XSMP
+        private XsmpSession? xsmp = null;
+#endif
         private const uint CHILD_TERM_SECONDS = 5;
         private Spawn? spawn;
         private Shell.NotResponding? not_responding;
@@ -245,6 +248,13 @@ namespace Polo {
                         logind.set_idle_hint (manager.presence.status == Dbus.PresenceStatus.IDLE);
                     });
                     end_session = new EndSession (manager, server.get_shell_ui (), logind);
+#if POLO_HAVE_XSMP
+                    try {
+                        xsmp = new XsmpSession (manager);
+                    } catch (GLib.Error e) {
+                        log.warning ("no XSMP for legacy X11 clients: %s", e.message);
+                    }
+#endif
                     end_session.finished.connect (() => quit (0));
                     end_session.saving.connect (() => {
                         if (window_states != null) {
@@ -338,6 +348,12 @@ namespace Polo {
                 end_session.shutdown ();
                 end_session = null;
             }
+#if POLO_HAVE_XSMP
+            if (xsmp != null) {
+                xsmp.shutdown ();
+                xsmp = null;
+            }
+#endif
             if (logind != null) {
                 if (session_manager != null && session_manager.manager != null) {
                     session_manager.manager.logind = null;

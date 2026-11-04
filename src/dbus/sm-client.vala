@@ -20,14 +20,14 @@ namespace Polo.Dbus {
         private static uint serial = 1;
 
         public string path { get; private set; }
-        public string startup_id { get; construct; }
+        public string startup_id { get; construct set; }
         public string bus_name { get; construct; }
         public string app_id { get; set; default = ""; }
         public ClientStatus status { get; set; default = ClientStatus.UNREGISTERED; }
         public uint pid { get; set; default = 0; }
         public uint restart_style_hint { get; set; default = 0; }
 
-        public signal void end_session_response (bool is_ok, string reason);
+        public signal void end_session_response (bool is_ok, bool do_last, bool cancel, string reason);
 
         private GLib.DBusConnection? connection = null;
         private Registration? exported = null;
@@ -38,13 +38,15 @@ namespace Polo.Dbus {
             path = "%s/Client%u".printf (Manager.PATH, serial++);
         }
 
-        public void export (GLib.DBusConnection connection) throws GLib.Error {
+        public void export (GLib.DBusConnection connection, bool with_private = true) throws GLib.Error {
             this.connection = connection;
             exported = new Registration (connection, path, Registration.load (RESOURCE, INTERFACE),
                                          on_method);
-            exported_private = new Registration (connection, path,
-                                                 Registration.load (PRIVATE_RESOURCE, PRIVATE_INTERFACE),
-                                                 on_private_method);
+            if (with_private) {
+                exported_private = new Registration (connection, path,
+                                                     Registration.load (PRIVATE_RESOURCE, PRIVATE_INTERFACE),
+                                                     on_private_method);
+            }
         }
 
         public void unexport () {
@@ -59,7 +61,7 @@ namespace Polo.Dbus {
             connection = null;
         }
 
-        public void stop () {
+        public virtual void stop () {
             send ("Stop", null);
         }
 
@@ -68,15 +70,15 @@ namespace Polo.Dbus {
             return null;
         }
 
-        public void query_end_session (uint flags) {
+        public virtual void query_end_session (uint flags) {
             send ("QueryEndSession", new GLib.Variant ("(u)", flags));
         }
 
-        public void end_session (uint flags) {
+        public virtual void end_session (uint flags) {
             send ("EndSession", new GLib.Variant ("(u)", flags));
         }
 
-        public void cancel_end_session () {
+        public virtual void cancel_end_session () {
             send ("CancelEndSession", null);
         }
 
@@ -138,7 +140,7 @@ namespace Polo.Dbus {
             string reason;
             parameters.get ("(bs)", out is_ok, out reason);
             invocation.return_value (null);
-            end_session_response (is_ok, reason);
+            end_session_response (is_ok, false, false, reason);
         }
     }
 }
