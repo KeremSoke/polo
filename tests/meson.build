@@ -83,6 +83,16 @@ if get_option('test-protocol')
   subdir('protocol')
 endif
 
+if get_option('test-protocol')
+  test('end-session', python,
+    args: [files('session/test-end-session.py'), polo_exe, fake_shell_ui],
+    env: vapi_test_env,
+    suite: 'session',
+    timeout: 120,
+    is_parallel: false,
+  )
+endif
+
 if get_option('xwayland') and get_option('test-protocol')
   map_client = executable('map-client', 'session/map-client.c', dependencies: harness_dep)
   phases_env = environment()

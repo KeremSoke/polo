@@ -31,7 +31,7 @@ class Polo:
     it starts those, each running sleep in the Application phase; otherwise nothing,
     and the session is Running at once."""
 
-    def __init__(self, polo, autostart=()):
+    def __init__(self, polo, autostart=(), shell_ui="", env_extra=None):
         self.tmp = tempfile.mkdtemp(prefix="polo-sm-")
         for sub in ("run", "data", "none", "config/autostart"):
             os.makedirs(f"{self.tmp}/{sub}", mode=0o700, exist_ok=True)
@@ -42,12 +42,13 @@ class Polo:
         env = dict(os.environ, HOME=self.tmp, XDG_CONFIG_HOME=self.tmp + "/config",
                    XDG_CONFIG_DIRS=self.tmp + "/none", XDG_DATA_DIRS=self.tmp + "/data",
                    XDG_DATA_HOME=self.tmp + "/none", XDG_RUNTIME_DIR=self.tmp + "/run",
-                   GSETTINGS_BACKEND="memory", POLO_SHELL_UI="")
+                   GSETTINGS_BACKEND="memory", POLO_SHELL_UI=shell_ui)
         for key in ("WAYLAND_DISPLAY", "WAYLAND_SOCKET", "DISPLAY", "XAUTHORITY", "DCONF_PROFILE",
                     "POLO_TEST_AUTOSTART"):
             env.pop(key, None)
         if autostart:
             env["POLO_TEST_AUTOSTART"] = "1"
+        env.update(env_extra or {})
         self.stderr_path = self.tmp + "/stderr"
         self.stderr = open(self.stderr_path, "w")
         self.process = subprocess.Popen(
