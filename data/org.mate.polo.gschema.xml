@@ -17,6 +17,11 @@
       <summary>Session components that need X</summary>
       <description>Desktop ids or program names started with GDK_BACKEND=x11, because they call X directly.</description>
     </key>
+    <key name="locker-command" type="s">
+      <default>'swaylock -f'</default>
+      <summary>Screen locker</summary>
+      <description>An ext-session-lock-v1 locker, used when mate-screensaver is not running. It runs as a trusted client. Empty uses none.</description>
+    </key>
   </schema>
   <schema id="org.mate.polo.effects" path="/org/mate/polo/effects/">
     <key name="wobbly-windows" type="b">

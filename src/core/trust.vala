@@ -55,7 +55,6 @@ namespace Polo {
             return privileged.contains (interface_name);
         }
 
-        /* Backend.GlobalFilter: may client see interface_name? */
         public bool filter (Backend.Client client, string interface_name) {
             if (interface_name == "polo_shell_ui_v1") {
                 return client == shell_ui_client;
@@ -68,6 +67,16 @@ namespace Polo {
             }
             if (!is_privileged (interface_name) || client.get_trusted ()) {
                 return true;
+            }
+            if (interface_name == "ext_session_lock_manager_v1" && !CommandLine.test_mode) {
+                var locker_key = "%d/%s".printf (client.get_pid (), interface_name);
+                if (!logged.contains (locker_key)) {
+                    logged.insert (locker_key, true);
+                    Logging.scope (LogDomain.PROTOCOL).info (
+                        "denied %s to untrusted client pid %d (%s): only trusted lockers may lock",
+                        interface_name, client.get_pid (), client.get_executable () ?? "?");
+                }
+                return false;
             }
 
             var key = "%d/%s".printf (client.get_pid (), interface_name);

@@ -92,6 +92,7 @@ namespace Polo {
         private EndSession? end_session = null;
         private Logind? logind = null;
         private IdleTracker? idle_tracker = null;
+        private Protocols.SessionLock? session_lock = null;
         private const uint CHILD_TERM_SECONDS = 5;
         private Spawn? spawn;
         private Shell.NotResponding? not_responding;
@@ -224,9 +225,17 @@ namespace Polo {
                 session_manager.own_session_manager ();
                 unowned Dbus.Manager? manager = session_manager.manager;
                 logind = new Logind ();
-                logind.lock_requested.connect (() => lock_screen.begin ());
+                logind.lock_requested.connect (() => {
+                    if (session_lock != null) {
+                        session_lock.lock_screen.begin ();
+                    } else {
+                        logind.lock_shown ();
+                    }
+                });
                 logind.unlock_requested.connect (() => {
-                    log.info ("Unlock: Polo has no lock screen of its own to unlock yet");
+                    if (session_lock != null) {
+                        session_lock.unlock_requested ();
+                    }
                 });
                 logind.start.begin ();
                 if (manager != null) {
@@ -296,8 +305,16 @@ namespace Polo {
 
             unowned Dbus.Manager? sm = session_manager != null ? session_manager.manager : null;
             idle_tracker = new IdleTracker (server, sm != null ? sm.presence : null, logind);
+            session_lock = new Protocols.SessionLock (server, spawn, sm != null ? sm.presence : null);
+            session_lock.shown.connect (() => {
+                if (logind != null) {
+                    logind.lock_shown ();
+                }
+            });
             loop.run ();
             log.info ("shutting down");
+            session_lock.shutdown ();
+            session_lock = null;
             idle_tracker.shutdown ();
             idle_tracker = null;
             if (phases != null) {
@@ -449,30 +466,6 @@ namespace Polo {
             var source = GLib.SettingsSchemaSource.get_default ();
             var schema = source != null ? source.lookup (id, true) : null;
             return schema != null ? new GLib.Settings.full (schema, null, null) : null;
-        }
-
-        private async void lock_screen () {
-            unowned LogScope log = Logging.scope (LogDomain.POLO);
-            foreach (unowned string command in new string[] { "mate-screensaver-command --lock",
-                                                              "xscreensaver-command -lock" }) {
-                string[] argv = command.split (" ");
-                if (GLib.Environment.find_program_in_path (argv[0]) == null || spawn == null) {
-                    continue;
-                }
-                try {
-                    yield spawn.launch (argv).wait_async ();
-                } catch (GLib.Error e) {
-                    log.warning ("Couldn't lock screen: %s", e.message);
-                }
-                if (logind != null) {
-                    logind.lock_shown ();
-                }
-                return;
-            }
-            log.warning ("Couldn't find any screen locker");
-            if (logind != null) {
-                logind.lock_shown ();
-            }
         }
 
         private void on_initialization_error (string message, bool fatal) {
