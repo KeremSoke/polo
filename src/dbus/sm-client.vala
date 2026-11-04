@@ -35,6 +35,9 @@ namespace Polo.Dbus {
 
         public Client (string startup_id, string bus_name) {
             Object (startup_id: startup_id, bus_name: bus_name);
+        }
+
+        construct {
             path = "%s/Client%u".printf (Manager.PATH, serial++);
         }
 
