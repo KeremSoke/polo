@@ -1,7 +1,7 @@
 # libpolo-policy: the window model and every policy decision.
 # GLib and libpolo-marco only, no backend, so tests/policy replays Marco
 # oracle scenarios against it without a compositor (enforced by
-# tools/check-boundary.py rule 4).
+# tools/check-boundary.py ).
 policy_sources = files(
   'core/window-adapter.vala',
   'core/window.vala',
@@ -52,6 +52,7 @@ polo_sources = files(
   'session/env.vala',
   'session/autostart.vala',
   'session/phases.vala',
+  'session/end-session.vala',
   'dbus/registration.vala',
   'dbus/sm-client.vala',
   'dbus/sm-inhibitor.vala',

@@ -89,6 +89,7 @@ namespace Polo {
         private SessionEnv? session_env = null;
         private SessionPhases? phases = null;
         private Session? session_manager = null;
+        private EndSession? end_session = null;
         private const uint CHILD_TERM_SECONDS = 5;
         private Spawn? spawn;
         private Shell.NotResponding? not_responding;
@@ -221,13 +222,16 @@ namespace Polo {
                 session_manager.own_session_manager ();
                 unowned Dbus.Manager? manager = session_manager.manager;
                 if (manager != null) {
-                    manager.logout_requested.connect (() => end_session ());
-                    manager.shutdown_dialog_requested.connect (() => {
-                        log.warning ("Shutdown: the end-session dialog is not available yet");
+                    end_session = new EndSession (manager, server.get_shell_ui ());
+                    end_session.finished.connect ((action) => {
+                        if (action != EndAction.LOGOUT) {
+                            log.warning ("%s is not available yet; the session ends without it",
+                                         action == EndAction.REBOOT ? "rebooting" : "powering off");
+                        }
+                        quit (0);
                     });
-                    manager.shutdown_requested.connect ((reboot) => {
-                        log.warning ("%s: powering off is not available yet",
-                                     reboot ? "RequestReboot" : "RequestShutdown");
+                    end_session.action_unavailable.connect ((response) => {
+                        log.warning ("end-session dialog response %d is not available yet", response);
                     });
                     manager.initialization_error.connect (on_initialization_error);
                 }
@@ -291,6 +295,10 @@ namespace Polo {
             log.info ("shutting down");
             if (phases != null) {
                 phases.stop ();
+            }
+            if (end_session != null) {
+                end_session.shutdown ();
+                end_session = null;
             }
             if (CommandLine.session) {
                 if (shell_ui != null) {
@@ -427,13 +435,6 @@ namespace Polo {
             var source = GLib.SettingsSchemaSource.get_default ();
             var schema = source != null ? source.lookup (id, true) : null;
             return schema != null ? new GLib.Settings.full (schema, null, null) : null;
-        }
-
-        private void end_session () {
-            if (session_manager != null && session_manager.manager != null) {
-                session_manager.manager.session_over ();
-            }
-            quit (0);
         }
 
         private void on_initialization_error (string message, bool fatal) {
