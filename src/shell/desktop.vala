@@ -270,37 +270,49 @@ namespace Polo.Shell {
             return found != null ? new GLib.Settings.full (found, null, null) : null;
         }
 
+        private Polo.Output describe (Backend.Output head) {
+            var o = new Polo.Output ();
+            o.name = head.get_name ();
+            o.vendor = head.get_vendor ();
+            o.model = head.get_model ();
+            o.product = head.get_product ();
+            o.serial = head.get_edid_serial ();
+            o.internal_panel = head.get_internal ();
+            head.get_physical_size (out o.mm_width, out o.mm_height);
+            for (int i = 0; i < head.get_mode_count (); i++) {
+                Backend.Mode mode;
+                if (head.get_mode (i, out mode)) {
+                    var m = new OutputMode ();
+                    m.width = mode.width;
+                    m.height = mode.height;
+                    m.rate = mode.refresh;
+                    m.preferred = mode.preferred;
+                    m.current = mode.current;
+                    o.modes.add (m);
+                    if (m.current) {
+                        o.width = m.width;
+                        o.height = m.height;
+                        o.rate = m.rate;
+                    }
+                }
+            }
+            o.scale = head.get_scale ();
+            o.transform = head.get_transform ();
+            o.enabled = head.get_enabled ();
+            if (o.enabled) {
+                int width, height;
+                head.get_geometry (out o.x, out o.y, out width, out height);
+            }
+            var existing = outputs.lookup (head);
+            o.primary = existing != null && existing.primary;
+            return o;
+        }
+
         private void apply_layout () {
             var monitors = new GLib.GenericArray<Polo.Output> ();
             var backends = new GLib.HashTable<Polo.Output, Backend.Output> (GLib.direct_hash, GLib.direct_equal);
             foreach (var head in heads) {
-                var o = new Polo.Output ();
-                o.name = head.get_name ();
-                o.vendor = head.get_vendor ();
-                o.model = head.get_model ();
-                o.product = head.get_product ();
-                o.serial = head.get_edid_serial ();
-                o.internal_panel = head.get_internal ();
-                head.get_physical_size (out o.mm_width, out o.mm_height);
-                for (int i = 0; i < head.get_mode_count (); i++) {
-                    Backend.Mode mode;
-                    if (head.get_mode (i, out mode)) {
-                        var m = new OutputMode ();
-                        m.width = mode.width;
-                        m.height = mode.height;
-                        m.rate = mode.refresh;
-                        m.preferred = mode.preferred;
-                        m.current = mode.current;
-                        o.modes.add (m);
-                        if (m.current) {
-                            o.width = m.width;
-                            o.height = m.height;
-                            o.rate = m.rate;
-                        }
-                    }
-                }
-                o.scale = head.get_scale ();
-                o.transform = head.get_transform ();
+                var o = describe (head);
                 monitors.add (o);
                 backends.insert (o, head);
             }
@@ -312,11 +324,13 @@ namespace Polo.Shell {
                     xrandr == null || xrandr.get_boolean ("turn-on-laptop-monitor-at-startup"),
                     xrandr == null || xrandr.get_boolean ("turn-on-external-monitors-at-startup"));
             } else {
-                foreach (var o in monitors) {
-                    o.enabled = backends[o].get_enabled ();
-                }
                 Outputs.Layout.ensure_primary (monitors);
             }
+            commit (monitors, backends);
+        }
+
+        private bool commit (GLib.GenericArray<Polo.Output> monitors,
+                             GLib.HashTable<Polo.Output, Backend.Output> backends) {
             bool success = true;
             /* Enable destinations before disabling sources, so windows can relocate. */
             for (int pass = 0; pass < 2; pass++) {
@@ -366,6 +380,83 @@ namespace Polo.Shell {
             }
             decorations.set_image_scale (image_scale);
             layer_shell.arrange ();
+            server.output_state_changed ();
+            return success;
+        }
+
+        private static bool has_mode (Polo.Output o, int width, int height, int refresh) {
+            foreach (var mode in o.modes) {
+                if (mode.width == width && mode.height == height &&
+                    (refresh == 0 || (mode.rate - refresh).abs () <= 1000)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        public bool apply_requests (Backend.OutputRequest[] requests, bool test) {
+            if (!drm) {
+                return false;
+            }
+            var before = new GLib.GenericArray<Polo.Output> ();
+            var after = new GLib.GenericArray<Polo.Output> ();
+            var backends = new GLib.HashTable<Polo.Output, Backend.Output> (GLib.direct_hash, GLib.direct_equal);
+            bool any_enabled = false;
+            foreach (var head in heads) {
+                var current = describe (head);
+                before.add (current);
+                backends.insert (current, head);
+                var wanted = describe (head);
+                Backend.OutputRequest? request = null;
+                foreach (var candidate in requests) {
+                    if (candidate.output == head) {
+                        request = candidate;
+                    }
+                }
+                if (request == null) {
+                    return false;
+                }
+                wanted.enabled = request.enabled;
+                if (wanted.enabled) {
+                    if (!has_mode (wanted, request.width, request.height, request.refresh) ||
+                        (request.adaptive_sync && !head.get_adaptive_sync_supported ())) {
+                        return false;
+                    }
+                    wanted.width = request.width;
+                    wanted.height = request.height;
+                    wanted.rate = request.refresh;
+                    wanted.x = request.x;
+                    wanted.y = request.y;
+                    wanted.transform = request.transform;
+                    wanted.scale = (int) GLib.Math.round (request.scale).clamp (1, 8);
+                    any_enabled = true;
+                }
+                after.add (wanted);
+                backends.insert (wanted, head);
+            }
+            if (!any_enabled) {
+                return false;
+            }
+            if (test) {
+                return true;
+            }
+            Outputs.Layout.ensure_primary (after);
+            bool ok = commit (after, backends);
+            for (uint i = 0; ok && i < after.length; i++) {
+                bool vrr = false;
+                foreach (var request in requests) {
+                    if (request.output == backends[after[i]]) {
+                        vrr = request.adaptive_sync;
+                    }
+                }
+                if (after[i].enabled) {
+                    ok = backends[after[i]].set_adaptive_sync (vrr);
+                }
+            }
+            if (!ok) {
+                commit (before, backends);
+            }
+            return ok;
         }
 
         /* ---- Seats and input -------------------------------------------- */

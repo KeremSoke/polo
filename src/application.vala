@@ -93,6 +93,7 @@ namespace Polo {
         private Logind? logind = null;
         private IdleTracker? idle_tracker = null;
         private Protocols.SessionLock? session_lock = null;
+        private Protocols.OutputManagement? output_management = null;
         private WindowStates? window_states = null;
 #if POLO_HAVE_XSMP
         private XsmpSession? xsmp = null;
@@ -213,6 +214,7 @@ namespace Polo {
             start_xwayland ();
 #endif
             workspaces = new Protocols.Workspaces (server, model, write_preference);
+            output_management = new Protocols.OutputManagement (server, desktop);
             foreign_toplevels.set_workspaces (workspaces);
 
             GLib.Unix.signal_add (GLib.ProcessSignal.INT, () => {
@@ -552,6 +554,10 @@ namespace Polo {
             }
             if (workspaces != null) {
                 workspaces.shutdown ();
+                if (output_management != null) {
+                    output_management.shutdown ();
+                    output_management = null;
+                }
                 workspaces = null;
             }
             if (foreign_toplevels != null) {
