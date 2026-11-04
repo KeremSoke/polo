@@ -717,6 +717,14 @@ polo_backend_toplevel_get_title(PoloBackendToplevel *toplevel);
 const char *
 polo_backend_toplevel_get_app_id(PoloBackendToplevel *toplevel);
 
+/* The xdg_toplevel_icon_v1 icon: a stock name, Cairo ARGB32 pixels of
+ * size x size, or neither. */
+const char *
+polo_backend_toplevel_get_icon_name(PoloBackendToplevel *toplevel);
+
+GBytes *
+polo_backend_toplevel_get_icon_pixels(PoloBackendToplevel *toplevel, int *size);
+
 int
 polo_backend_toplevel_get_pid(PoloBackendToplevel *toplevel);
 
@@ -1248,6 +1256,14 @@ polo_backend_shell_ui_hide_dialog(PoloBackendShellUi *shell_ui,
 void
 polo_backend_shell_ui_lookup_color(PoloBackendShellUi *shell_ui,
 				   const char *name);
+
+/* Asks for a window's icons; the reply comes through icon with the same
+ * @serial. Returns FALSE when no helper is bound. */
+gboolean
+polo_backend_shell_ui_lookup_icon(PoloBackendShellUi *shell_ui, guint serial,
+				  const char *name, const char *desktop_id,
+				  int mini_size, int size, int scale,
+				  gboolean fallback);
 
 /* The dialog id polo-shell-ui gave @toplevel's surface (dialog_surface), or 0. */
 guint

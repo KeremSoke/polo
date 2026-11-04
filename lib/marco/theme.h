@@ -970,7 +970,18 @@ polo_marco_frame_render(PoloTheme *theme, PoloThemeColors *colors,
 			double dpi, const PoloButtonLayout *button_layout,
 			const PoloButtonState *button_states, int piece_x,
 			int piece_y, guint8 *pixels, int width, int height,
-			int stride, int scale);
+			int stride, int scale, GdkPixbuf *mini_icon,
+			GdkPixbuf *icon);
+
+/* The _NET_WM_ICON image nearest size, as a size x size icon. */
+GdkPixbuf *
+polo_marco_icon_new_from_net_wm_icon(const guint32 *data, gsize n_items,
+				     int size);
+
+/* An icon from Cairo ARGB32 pixels, scaled to size x size unless size is 0. */
+GdkPixbuf *
+polo_marco_icon_new_from_argb32(const guint8 *pixels, int width, int height,
+				int stride, int size);
 
 /* Releases Pango's cached fonts before exit. */
 void

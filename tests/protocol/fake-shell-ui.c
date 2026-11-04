@@ -8,11 +8,14 @@
  * with response -5 "yes" (or $FAKE_SHELL_UI_DIALOG_RESPONSE) and hide_dialog
  * with a colour table. With FAKE_SHELL_UI_EXIT it exits right after binding;
  * with FAKE_SHELL_UI_SELECT=N it picks entry N of every switcher it shows.
+ * lookup_icon gets green icons for a name or desktop id in the
+ * space-separated $FAKE_SHELL_UI_ICON, red ones as the fallback.
  */
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/mman.h>
 #include <unistd.h>
 #include <wayland-client.h>
 #include "polo-shell-ui-v1-client-protocol.h"
@@ -220,6 +223,57 @@ lookup_color(void *data, struct polo_shell_ui_v1 *ui, const char *name)
 	wl_array_release(&empty);
 }
 
+static int
+known_icon(const char *name)
+{
+	const char *known = getenv("FAKE_SHELL_UI_ICON");
+	size_t length = name ? strlen(name) : 0;
+
+	for (const char *p = known; p && length && *p;) {
+		const char *end = strchr(p, ' ');
+		size_t word = end ? (size_t)(end - p) : strlen(p);
+
+		if (word == length && strncmp(p, name, length) == 0)
+			return 1;
+		p += word + (end ? 1 : 0);
+	}
+	return 0;
+}
+
+static void
+lookup_icon(void *data, struct polo_shell_ui_v1 *ui, uint32_t serial,
+	    const char *name, const char *desktop_id, int32_t mini_size,
+	    int32_t size, int32_t scale, uint32_t fallback)
+{
+	int found = known_icon(name) || known_icon(desktop_id);
+	int mini = mini_size * scale, full = size * scale;
+	size_t bytes = ((size_t)mini * mini + (size_t)full * full) * 4;
+	uint32_t *pixels;
+	int fd;
+
+	record("lookup_icon %s %s %d %d %d %u", name ? name : "(null)",
+	       desktop_id ? desktop_id : "(null)", mini_size, size, scale,
+	       fallback);
+	if (!found && !fallback) {
+		polo_shell_ui_v1_no_icon(ui, serial);
+		return;
+	}
+	fd = memfd_create("fake-icon", MFD_CLOEXEC);
+	if (fd < 0 || ftruncate(fd, (off_t)bytes) != 0 ||
+	    (pixels = mmap(NULL, bytes, PROT_WRITE, MAP_SHARED, fd, 0)) ==
+		    MAP_FAILED) {
+		if (fd >= 0)
+			close(fd);
+		polo_shell_ui_v1_no_icon(ui, serial);
+		return;
+	}
+	for (size_t i = 0; i < bytes / 4; i++)
+		pixels[i] = found ? 0xff00ff00 : 0xffff0000;
+	munmap(pixels, bytes);
+	polo_shell_ui_v1_icon(ui, serial, fd, mini, mini, full, full);
+	close(fd);
+}
+
 static const struct polo_shell_ui_v1_listener shell_ui_listener = {
 	.switcher_entry = switcher_entry,
 	.switcher_thumbnail = switcher_thumbnail,
@@ -239,6 +293,7 @@ static const struct polo_shell_ui_v1_listener shell_ui_listener = {
 	.show_dialog = show_dialog,
 	.hide_dialog = hide_dialog,
 	.lookup_color = lookup_color,
+	.lookup_icon = lookup_icon,
 };
 
 static void

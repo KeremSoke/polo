@@ -351,12 +351,6 @@ void
 polo_backend_toplevel_set_icon(struct weston_desktop_surface *surface,
 			       const char *name, GBytes *pixels, int size);
 
-const char *
-polo_backend_toplevel_get_icon_name(PoloBackendToplevel *toplevel);
-
-GBytes *
-polo_backend_toplevel_get_icon_pixels(PoloBackendToplevel *toplevel, int *size);
-
 gboolean
 polo_backend_security_context_init(PoloBackendServer *server, GError **error);
 

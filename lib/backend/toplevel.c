@@ -50,6 +50,7 @@ enum {
 	SIGNAL_REQUEST_WINDOW_MENU,
 	SIGNAL_PING_TIMEOUT,
 	SIGNAL_PONG,
+	SIGNAL_ICON_CHANGED,
 	SIGNAL_DESTROYED,
 	N_SIGNALS,
 };
@@ -284,6 +285,7 @@ polo_backend_toplevel_set_icon(struct weston_desktop_surface *surface,
 	g_clear_pointer(&self->icon_pixels, g_bytes_unref);
 	self->icon_pixels = pixels ? g_bytes_ref(pixels) : NULL;
 	self->icon_size = size;
+	g_signal_emit(self, signals[SIGNAL_ICON_CHANGED], 0);
 }
 
 const char *
@@ -770,6 +772,9 @@ polo_backend_toplevel_class_init(PoloBackendToplevelClass *klass)
 			     NULL, NULL, G_TYPE_NONE, 0);
 	signals[SIGNAL_PONG] = g_signal_new("pong", type, G_SIGNAL_RUN_LAST, 0,
 					    NULL, NULL, NULL, G_TYPE_NONE, 0);
+	signals[SIGNAL_ICON_CHANGED] =
+		g_signal_new("icon-changed", type, G_SIGNAL_RUN_LAST, 0, NULL,
+			     NULL, NULL, G_TYPE_NONE, 0);
 	signals[SIGNAL_DESTROYED] =
 		g_signal_new("destroyed", type, G_SIGNAL_RUN_LAST, 0, NULL,
 			     NULL, NULL, G_TYPE_NONE, 0);

@@ -17,6 +17,7 @@ namespace Polo.Decor {
         public uint serial { get; private set; default = 0; }
 
         public signal void changed ();
+        public signal void icons_changed ();
 
         public unowned Marco.Theme? get_theme () {
             return theme;
@@ -37,6 +38,9 @@ namespace Polo.Decor {
             shell_ui.color_table.connect (on_color_table);
             shell_ui.custom_color.connect (on_custom_color);
             shell_ui.bound.connect (ask_custom_colors);
+            shell_ui.icon.connect (on_icon);
+            shell_ui.icon_theme_changed.connect (on_icon_theme_changed);
+            shell_ui.bound.connect (on_icon_theme_changed);
             ask_custom_colors ();
         }
 
@@ -45,21 +49,80 @@ namespace Polo.Decor {
                 shell_ui.color_table.disconnect (on_color_table);
                 shell_ui.custom_color.disconnect (on_custom_color);
                 shell_ui.bound.disconnect (ask_custom_colors);
+                shell_ui.icon.disconnect (on_icon);
+                shell_ui.icon_theme_changed.disconnect (on_icon_theme_changed);
+                shell_ui.bound.disconnect (on_icon_theme_changed);
             }
+            icon_requests.remove_all ();
         }
 
         private string? theme_name = null;
-        private int image_scale = 1;
+        private int _image_scale = 1;
+        public int image_scale { get { return _image_scale; } }
+        /* Marco's icon-size preference, for icons bigger than the mini icon. */
+        private int _icon_size = 48;
+        public int icon_size { get { return _icon_size; } }
 
         /* Marco loads theme images at the root-window scale; use the highest output scale. */
         public void set_image_scale (int scale) {
             if (scale == image_scale) {
                 return;
             }
-            image_scale = scale;
+            _image_scale = scale;
             if (theme_name != null) {
                 load_theme (theme_name);
             }
+            icons_changed ();
+        }
+
+        public void set_icon_size (int size) {
+            if (size > 0 && size != icon_size) {
+                _icon_size = size;
+                icons_changed ();
+            }
+        }
+
+        private GLib.HashTable<uint, unowned WindowIcon> icon_requests =
+            new GLib.HashTable<uint, unowned WindowIcon> (GLib.direct_hash, GLib.direct_equal);
+        private uint icon_serial = 0;
+
+        internal uint request_icon (WindowIcon icon, string? name, string? desktop_id, bool fallback) {
+            if (shell_ui == null) {
+                return 0;
+            }
+            if (++icon_serial == 0) {
+                icon_serial = 1;
+            }
+            if (!shell_ui.lookup_icon (icon_serial, name, desktop_id, WindowIcon.MINI_SIZE, icon_size,
+                                       image_scale, fallback)) {
+                return 0;
+            }
+            icon_requests[icon_serial] = icon;
+            return icon_serial;
+        }
+
+        internal void forget_icon (uint serial) {
+            icon_requests.remove (serial);
+        }
+
+        private void on_icon (uint serial, GLib.Bytes? mini_pixels, int mini_width, int mini_height,
+                              GLib.Bytes? pixels, int width, int height) {
+            unowned WindowIcon? icon = icon_requests[serial];
+            if (icon == null) {
+                return;
+            }
+            icon_requests.remove (serial);
+            Marco.Icon? mini = null;
+            Marco.Icon? full = null;
+            if (mini_pixels != null && pixels != null) {
+                mini = Marco.Icon.from_argb32 (mini_pixels.get_data (), mini_width, mini_height, mini_width * 4, 0);
+                full = Marco.Icon.from_argb32 (pixels.get_data (), width, height, width * 4, 0);
+            }
+            icon.answer (serial, (owned) mini, (owned) full);
+        }
+
+        private void on_icon_theme_changed () {
+            icons_changed ();
         }
 
         /* Keep the current theme if loading the new one fails. */

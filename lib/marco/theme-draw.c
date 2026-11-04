@@ -986,10 +986,14 @@ fill_env(PoloPositionExprEnv *env, const PoloDrawInfo *info,
 		env->frame_y_center = 0;
 	}
 
-	env->mini_icon_width =
-		info->mini_icon ? gdk_pixbuf_get_width(info->mini_icon) : 0;
-	env->mini_icon_height =
-		info->mini_icon ? gdk_pixbuf_get_height(info->mini_icon) : 0;
+	env->mini_icon_width = info->mini_icon
+		? gdk_pixbuf_get_width(info->mini_icon) /
+			polo_marco_get_image_scale()
+		: 0;
+	env->mini_icon_height = info->mini_icon
+		? gdk_pixbuf_get_height(info->mini_icon) /
+			polo_marco_get_image_scale()
+		: 0;
 	env->icon_width = info->icon ? gdk_pixbuf_get_width(info->icon) : 0;
 	env->icon_height = info->icon ? gdk_pixbuf_get_height(info->icon) : 0;
 

@@ -24,6 +24,8 @@
              summary="a second polo_shell_ui_v1 was bound"/>
       <entry name="invalid_color_table" value="1"
              summary="the colour table has the wrong size"/>
+      <entry name="invalid_icon" value="2"
+             summary="icon sizes do not match the pixels sent"/>
     </enum>
 
     <enum name="switcher_entry_flags" bitfield="true">
@@ -287,6 +289,42 @@
       </description>
       <arg name="name" type="string"/>
       <arg name="rgba" type="array"/>
+    </request>
+    <event name="lookup_icon">
+      <description summary="load a window's icons from the icon theme">
+        The icon theme's name if it has it, else the icon of the desktop
+        file desktop_id, as Marco's load_window_icon_from_desktop_id ()
+        loads it; with neither and fallback set, Marco's default window
+        icon (preferences-desktop-theme, else image-missing). Each comes
+        at mini_size and at size, in logical pixels at scale. The client
+        replies once with icon or no_icon.
+      </description>
+      <arg name="serial" type="uint"/>
+      <arg name="name" type="string" allow-null="true"/>
+      <arg name="desktop_id" type="string" allow-null="true"/>
+      <arg name="mini_size" type="int"/>
+      <arg name="size" type="int"/>
+      <arg name="scale" type="int"/>
+      <arg name="fallback" type="uint"/>
+    </event>
+    <request name="icon">
+      <description summary="reply to lookup_icon">
+        pixels holds the mini icon, then the icon, each Cairo ARGB32 with
+        stride width × 4. Sizes are in pixels.
+      </description>
+      <arg name="serial" type="uint"/>
+      <arg name="pixels" type="fd"/>
+      <arg name="mini_width" type="int"/>
+      <arg name="mini_height" type="int"/>
+      <arg name="width" type="int"/>
+      <arg name="height" type="int"/>
+    </request>
+    <request name="no_icon">
+      <description summary="reply to lookup_icon: nothing found"/>
+      <arg name="serial" type="uint"/>
+    </request>
+    <request name="icon_theme_changed">
+      <description summary="icons looked up so far may have changed"/>
     </request>
   </interface>
 </protocol>

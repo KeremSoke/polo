@@ -23,7 +23,7 @@ shell_ui_resources = import('gnome').compile_resources('shell-ui-resources', 'sh
 )
 
 shell_ui_exe = executable('polo-shell-ui',
-  'main.vala', 'alt-tab.vala', 'window-menu.vala', 'dialogs.vala', shell_ui_resources,
+  'main.vala', 'alt-tab.vala', 'window-menu.vala', 'dialogs.vala', 'window-icons.vala', shell_ui_resources,
   vala_args: vala_args + ['--pkg', 'polo-shell-ui-client'],
   c_args: vala_c_args,
   include_directories: include_directories('.'),

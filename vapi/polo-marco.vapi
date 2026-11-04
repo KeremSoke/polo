@@ -724,6 +724,22 @@ namespace Polo.Marco {
     public class FrameStyle {
     }
 
+    /* A window icon as the theme draws it (a GdkPixbuf). */
+    [Compact]
+    [CCode (cname = "GdkPixbuf", cheader_filename = "theme-parser.h", ref_function = "g_object_ref",
+            unref_function = "g_object_unref")]
+    public class Icon {
+        [CCode (cname = "polo_marco_icon_new_from_net_wm_icon")]
+        public static Icon? from_net_wm_icon ([CCode (array_length_type = "gsize")] uint32[] data, int size);
+
+        [CCode (cname = "polo_marco_icon_new_from_argb32")]
+        public static Icon? from_argb32 ([CCode (array_length = false)] uint8[] pixels, int width, int height,
+                                         int stride, int size);
+
+        public int width { [CCode (cname = "gdk_pixbuf_get_width")] get; }
+        public int height { [CCode (cname = "gdk_pixbuf_get_height")] get; }
+    }
+
     /* A Marco (Metacity) window theme, as meta_theme_load () finds it. */
     [Compact]
     [CCode (cname = "PoloTheme", free_function = "polo_marco_theme_free", cheader_filename = "theme-parser.h")]
@@ -754,7 +770,8 @@ namespace Polo.Marco {
                             ButtonLayout button_layout,
                             [CCode (array_length = false)] ButtonState[] button_states,
                             int piece_x, int piece_y, [CCode (array_length = false)] uint8[] pixels,
-                            int width, int height, int stride, int scale);
+                            int width, int height, int stride, int scale, Icon? mini_icon = null,
+                            Icon? icon = null);
 
         [CCode (cname = "polo_marco_theme_calc_geometry")]
         public void calc_geometry (FrameType type, int text_height, FrameFlags flags,

@@ -3830,7 +3830,7 @@ read_list(struct weston_wm *wm, uint32_t xid, const char *property)
 	xcb_get_property_reply_t *reply = xcb_get_property_reply(
 		wm->conn,
 		xcb_get_property(wm->conn, 0, xid, intern(wm, property),
-				 XCB_ATOM_ANY, 0, 1024),
+				 XCB_ATOM_ANY, 0, UINT32_MAX / 4),
 		NULL);
 
 	if (reply && (reply->format != 32 || reply->value_len == 0)) {

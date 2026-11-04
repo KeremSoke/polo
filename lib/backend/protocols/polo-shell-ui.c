@@ -19,6 +19,7 @@
 
 #define SHELL_UI_VERSION 1
 #define COLOR_TABLE_FLOATS (8 * 5 * 4)
+#define MAX_ICON_SIZE 1024
 
 struct dialog_surface {
 	struct wl_list link;
@@ -52,6 +53,8 @@ enum {
 	SIGNAL_DIALOG_RESPONSE,
 	SIGNAL_COLOR_TABLE,
 	SIGNAL_CUSTOM_COLOR,
+	SIGNAL_ICON,
+	SIGNAL_ICON_THEME_CHANGED,
 	N_SIGNALS,
 };
 
@@ -185,6 +188,75 @@ handle_custom_color(struct wl_client *client, struct wl_resource *resource,
 	g_signal_emit(self, signals[SIGNAL_CUSTOM_COLOR], 0, name, bytes);
 }
 
+static GBytes *
+icon_bytes(const guint8 *data, int width, int height)
+{
+	return g_bytes_new(data, (gsize)width * height * 4);
+}
+
+static void
+handle_icon(struct wl_client *client, struct wl_resource *resource,
+	    uint32_t serial, int32_t fd, int32_t mini_width,
+	    int32_t mini_height, int32_t width, int32_t height)
+{
+	PoloBackendShellUi *self = wl_resource_get_user_data(resource);
+	g_autoptr(GBytes) mini = NULL;
+	g_autoptr(GBytes) icon = NULL;
+	gsize mini_size, size;
+	off_t length;
+	void *data;
+
+	if (mini_width <= 0 || mini_height <= 0 || width <= 0 || height <= 0 ||
+	    mini_width > MAX_ICON_SIZE || mini_height > MAX_ICON_SIZE ||
+	    width > MAX_ICON_SIZE || height > MAX_ICON_SIZE) {
+		close(fd);
+		wl_resource_post_error(resource,
+				       POLO_SHELL_UI_V1_ERROR_INVALID_ICON,
+				       "icon sizes %dx%d and %dx%d", mini_width,
+				       mini_height, width, height);
+		return;
+	}
+	mini_size = (gsize)mini_width * mini_height * 4;
+	size = (gsize)width * height * 4;
+	length = lseek(fd, 0, SEEK_END);
+	if (length < 0 || (gsize)length < mini_size + size) {
+		close(fd);
+		wl_resource_post_error(resource,
+				       POLO_SHELL_UI_V1_ERROR_INVALID_ICON,
+				       "icon pixels need %zu bytes",
+				       mini_size + size);
+		return;
+	}
+	data = mmap(NULL, mini_size + size, PROT_READ, MAP_PRIVATE, fd, 0);
+	close(fd);
+	if (data == MAP_FAILED) {
+		g_signal_emit(self, signals[SIGNAL_ICON], 0, serial, NULL, 0,
+			      0, NULL, 0, 0);
+		return;
+	}
+	mini = icon_bytes(data, mini_width, mini_height);
+	icon = icon_bytes((const guint8 *)data + mini_size, width, height);
+	munmap(data, mini_size + size);
+	g_signal_emit(self, signals[SIGNAL_ICON], 0, serial, mini, mini_width,
+		      mini_height, icon, width, height);
+}
+
+static void
+handle_no_icon(struct wl_client *client, struct wl_resource *resource,
+	       uint32_t serial)
+{
+	g_signal_emit(wl_resource_get_user_data(resource), signals[SIGNAL_ICON],
+		      0, serial, NULL, 0, 0, NULL, 0, 0);
+}
+
+static void
+handle_icon_theme_changed(struct wl_client *client,
+			  struct wl_resource *resource)
+{
+	g_signal_emit(wl_resource_get_user_data(resource),
+		      signals[SIGNAL_ICON_THEME_CHANGED], 0);
+}
+
 static const struct polo_shell_ui_v1_interface shell_ui_impl = {
 	.destroy = handle_destroy,
 	.switcher_select = handle_switcher_select,
@@ -193,6 +265,9 @@ static const struct polo_shell_ui_v1_interface shell_ui_impl = {
 	.dialog_response = handle_dialog_response,
 	.color_table = handle_color_table,
 	.custom_color = handle_custom_color,
+	.icon = handle_icon,
+	.no_icon = handle_no_icon,
+	.icon_theme_changed = handle_icon_theme_changed,
 };
 
 static struct weston_pointer *
@@ -703,6 +778,21 @@ polo_backend_shell_ui_lookup_color(PoloBackendShellUi *self, const char *name)
 		polo_shell_ui_v1_send_lookup_color(self->resource, name);
 }
 
+gboolean
+polo_backend_shell_ui_lookup_icon(PoloBackendShellUi *self, guint serial,
+				  const char *name, const char *desktop_id,
+				  int mini_size, int size, int scale,
+				  gboolean fallback)
+{
+	g_return_val_if_fail(POLO_BACKEND_IS_SHELL_UI(self), FALSE);
+	if (!self->resource)
+		return FALSE;
+	polo_shell_ui_v1_send_lookup_icon(self->resource, serial, name,
+					  desktop_id, mini_size, size, scale,
+					  fallback);
+	return TRUE;
+}
+
 void
 polo_backend_shell_ui_hide_dialog(PoloBackendShellUi *self, guint dialog_id)
 {
@@ -739,6 +829,13 @@ polo_backend_shell_ui_class_init(PoloBackendShellUiClass *klass)
 	signals[SIGNAL_CUSTOM_COLOR] = g_signal_new(
 		"custom-color", G_TYPE_FROM_CLASS(klass), G_SIGNAL_RUN_LAST, 0,
 		NULL, NULL, NULL, G_TYPE_NONE, 2, G_TYPE_STRING, G_TYPE_BYTES);
+	signals[SIGNAL_ICON] = g_signal_new(
+		"icon", G_TYPE_FROM_CLASS(klass), G_SIGNAL_RUN_LAST, 0, NULL,
+		NULL, NULL, G_TYPE_NONE, 7, G_TYPE_UINT, G_TYPE_BYTES,
+		G_TYPE_INT, G_TYPE_INT, G_TYPE_BYTES, G_TYPE_INT, G_TYPE_INT);
+	signals[SIGNAL_ICON_THEME_CHANGED] = g_signal_new(
+		"icon-theme-changed", G_TYPE_FROM_CLASS(klass),
+		G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL, G_TYPE_NONE, 0);
 }
 
 static void

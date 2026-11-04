@@ -36,7 +36,18 @@ namespace PoloShellUi {
         [CCode (cname = "polo_shell_ui_client_custom_color")]
         public void custom_color (string name, [CCode (array_length = false)] float[]? rgba);
 
+        [CCode (cname = "polo_shell_ui_client_icon")]
+        public void icon (uint serial, Cairo.ImageSurface mini_icon, Cairo.ImageSurface icon);
+
+        [CCode (cname = "polo_shell_ui_client_no_icon")]
+        public void no_icon (uint serial);
+
+        [CCode (cname = "polo_shell_ui_client_icon_theme_changed")]
+        public void icon_theme_changed ();
+
         public signal void lookup_color (string name);
+        public signal void lookup_icon (uint serial, string? name, string? desktop_id, int mini_size, int size,
+                                        int scale, bool fallback);
         public signal void switcher_entry (uint id, string title, string? app_id, uint flags);
         public signal void switcher_thumbnail (uint id, Cairo.ImageSurface thumbnail);
         public signal void switcher_icon_name (uint id, string name);

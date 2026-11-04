@@ -620,6 +620,13 @@ namespace Polo {
             [CCode (cname = "polo_backend_toplevel_get_pid")]
             public int get_pid ();
 
+            [CCode (cname = "polo_backend_toplevel_get_icon_name")]
+            public unowned string? get_icon_name ();
+
+            /* Cairo ARGB32, size × size. */
+            [CCode (cname = "polo_backend_toplevel_get_icon_pixels")]
+            public unowned GLib.Bytes? get_icon_pixels (out int size);
+
             [CCode (cname = "polo_backend_toplevel_get_parent")]
             public unowned Toplevel? get_parent ();
 
@@ -693,6 +700,7 @@ namespace Polo {
             public signal void request_window_menu (Seat seat, double x, double y);
             public signal void ping_timeout ();
             public signal void pong ();
+            public signal void icon_changed ();
             public signal void destroyed ();
         }
 
@@ -982,6 +990,10 @@ namespace Polo {
             [CCode (cname = "polo_backend_shell_ui_lookup_color")]
             public void lookup_color (string name);
 
+            [CCode (cname = "polo_backend_shell_ui_lookup_icon")]
+            public bool lookup_icon (uint serial, string? name, string? desktop_id, int mini_size, int size,
+                                     int scale, bool fallback);
+
             [CCode (cname = "polo_backend_shell_ui_hide_dialog")]
             public void hide_dialog (uint dialog_id);
             /* Returns the dialog id for @toplevel's surface, or 0. */
@@ -994,6 +1006,10 @@ namespace Polo {
             public signal void menu_action (uint window_id, MenuOp op, int workspace);
             public signal void dialog_response (uint dialog_id, int response, string? text);
             public signal void custom_color (string name, GLib.Bytes? rgba);
+            /* Cairo ARGB32 pixels with stride width × 4; null when nothing was found. */
+            public signal void icon (uint serial, GLib.Bytes? mini_pixels, int mini_width, int mini_height,
+                                     GLib.Bytes? pixels, int width, int height);
+            public signal void icon_theme_changed ();
             public signal void color_table (GLib.Bytes colors);
         }
 

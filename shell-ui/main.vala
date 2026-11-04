@@ -12,16 +12,49 @@ namespace PoloShellUi {
         private WindowMenu window_menu;
         private Dialogs dialogs;
         private ColorResolver colors;
+        private WindowIcons icons;
+        private GLib.Settings? interface_settings = null;
 
         public Helper (Client client) {
             Object (client: client);
         }
 
         construct {
+            follow_gtk_theme ();
             alt_tab = new AltTab (client);
             window_menu = new WindowMenu (client);
             dialogs = new Dialogs (client);
             colors = new ColorResolver (client);
+            icons = new WindowIcons (client);
+        }
+
+        /* Marco's frames take their colours and icons from the GTK and icon themes MATE sets, which reached
+         * it through XSETTINGS. */
+        private void follow_gtk_theme () {
+            var source = GLib.SettingsSchemaSource.get_default ();
+            var schema = source != null ? source.lookup ("org.mate.interface", true) : null;
+            if (schema == null || !schema.has_key ("gtk-theme")) {
+                return;
+            }
+            interface_settings = new GLib.Settings.full (schema, null, null);
+            interface_settings.changed["gtk-theme"].connect (apply_gtk_theme);
+            interface_settings.changed["icon-theme"].connect (apply_icon_theme);
+            apply_gtk_theme ();
+            apply_icon_theme ();
+        }
+
+        private void apply_gtk_theme () {
+            var name = interface_settings.get_string ("gtk-theme");
+            if (name != "") {
+                Gtk.Settings.get_default ().gtk_theme_name = name;
+            }
+        }
+
+        private void apply_icon_theme () {
+            var name = interface_settings.get_string ("icon-theme");
+            if (name != "") {
+                Gtk.Settings.get_default ().gtk_icon_theme_name = name;
+            }
         }
     }
 

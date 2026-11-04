@@ -36,6 +36,7 @@ namespace Polo.Shell {
 
         private Decor.Frame? decor = null;
         private Decor.Shadow? shadow = null;
+        private Decor.WindowIcon? icon = null;
 
         private bool mapped_hints = false;
         private int last_min_w;
@@ -102,6 +103,7 @@ namespace Polo.Shell {
             toplevel.pong.connect (on_pong);
             toplevel.destroyed.connect (on_destroyed);
             toplevel.decoration_changed.connect (on_decoration_changed);
+            toplevel.icon_changed.connect (reload_icon);
         }
 
         private unowned LogScope log () {
@@ -166,6 +168,9 @@ namespace Polo.Shell {
             if (decor == null) {
                 decor = new Decor.Frame (desktop.server, desktop.decorations);
                 decor.ready.connect (desktop.frames_changed);
+                icon = new Decor.WindowIcon (desktop.decorations);
+                icon.changed.connect (refresh_frame);
+                reload_icon ();
             }
             return !equal_borders (old, window.borders);
         }
@@ -186,7 +191,8 @@ namespace Polo.Shell {
             var flags = Decor.FrameState.flags_of (window);
             int scale = frame_scale ();
             decor.update (type, flags, window.frame.width - window.borders.left - window.borders.right,
-                          window.frame.height - window.borders.top - window.borders.bottom, window.title, scale);
+                          window.frame.height - window.borders.top - window.borders.bottom, window.title, scale,
+                          icon);
             refresh_shadow (flags, scale);
             place_frame ();
         }
@@ -213,6 +219,11 @@ namespace Polo.Shell {
                 decor.clear ();
                 decor.ready.disconnect (desktop.frames_changed);
                 decor = null;
+            }
+            if (icon != null) {
+                icon.changed.disconnect (refresh_frame);
+                icon.dispose ();
+                icon = null;
             }
             drop_shadow ();
         }
@@ -328,6 +339,32 @@ namespace Polo.Shell {
 
         private void on_app_id_changed () {
             window.app_id = toplevel.app_id;
+            reload_icon ();
+        }
+
+        /* Where the frame's icons come from, in the order they are tried. Marco has no
+         * Wayland windows; this is the order the Alt-Tab popup uses for them. */
+        protected virtual void icon_sources (Decor.WindowIcon icon) {
+            icon.add_theme (toplevel.get_icon_name (), null);
+            int size;
+            GLib.Bytes? pixels = toplevel.get_icon_pixels (out size);
+            if (pixels != null && size > 0 && pixels.get_size () >= (size_t) size * size * 4) {
+                icon.add_local ((wanted) => Marco.Icon.from_argb32 (pixels.get_data (), size, size, size * 4, wanted));
+            }
+            unowned string? app_id = toplevel.app_id;
+            if (app_id != null && app_id != "") {
+                icon.add_theme (null, app_id + ".desktop");
+                icon.add_theme (app_id, null);
+            }
+        }
+
+        protected void reload_icon () {
+            if (icon == null) {
+                return;
+            }
+            icon.clear_sources ();
+            icon_sources (icon);
+            icon.reload ();
         }
 
         /* ---- WindowAdapter ---------------------------------------------- */

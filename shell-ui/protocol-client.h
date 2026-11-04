@@ -58,6 +58,17 @@ void
 polo_shell_ui_client_custom_color(PoloShellUiClient *client, const char *name,
 				  const float *rgba);
 
+/* Both are Cairo ARGB32 image surfaces. */
+void
+polo_shell_ui_client_icon(PoloShellUiClient *client, guint serial,
+			  cairo_surface_t *mini_icon, cairo_surface_t *icon);
+
+void
+polo_shell_ui_client_no_icon(PoloShellUiClient *client, guint serial);
+
+void
+polo_shell_ui_client_icon_theme_changed(PoloShellUiClient *client);
+
 G_END_DECLS
 
 #endif

@@ -44,6 +44,7 @@ enum {
 	SIGNAL_SHOW_DIALOG,
 	SIGNAL_HIDE_DIALOG,
 	SIGNAL_LOOKUP_COLOR,
+	SIGNAL_LOOKUP_ICON,
 	N_SIGNALS,
 };
 
@@ -264,6 +265,15 @@ lookup_color(void *data, struct polo_shell_ui_v1 *shell_ui, const char *name)
 	g_signal_emit(data, signals[SIGNAL_LOOKUP_COLOR], 0, name);
 }
 
+static void
+lookup_icon(void *data, struct polo_shell_ui_v1 *shell_ui, uint32_t serial,
+	    const char *name, const char *desktop_id, int32_t mini_size,
+	    int32_t size, int32_t scale, uint32_t fallback)
+{
+	g_signal_emit(data, signals[SIGNAL_LOOKUP_ICON], 0, serial, name,
+		      desktop_id, mini_size, size, scale, fallback != 0);
+}
+
 static const struct polo_shell_ui_v1_listener shell_ui_listener = {
 	.switcher_entry = switcher_entry,
 	.switcher_icon_name = switcher_icon_name,
@@ -283,6 +293,7 @@ static const struct polo_shell_ui_v1_listener shell_ui_listener = {
 	.show_dialog = show_dialog,
 	.hide_dialog = hide_dialog,
 	.lookup_color = lookup_color,
+	.lookup_icon = lookup_icon,
 };
 
 struct registry_scan {
@@ -411,6 +422,78 @@ polo_shell_ui_client_custom_color(PoloShellUiClient *self, const char *name,
 	wl_display_flush(self->wl_display);
 }
 
+static gboolean
+copy_surface(guint8 *to, cairo_surface_t *surface)
+{
+	int width = cairo_image_surface_get_width(surface);
+	int height = cairo_image_surface_get_height(surface);
+	int stride = cairo_image_surface_get_stride(surface);
+	const guint8 *from;
+
+	cairo_surface_flush(surface);
+	from = cairo_image_surface_get_data(surface);
+	if (!from ||
+	    cairo_image_surface_get_format(surface) != CAIRO_FORMAT_ARGB32)
+		return FALSE;
+	for (int y = 0; y < height; y++)
+		memcpy(to + (gsize)y * width * 4, from + (gsize)y * stride,
+		       (gsize)width * 4);
+	return TRUE;
+}
+
+void
+polo_shell_ui_client_icon(PoloShellUiClient *self, guint serial,
+			  cairo_surface_t *mini_icon, cairo_surface_t *icon)
+{
+	int mini_width = cairo_image_surface_get_width(mini_icon);
+	int mini_height = cairo_image_surface_get_height(mini_icon);
+	int width = cairo_image_surface_get_width(icon);
+	int height = cairo_image_surface_get_height(icon);
+	gsize mini_size = (gsize)mini_width * mini_height * 4;
+	gsize size = mini_size + (gsize)width * height * 4;
+	guint8 *pixels;
+	int fd;
+
+	g_return_if_fail(POLO_SHELL_UI_IS_CLIENT(self));
+	fd = memfd_create("polo-icon", MFD_CLOEXEC);
+	if (fd < 0 || ftruncate(fd, (off_t)size) != 0) {
+		if (fd >= 0)
+			close(fd);
+		polo_shell_ui_client_no_icon(self, serial);
+		return;
+	}
+	pixels = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	if (pixels == MAP_FAILED || !copy_surface(pixels, mini_icon) ||
+	    !copy_surface(pixels + mini_size, icon)) {
+		if (pixels != MAP_FAILED)
+			munmap(pixels, size);
+		close(fd);
+		polo_shell_ui_client_no_icon(self, serial);
+		return;
+	}
+	munmap(pixels, size);
+	polo_shell_ui_v1_icon(self->shell_ui, serial, fd, mini_width,
+			      mini_height, width, height);
+	close(fd);
+	wl_display_flush(self->wl_display);
+}
+
+void
+polo_shell_ui_client_no_icon(PoloShellUiClient *self, guint serial)
+{
+	g_return_if_fail(POLO_SHELL_UI_IS_CLIENT(self));
+	polo_shell_ui_v1_no_icon(self->shell_ui, serial);
+	wl_display_flush(self->wl_display);
+}
+
+void
+polo_shell_ui_client_icon_theme_changed(PoloShellUiClient *self)
+{
+	g_return_if_fail(POLO_SHELL_UI_IS_CLIENT(self));
+	polo_shell_ui_v1_icon_theme_changed(self->shell_ui);
+	wl_display_flush(self->wl_display);
+}
+
 void
 polo_shell_ui_client_color_table(PoloShellUiClient *self, const float *colors,
 				 int n_colors)
@@ -509,6 +592,10 @@ polo_shell_ui_client_class_init(PoloShellUiClientClass *klass)
 	signals[SIGNAL_LOOKUP_COLOR] =
 		g_signal_new("lookup-color", type, G_SIGNAL_RUN_LAST, 0, NULL,
 			     NULL, NULL, G_TYPE_NONE, 1, G_TYPE_STRING);
+	signals[SIGNAL_LOOKUP_ICON] = g_signal_new(
+		"lookup-icon", type, G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL,
+		G_TYPE_NONE, 7, G_TYPE_UINT, G_TYPE_STRING, G_TYPE_STRING,
+		G_TYPE_INT, G_TYPE_INT, G_TYPE_INT, G_TYPE_BOOLEAN);
 }
 
 static void

@@ -396,6 +396,7 @@ namespace Polo.Shell {
 
         private void on_prefs_changed () {
             bindings.rebuild (model.prefs);
+            load_decorations ();
             /* Changing general/compositing-manager can add or remove shadows. */
             restack ();
         }

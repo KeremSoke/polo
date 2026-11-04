@@ -68,6 +68,26 @@ namespace Polo.Shell {
             return true;
         }
 
+        /* meta_read_icons (): the desktop file from _GTK_APPLICATION_ID or _BAMF_DESKTOP_FILE,
+         * then _NET_WM_ICON. */
+        protected override void icon_sources (Decor.WindowIcon icon) {
+            string? desktop_id = null;
+            var application = xwindow.get_text ("_GTK_APPLICATION_ID");
+            var bamf = xwindow.get_text ("_BAMF_DESKTOP_FILE");
+            if (application != null) {
+                desktop_id = application + ".desktop";
+            } else if (bamf != null) {
+                desktop_id = GLib.Path.get_basename (bamf);
+            }
+            if (desktop_id != null && desktop_id.has_suffix (".desktop")) {
+                icon.add_theme (null, desktop_id);
+            }
+            uint32[] data = xwindow.get_cardinals ("_NET_WM_ICON");
+            if (data.length > 0) {
+                icon.add_local ((size) => Marco.Icon.from_net_wm_icon (data, size));
+            }
+        }
+
         protected override bool shows_content () {
             return !x_gone && toplevel.has_content ();
         }
@@ -85,6 +105,11 @@ namespace Polo.Shell {
 
         private void on_property_changed (string atom) {
             switch (atom) {
+                case "_NET_WM_ICON":
+                case "_GTK_APPLICATION_ID":
+                case "_BAMF_DESKTOP_FILE":
+                    reload_icon ();
+                    break;
                 case "WM_NAME":
                 case "_NET_WM_NAME":
                 case "WM_CLIENT_MACHINE":

@@ -185,7 +185,8 @@ polo_marco_frame_render(PoloTheme *theme, PoloThemeColors *colors,
 			double dpi, const PoloButtonLayout *button_layout,
 			const PoloButtonState *button_states, int piece_x,
 			int piece_y, guint8 *pixels, int width, int height,
-			int stride, int scale)
+			int stride, int scale, GdkPixbuf *mini_icon,
+			GdkPixbuf *icon)
 {
 	PangoFontDescription *font =
 		title_font(theme, type, flags, system_font, titlebar_font);
@@ -217,7 +218,7 @@ polo_marco_frame_render(PoloTheme *theme, PoloThemeColors *colors,
 	polo_marco_theme_draw_frame(theme, colors, cr, type, flags,
 				    client_width, client_height, layout,
 				    text_height(context, font), button_layout,
-				    states, NULL, NULL);
+				    states, mini_icon, icon);
 	polo_marco_theme_calc_geometry(theme, type, text_height(context, font),
 				       flags, client_width, client_height,
 				       button_layout, &fgeom);
