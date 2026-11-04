@@ -14,7 +14,11 @@ namespace Polo.Dbus {
     }
 
     public class Inhibitor : GLib.Object {
+        public const string INTERFACE = "org.gnome.SessionManager.Inhibitor";
+        private const string RESOURCE = "/org/mate/polo/dbus/org.gnome.SessionManager.Inhibitor.xml";
+
         private static uint serial = 1;
+        private Registration? exported = null;
 
         public string path { get; private set; }
         public string app_id { get; construct; }
@@ -29,6 +33,42 @@ namespace Polo.Dbus {
             Object (app_id: app_id, toplevel_xid: toplevel_xid, reason: reason, flags: flags,
                     bus_name: bus_name, cookie: cookie);
             path = "%s/Inhibitor%u".printf (Manager.PATH, serial++);
+        }
+
+        public void export (GLib.DBusConnection connection) throws GLib.Error {
+            exported = new Registration (connection, path, Registration.load (RESOURCE, INTERFACE), on_method);
+        }
+
+        public void unexport () {
+            if (exported != null) {
+                exported.unregister ();
+                exported = null;
+            }
+        }
+
+        private void on_method (string sender, string method, GLib.Variant parameters,
+                                owned GLib.DBusMethodInvocation invocation) {
+            switch (method) {
+                case "GetAppId":
+                    invocation.return_value (new GLib.Variant ("(s)", app_id));
+                    break;
+                case "GetClientId":
+                    invocation.return_dbus_error (INTERFACE + ".NotSet", "Value is not set");
+                    break;
+                case "GetReason":
+                    invocation.return_value (new GLib.Variant ("(s)", reason));
+                    break;
+                case "GetFlags":
+                    invocation.return_value (new GLib.Variant ("(u)", flags));
+                    break;
+                case "GetToplevelXid":
+                    invocation.return_value (new GLib.Variant ("(u)", toplevel_xid));
+                    break;
+                default:
+                    invocation.return_dbus_error ("org.freedesktop.DBus.Error.UnknownMethod",
+                                                  "No such method %s".printf (method));
+                    break;
+            }
         }
     }
 }

@@ -27,12 +27,18 @@ def on_private_bus(marker):
 
 
 class Polo:
-    """Headless polo --session with no autostart and no Xwayland."""
+    """Headless polo --session without Xwayland. With autostart (names of entries),
+    it starts those, each running sleep in the Application phase; otherwise nothing,
+    and the session is Running at once."""
 
-    def __init__(self, polo):
+    def __init__(self, polo, autostart=()):
         self.tmp = tempfile.mkdtemp(prefix="polo-sm-")
-        for sub in ("run", "data", "none", "config"):
+        for sub in ("run", "data", "none", "config/autostart"):
             os.makedirs(f"{self.tmp}/{sub}", mode=0o700, exist_ok=True)
+        for name in autostart:
+            with open(f"{self.tmp}/config/autostart/{name}.desktop", "w") as f:
+                f.write(f"[Desktop Entry]\nType=Application\nName={name}\nExec=sleep 30\n"
+                        "X-MATE-Autostart-Phase=Application\n")
         env = dict(os.environ, HOME=self.tmp, XDG_CONFIG_HOME=self.tmp + "/config",
                    XDG_CONFIG_DIRS=self.tmp + "/none", XDG_DATA_DIRS=self.tmp + "/data",
                    XDG_DATA_HOME=self.tmp + "/none", XDG_RUNTIME_DIR=self.tmp + "/run",
@@ -40,6 +46,8 @@ class Polo:
         for key in ("WAYLAND_DISPLAY", "WAYLAND_SOCKET", "DISPLAY", "XAUTHORITY", "DCONF_PROFILE",
                     "POLO_TEST_AUTOSTART"):
             env.pop(key, None)
+        if autostart:
+            env["POLO_TEST_AUTOSTART"] = "1"
         self.stderr_path = self.tmp + "/stderr"
         self.stderr = open(self.stderr_path, "w")
         self.process = subprocess.Popen(

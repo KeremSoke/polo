@@ -120,7 +120,7 @@ def main():
     live = load(fixtures / "live")
     problems = check_fixtures(source, live)
 
-    session = sm_session.Polo(polo)
+    session = sm_session.Polo(polo, autostart=["polo-abi-app"])
     try:
         if session.wait_owned():
             problems += check_polo(session.bus, source)

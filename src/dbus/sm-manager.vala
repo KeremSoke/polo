@@ -70,6 +70,7 @@ namespace Polo.Dbus {
             new GLib.HashTable<string, Client> (GLib.str_hash, GLib.str_equal);
         private GLib.HashTable<string, Inhibitor> inhibitors =
             new GLib.HashTable<string, Inhibitor> (GLib.str_hash, GLib.str_equal);
+        private GLib.GenericArray<App> apps = new GLib.GenericArray<App> ();
         private int pending = 0;
         private GLib.Cancellable cancellable = new GLib.Cancellable ();
         private GLib.Subprocess? checking = null;
@@ -101,6 +102,14 @@ namespace Polo.Dbus {
                 client.unexport ();
             }
             clients.remove_all ();
+            foreach (unowned Inhibitor inhibitor in inhibitors.get_values ()) {
+                inhibitor.unexport ();
+            }
+            inhibitors.remove_all ();
+            foreach (var app in apps) {
+                app.unexport ();
+            }
+            apps = new GLib.GenericArray<App> ();
         }
 
         private void finish_pending () {
@@ -427,6 +436,13 @@ namespace Polo.Dbus {
                 cookie = (uint) GLib.Random.int_range (1, int32.MAX);
             } while (find_cookie (cookie) != null);
             var inhibitor = new Inhibitor (app_id, xid, reason, flags, sender, cookie);
+            try {
+                inhibitor.export (connection);
+            } catch (GLib.Error e) {
+                Logging.scope (LogDomain.POLO).warning ("cannot export %s: %s", inhibitor.path, e.message);
+                fail (invocation, "GeneralError", "Unable to inhibit");
+                return;
+            }
             inhibitors.insert (inhibitor.path, inhibitor);
             watch (sender);
             invocation.return_value (new GLib.Variant ("(u)", cookie));
@@ -443,8 +459,27 @@ namespace Polo.Dbus {
         }
 
         private void remove_inhibitor (string path) {
-            if (inhibitors.remove (path)) {
-                emit ("InhibitorRemoved", new GLib.Variant ("(o)", path));
+            var inhibitor = inhibitors.lookup (path);
+            if (inhibitor == null) {
+                return;
+            }
+            inhibitor.unexport ();
+            inhibitors.remove (path);
+            emit ("InhibitorRemoved", new GLib.Variant ("(o)", path));
+        }
+
+        public void add_apps (GLib.List<AutostartApp> session_apps) {
+            foreach (var app in session_apps) {
+                if (app.is_disabled ()) {
+                    continue;
+                }
+                var exported_app = new App (app);
+                try {
+                    exported_app.export (connection);
+                    apps.add (exported_app);
+                } catch (GLib.Error e) {
+                    Logging.scope (LogDomain.POLO).warning ("cannot export %s: %s", exported_app.path, e.message);
+                }
             }
         }
 

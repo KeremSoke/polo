@@ -276,6 +276,7 @@ namespace Polo {
                         phases.running.connect (() => manager.set_phase (Dbus.ManagerPhase.RUNNING));
                         manager.match_app = phases.register_client;
                         manager.handles_condition = phases.handles_condition;
+                        manager.add_apps (phases.get_apps ());
                     }
                     phases.run.begin ();
                 } else {

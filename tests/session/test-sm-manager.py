@@ -91,11 +91,20 @@ def inhibitors(bus, signals):
                        (("a", 0, "r", 0), "no flags")):
         check(error_of(bus, "Inhibit", GLib.Variant("(susu)", args), "(u)") == ERROR + "GeneralError",
               f"Inhibit with {what} was accepted")
-    cookie = call(bus, "Inhibit", GLib.Variant("(susu)", ("polo-test", 0, "testing", 4 | 8)), "(u)")[0]
+    cookie = call(bus, "Inhibit", GLib.Variant("(susu)", ("polo-test", 42, "testing", 4 | 8)), "(u)")[0]
     check(cookie > 0, "Inhibit gave cookie 0")
     listed = call(bus, "GetInhibitors", reply="(ao)")[0]
     check(len(listed) == 1 and signals.wait("InhibitorAdded", (listed[0],)),
           "the inhibitor was not listed and announced")
+    inhibitor = NAME + ".Inhibitor"
+    if listed:
+        path = listed[0]
+        check(client_call(bus, path, inhibitor, "GetAppId", reply="(s)") == ("polo-test",), "GetAppId")
+        check(client_call(bus, path, inhibitor, "GetReason", reply="(s)") == ("testing",), "GetReason")
+        check(client_call(bus, path, inhibitor, "GetFlags", reply="(u)") == (12,), "GetFlags")
+        check(client_call(bus, path, inhibitor, "GetToplevelXid", reply="(u)") == (42,), "GetToplevelXid")
+        check(client_error(bus, path, inhibitor, "GetClientId") == inhibitor + ".NotSet",
+              "a D-Bus inhibitor has a client id")
     check(call(bus, "IsInhibited", GLib.Variant("(u)", (8,)), "(b)") == (True,), "idle is not inhibited")
     check(call(bus, "IsInhibited", GLib.Variant("(u)", (1,)), "(b)") == (False,), "logout is inhibited")
     check(error_of(bus, "Uninhibit", GLib.Variant("(u)", (cookie ^ 1,))) == ERROR + "GeneralError",

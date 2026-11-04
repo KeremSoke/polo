@@ -185,6 +185,10 @@ namespace Polo {
             return false;
         }
 
+        public unowned GLib.List<AutostartApp> get_apps () {
+            return apps;
+        }
+
         private void start_later (AutostartApp app) {
             uint timer = 0;
             timer = GLib.Timeout.add_seconds (app.delay, () => {
