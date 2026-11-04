@@ -37,6 +37,7 @@ enum {
 	SIGNAL_NEW_LAYER_SURFACE,
 	SIGNAL_SHUTDOWN,
 	SIGNAL_FRAME,
+	SIGNAL_ACTIVITY,
 	N_SIGNALS,
 };
 
@@ -396,6 +397,12 @@ polo_backend_server_set_animating(PoloBackendServer *server, gboolean animating)
 }
 
 void
+polo_backend_server_emit_activity(PoloBackendServer *server)
+{
+	g_signal_emit(server, signals[SIGNAL_ACTIVITY], 0);
+}
+
+void
 polo_backend_server_emit_frame(PoloBackendServer *server,
 			       PoloBackendOutput *output, gint64 usec)
 {
@@ -645,6 +652,10 @@ polo_backend_server_start(PoloBackendServer *server,
 	if (!polo_backend_idle_inhibit_init(server, error))
 		return FALSE;
 
+	polo_backend_idle_init(server);
+	if (!polo_backend_idle_notify_init(server, error))
+		return FALSE;
+
 	if (!polo_backend_text_input_init(server, error))
 		return FALSE;
 
@@ -827,6 +838,8 @@ polo_backend_server_stop(PoloBackendServer *server)
 		polo_backend_xdg_decoration_fini(server);
 		polo_backend_primary_selection_fini(server);
 		polo_backend_text_input_fini(server);
+		polo_backend_idle_notify_fini(server);
+		polo_backend_idle_fini(server);
 		polo_backend_idle_inhibit_fini(server);
 		polo_backend_shortcuts_inhibit_fini(server);
 		polo_backend_cursor_shape_fini(server);
@@ -1010,6 +1023,9 @@ polo_backend_server_class_init(PoloBackendServerClass *klass)
 			     G_TYPE_NONE, 1, POLO_BACKEND_TYPE_LAYER_SURFACE);
 	signals[SIGNAL_SHUTDOWN] = g_signal_new(
 		"shutdown", G_TYPE_FROM_CLASS(klass), G_SIGNAL_RUN_LAST, 0,
+		NULL, NULL, NULL, G_TYPE_NONE, 0);
+	signals[SIGNAL_ACTIVITY] = g_signal_new(
+		"activity", G_TYPE_FROM_CLASS(klass), G_SIGNAL_RUN_LAST, 0,
 		NULL, NULL, NULL, G_TYPE_NONE, 0);
 }
 

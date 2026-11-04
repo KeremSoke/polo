@@ -265,6 +265,41 @@ polo_backend_server_get_socket_name(PoloBackendServer *server);
 gboolean
 polo_backend_server_get_idle_inhibited(PoloBackendServer *server);
 
+/* The session manager's idle inhibitors, which count like zwp_idle_inhibitor_v1. */
+void
+polo_backend_server_set_session_idle_inhibited(PoloBackendServer *server,
+					       gboolean inhibited);
+
+/* Monotonic; within a second of now while input keeps coming. */
+gint64
+polo_backend_server_get_last_input_usec(PoloBackendServer *server);
+
+/* Turns every output off until the next input. */
+void
+polo_backend_server_blank_outputs(PoloBackendServer *server);
+
+/* Turns blanked outputs back on, as input would. */
+void
+polo_backend_server_unblank_outputs(PoloBackendServer *server);
+
+#define POLO_BACKEND_TYPE_IDLE_WATCH (polo_backend_idle_watch_get_type())
+G_DECLARE_FINAL_TYPE(PoloBackendIdleWatch, polo_backend_idle_watch,
+		     POLO_BACKEND, IDLE_WATCH, GObject)
+
+/* "idled" after timeout_msec without input (0: never), "resumed" on the next
+ * input. With respect_inhibitors, idle inhibitors hold it off and their
+ * arrival resumes it. */
+PoloBackendIdleWatch *
+polo_backend_idle_watch_new(PoloBackendServer *server, guint timeout_msec,
+			    gboolean respect_inhibitors);
+
+void
+polo_backend_idle_watch_set_timeout(PoloBackendIdleWatch *watch,
+				    guint timeout_msec);
+
+gboolean
+polo_backend_idle_watch_get_idled(PoloBackendIdleWatch *watch);
+
 /* Valid until the server stops. */
 PoloBackendLayer *
 polo_backend_server_get_layer(PoloBackendServer *server,

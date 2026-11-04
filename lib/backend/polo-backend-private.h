@@ -102,6 +102,14 @@ struct _PoloBackendServer {
 	struct wl_global *virtual_keyboard_global;
 	struct wl_global *idle_inhibit_global;
 	struct wl_list idle_inhibitors;
+	struct wl_global *idle_notifier_global;
+	struct wl_list idle_watches;
+	struct wl_listener idle_wake_listener;
+	struct wl_listener idle_idle_listener;
+	gint64 last_input_usec;
+	gboolean input_idle;
+	gboolean session_idle_inhibited;
+	gboolean idle_ready;
 	struct wl_global *shortcuts_inhibit_global;
 	struct wl_global *cursor_shape_global;
 	struct wl_global *pointer_gestures_global;
@@ -303,6 +311,24 @@ polo_backend_idle_inhibit_init(PoloBackendServer *server, GError **error);
 
 void
 polo_backend_idle_inhibit_fini(PoloBackendServer *server);
+
+void
+polo_backend_idle_init(PoloBackendServer *server);
+
+void
+polo_backend_idle_fini(PoloBackendServer *server);
+
+void
+polo_backend_idle_inhibitors_changed(PoloBackendServer *server, gboolean added);
+
+void
+polo_backend_server_emit_activity(PoloBackendServer *server);
+
+gboolean
+polo_backend_idle_notify_init(PoloBackendServer *server, GError **error);
+
+void
+polo_backend_idle_notify_fini(PoloBackendServer *server);
 
 gboolean
 polo_backend_cursor_shape_init(PoloBackendServer *server, GError **error);

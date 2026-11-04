@@ -15,6 +15,7 @@
 
 struct inhibitor {
 	struct wl_list link;
+	PoloBackendServer *server;
 	struct weston_surface *surface;
 	struct wl_listener surface_destroy;
 };
@@ -47,6 +48,8 @@ inhibitor_resource_destroyed(struct wl_resource *resource)
 	if (inhibitor->surface)
 		wl_list_remove(&inhibitor->surface_destroy.link);
 	wl_list_remove(&inhibitor->link);
+	if (inhibitor->server)
+		polo_backend_idle_inhibitors_changed(inhibitor->server, FALSE);
 	g_free(inhibitor);
 }
 
@@ -68,9 +71,12 @@ manager_create_inhibitor(struct wl_client *client, struct wl_resource *resource,
 	inhibitor->surface_destroy.notify = inhibitor_surface_destroyed;
 	wl_signal_add(&inhibitor->surface->destroy_signal,
 		      &inhibitor->surface_destroy);
+	inhibitor->server = server;
 	wl_list_insert(&server->idle_inhibitors, &inhibitor->link);
 	wl_resource_set_implementation(object, &inhibitor_impl, inhibitor,
 				       inhibitor_resource_destroyed);
+	if (server->idle_ready)
+		polo_backend_idle_inhibitors_changed(server, TRUE);
 }
 
 static void

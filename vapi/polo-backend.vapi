@@ -327,6 +327,21 @@ namespace Polo {
             [CCode (cname = "polo_backend_server_get_idle_inhibited")]
             public bool get_idle_inhibited ();
 
+            [CCode (cname = "polo_backend_server_set_session_idle_inhibited")]
+            public void set_session_idle_inhibited (bool inhibited);
+
+            /* Monotonic; within a second of now while input keeps coming. */
+            [CCode (cname = "polo_backend_server_get_last_input_usec")]
+            public int64 get_last_input_usec ();
+
+            /* Every output off until the next input. */
+            [CCode (cname = "polo_backend_server_blank_outputs")]
+            public void blank_outputs ();
+
+            /* Blanked outputs back on, as input would. */
+            [CCode (cname = "polo_backend_server_unblank_outputs")]
+            public void unblank_outputs ();
+
             /* Valid until stop (). */
             [CCode (cname = "polo_backend_server_get_layer")]
             public unowned Layer get_layer (LayerKind kind);
@@ -380,6 +395,9 @@ namespace Polo {
             public signal void new_layer_surface (LayerSurface surface);
             /* libweston requested shutdown, e.g. when the nested window closed. */
             public signal void shutdown ();
+
+            /* The first input after a second without any. */
+            public signal void activity ();
 
             [CCode (cname = "polo_backend_server_supports_deformation")]
             public bool supports_deformation ();
@@ -965,6 +983,23 @@ namespace Polo {
             RENAME_WORKSPACE,
             END_SESSION,
             MESSAGE
+        }
+
+        /* idled after timeout_msec without input (0: never), resumed on the next input. With
+         * respect_inhibitors, idle inhibitors hold it off and their arrival resumes it. */
+        [CCode (cname = "PoloBackendIdleWatch", type_id = "polo_backend_idle_watch_get_type ()")]
+        public class IdleWatch : GLib.Object {
+            [CCode (cname = "polo_backend_idle_watch_new")]
+            public IdleWatch (Server server, uint timeout_msec, bool respect_inhibitors);
+
+            [CCode (cname = "polo_backend_idle_watch_set_timeout")]
+            public void set_timeout (uint timeout_msec);
+
+            [CCode (cname = "polo_backend_idle_watch_get_idled")]
+            public bool get_idled ();
+
+            public signal void idled ();
+            public signal void resumed ();
         }
 
         /* polo_shell_ui_v1 events are dropped while no client is bound. */

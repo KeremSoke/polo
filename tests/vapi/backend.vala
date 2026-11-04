@@ -389,6 +389,16 @@ int main () {
     assert (outputs == 1 && seats == 1);
     assert (server.get_socket_name () == config.socket_name);
     assert (!server.get_idle_inhibited ());
+    server.set_session_idle_inhibited (true);
+    server.set_session_idle_inhibited (false);
+    assert (server.get_last_input_usec () <= GLib.get_monotonic_time ());
+    server.activity.connect (() => {});
+    var watch = new Polo.Backend.IdleWatch (server, 60000, true);
+    watch.idled.connect (() => {});
+    watch.resumed.connect (() => {});
+    watch.set_timeout (120000);
+    assert (!watch.get_idled ());
+    server.unblank_outputs ();
     server.set_keyboard_repeat (25, 600);
     server.set_test_settings ((schema, key, value) => value);
     assert (Polo.Backend.Keymap.has_layout ("us", null));
