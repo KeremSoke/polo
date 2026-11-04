@@ -8,6 +8,7 @@
 Polo runs without autostart, so its session is Running from the start.
 """
 
+import os
 import pathlib
 import sys
 import time
@@ -113,12 +114,53 @@ def inhibitors(bus, signals):
           "a vanished connection still inhibits logout")
 
 
+def client_call(bus, path, interface, method, args=None, reply="()"):
+    return bus.call_sync(NAME, path, interface, method, args, GLib.VariantType(reply),
+                         Gio.DBusCallFlags.NONE, 5000, None).unpack()
+
+
+def client_error(bus, path, interface, method, args=None):
+    try:
+        client_call(bus, path, interface, method, args)
+    except GLib.Error as e:
+        return Gio.DBusError.get_remote_error(e)
+    return None
+
+
 def clients(bus, signals):
     other = other_connection()
     path = call(other, "RegisterClient", GLib.Variant("(ss)", ("polo-test", "")), "(o)")[0]
     check(path.startswith(ROOT + "/Client"), f"RegisterClient gave {path}")
     check(signals.wait("ClientAdded", (path,)), "ClientAdded was not sent")
     check(path in call(bus, "GetClients", reply="(ao)")[0], "GetClients does not list the client")
+
+    client = NAME + ".Client"
+    private = NAME + ".ClientPrivate"
+    check(client_call(bus, path, client, "GetAppId", reply="(s)") == ("polo-test",), "GetAppId")
+    startup_id = client_call(bus, path, client, "GetStartupId", reply="(s)")[0]
+    check(startup_id.startswith("10") and len(startup_id) > 30,
+          f"a generated startup id should look like gsm's, not {startup_id}")
+    check(client_call(bus, path, client, "GetRestartStyleHint", reply="(u)") == (0,),
+          "a D-Bus client's restart style is not never")
+    check(client_call(bus, path, client, "GetUnixProcessId", reply="(u)") == (os.getpid(),),
+          "GetUnixProcessId is not the client's process")
+    check(client_call(bus, path, client, "GetStatus", reply="(u)") == (1,), "the client is not registered")
+
+    check(client_error(bus, path, private, "EndSessionResponse", GLib.Variant("(bs)", (True, ""))) ==
+          "org.freedesktop.DBus.Error.Failed", "EndSessionResponse was taken from another connection")
+    client_call(other, path, private, "EndSessionResponse", GLib.Variant("(bs)", (True, "")))
+
+    stopped = []
+    other.signal_subscribe(None, private, "Stop", path, None, Gio.DBusSignalFlags.NONE,
+                           lambda *args: stopped.append(True))
+    client_call(bus, path, client, "Stop")
+    context = GLib.MainContext.default()
+    end = time.monotonic() + 5
+    while not stopped and time.monotonic() < end:
+        context.iteration(False)
+        time.sleep(0.01)
+    check(stopped, "Stop did not reach the client")
+
     call(other, "RegisterClient", GLib.Variant("(ss)", ("polo-test", "10fixed")), "(o)")
     check(error_of(bus, "RegisterClient", GLib.Variant("(ss)", ("polo-test", "10fixed")), "(o)") ==
           ERROR + "AlreadyRegistered", "two clients registered with one startup id")
@@ -127,8 +169,11 @@ def clients(bus, signals):
     call(other, "UnregisterClient", GLib.Variant("(o)", (path,)))
     check(path in call(bus, "GetClients", reply="(ao)")[0],
           "UnregisterClient dropped the client before it left the bus")
+    check(client_call(bus, path, client, "GetStatus", reply="(u)") == (0,),
+          "an unregistered client is still registered")
     other.close_sync(None)
     check(signals.wait("ClientRemoved", (path,)), "a client outlived its connection")
+    check(client_error(bus, path, client, "GetStatus") is not None, "a removed client is still exported")
 
 
 def logout(bus, signals, polo):

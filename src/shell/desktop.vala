@@ -167,6 +167,26 @@ namespace Polo.Shell {
             }
         }
 
+        public GLib.GenericArray<Window> windows_of_client (uint pid, string app_id) {
+            var found = new GLib.GenericArray<Window> ();
+            foreach (var window in model.get_windows ()) {
+                var xdg = window.adapter as XdgWindow;
+                if (pid > 0 && xdg != null && xdg.client_pid () == (int) pid) {
+                    found.add (window);
+                }
+            }
+            if (found.length > 0 || app_id == "") {
+                return found;
+            }
+            string bare = app_id.has_suffix (".desktop") ? app_id[0 : app_id.length - ".desktop".length] : app_id;
+            foreach (var window in model.get_windows ()) {
+                if (window.app_id != null && (window.app_id == app_id || window.app_id == bare)) {
+                    found.add (window);
+                }
+            }
+            return found;
+        }
+
         private string? on_activation_mint (Backend.ActivationRequest request) {
             var token = activation_tokens.mint (request.input_valid, request.input_time_msec,
                                                 server.get_time_msec ());

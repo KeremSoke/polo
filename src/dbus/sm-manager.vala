@@ -70,6 +70,9 @@ namespace Polo.Dbus {
             new GLib.HashTable<string, Client> (GLib.str_hash, GLib.str_equal);
         private GLib.HashTable<string, Inhibitor> inhibitors =
             new GLib.HashTable<string, Inhibitor> (GLib.str_hash, GLib.str_equal);
+        private int pending = 0;
+        private GLib.Cancellable cancellable = new GLib.Cancellable ();
+        private GLib.Subprocess? checking = null;
         private GLib.HashTable<string, uint> watches = new GLib.HashTable<string, uint> (GLib.str_hash, GLib.str_equal);
 
         public Manager (GLib.DBusConnection connection) {
@@ -93,6 +96,28 @@ namespace Polo.Dbus {
             }
             watches.foreach ((name, watch) => GLib.Bus.unwatch_name (watch));
             watches.remove_all ();
+            finish_pending ();
+            foreach (unowned Client client in clients.get_values ()) {
+                client.unexport ();
+            }
+            clients.remove_all ();
+        }
+
+        private void finish_pending () {
+            if (pending == 0) {
+                return;
+            }
+            if (checking != null) {
+                checking.force_exit ();
+            }
+            cancellable.cancel ();
+            var context = GLib.MainContext.default ();
+            int64 deadline = GLib.get_monotonic_time () + 2 * GLib.TimeSpan.SECOND;
+            while (pending > 0 && GLib.get_monotonic_time () < deadline) {
+                if (!context.iteration (false)) {
+                    GLib.Thread.usleep (1000);
+                }
+            }
         }
 
         public void set_phase (ManagerPhase next) {
@@ -184,7 +209,7 @@ namespace Polo.Dbus {
                 {
                     string app_id, startup_id;
                     parameters.get ("(ss)", out app_id, out startup_id);
-                    register_client (sender, app_id, startup_id, (owned) invocation);
+                    register_client.begin (sender, app_id, startup_id, (owned) invocation);
                     break;
                 }
                 case "UnregisterClient":
@@ -217,7 +242,8 @@ namespace Polo.Dbus {
                         fail (invocation, "GeneralError", "Unable to uninhibit: Invalid cookie");
                         return;
                     }
-                    remove_inhibitor (found.path);
+                    string path = found.path;
+                    remove_inhibitor (path);
                     invocation.return_value (null);
                     break;
                 }
@@ -325,8 +351,8 @@ namespace Polo.Dbus {
             return new GLib.Variant ("(ao)", builder);
         }
 
-        private void register_client (string sender, string app_id, string startup_id,
-                                      owned GLib.DBusMethodInvocation invocation) {
+        private async void register_client (string sender, string app_id, string startup_id,
+                                            owned GLib.DBusMethodInvocation invocation) {
             if (phase >= ManagerPhase.QUERY_END_SESSION) {
                 fail (invocation, "NotInRunning", "Unable to register client");
                 return;
@@ -348,6 +374,32 @@ namespace Polo.Dbus {
             client.status = ClientStatus.REGISTERED;
             clients.insert (client.path, client);
             watch (sender);
+
+            pending++;
+            try {
+                var reply = yield connection.call ("org.freedesktop.DBus", "/org/freedesktop/DBus",
+                                                   "org.freedesktop.DBus", "GetConnectionUnixProcessID",
+                                                   new GLib.Variant ("(s)", sender), new GLib.VariantType ("(u)"),
+                                                   GLib.DBusCallFlags.NONE, 5000, cancellable);
+                uint pid;
+                reply.get ("(u)", out pid);
+                client.pid = pid;
+            } catch (GLib.Error e) {
+                Logging.scope (LogDomain.POLO).info ("no process for %s: %s", sender, e.message);
+            }
+            pending--;
+            if (clients.lookup (client.path) != client) {
+                fail (invocation, "GeneralError", "Unable to register client");
+                return;
+            }
+            try {
+                client.export (connection);
+            } catch (GLib.Error e) {
+                Logging.scope (LogDomain.POLO).warning ("cannot export %s: %s", client.path, e.message);
+                clients.remove (client.path);
+                fail (invocation, "GeneralError", "Unable to register client");
+                return;
+            }
             invocation.return_value (new GLib.Variant ("(o)", client.path));
             emit ("ClientAdded", new GLib.Variant ("(o)", client.path));
         }
@@ -397,9 +449,13 @@ namespace Polo.Dbus {
         }
 
         private void remove_client (string path) {
-            if (clients.remove (path)) {
-                emit ("ClientRemoved", new GLib.Variant ("(o)", path));
+            var client = clients.lookup (path);
+            if (client == null) {
+                return;
             }
+            client.unexport ();
+            clients.remove (path);
+            emit ("ClientRemoved", new GLib.Variant ("(o)", path));
         }
 
         private void watch (string bus_name) {
@@ -438,14 +494,15 @@ namespace Polo.Dbus {
 
         private async void can_shutdown (owned GLib.DBusMethodInvocation invocation) {
             bool available = false;
+            pending++;
             try {
-                var system = yield GLib.Bus.get (GLib.BusType.SYSTEM);
+                var system = yield GLib.Bus.get (GLib.BusType.SYSTEM, cancellable);
                 foreach (unowned string query in new string[] { "CanPowerOff", "CanReboot", "CanSuspend",
                                                                  "CanHibernate" }) {
                     var reply = yield system.call ("org.freedesktop.login1", "/org/freedesktop/login1",
                                                    "org.freedesktop.login1.Manager", query, null,
                                                    new GLib.VariantType ("(s)"), GLib.DBusCallFlags.NONE,
-                                                   5000);
+                                                   5000, cancellable);
                     string answer;
                     reply.get ("(s)", out answer);
                     if (answer == "yes" || answer == "challenge") {
@@ -457,6 +514,7 @@ namespace Polo.Dbus {
                 Logging.scope (LogDomain.POLO).info ("CanShutdown: logind: %s", e.message);
             }
             invocation.return_value (new GLib.Variant ("(b)", available));
+            pending--;
         }
 
         private async void check_accelerated () {
@@ -471,17 +529,22 @@ namespace Polo.Dbus {
             if (GLib.Environment.get_variable ("DISPLAY") == null || helper == null) {
                 return;
             }
+            pending++;
             try {
-                var process = new GLib.Subprocess.newv ({ helper }, GLib.SubprocessFlags.STDOUT_PIPE |
-                                                        GLib.SubprocessFlags.STDERR_SILENCE);
+                checking = new GLib.Subprocess.newv ({ helper }, GLib.SubprocessFlags.STDOUT_PIPE |
+                                                     GLib.SubprocessFlags.STDERR_SILENCE);
                 string output;
-                yield process.communicate_utf8_async (null, null, out output, null);
-                if (process.get_if_exited () && process.get_exit_status () == 0 && output != null) {
+                yield checking.communicate_utf8_async (null, cancellable, out output, null);
+                if (checking.get_if_exited () && checking.get_exit_status () == 0 && output != null) {
                     renderer = output.strip ();
                 }
             } catch (GLib.Error e) {
-                Logging.scope (LogDomain.POLO).info ("cannot check acceleration: %s", e.message);
+                if (!(e is GLib.IOError.CANCELLED)) {
+                    Logging.scope (LogDomain.POLO).info ("cannot check acceleration: %s", e.message);
+                }
             }
+            checking = null;
+            pending--;
         }
 
         private static int sequence = -1;
