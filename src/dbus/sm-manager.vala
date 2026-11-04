@@ -526,7 +526,7 @@ namespace Polo.Dbus {
                     break;
                 }
             }
-            if (GLib.Environment.get_variable ("DISPLAY") == null || helper == null) {
+            if (GLib.Environment.get_variable ("DISPLAY") == null || helper == null || CommandLine.test_mode) {
                 return;
             }
             pending++;

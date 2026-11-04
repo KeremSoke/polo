@@ -40,10 +40,12 @@ class Polo:
         for key in ("WAYLAND_DISPLAY", "WAYLAND_SOCKET", "DISPLAY", "XAUTHORITY", "DCONF_PROFILE",
                     "POLO_TEST_AUTOSTART"):
             env.pop(key, None)
+        self.stderr_path = self.tmp + "/stderr"
+        self.stderr = open(self.stderr_path, "w")
         self.process = subprocess.Popen(
             [polo, "--session", "--backend=headless", "--renderer=pixman", "--test-mode",
              "--xwayland=off", "--socket=polo-sm-test", f"--log={self.tmp}/polo.log"],
-            env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            env=env, stdout=subprocess.DEVNULL, stderr=self.stderr)
         self.bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
 
     def wait_owned(self):
@@ -60,6 +62,17 @@ class Polo:
                 time.sleep(0.025)
         return False
 
+    def tail(self, lines=200):
+        """The end of Polo's log and stderr, where sanitizers report."""
+        text = []
+        for path in (self.tmp + "/polo.log", self.stderr_path):
+            try:
+                with open(path, errors="replace") as f:
+                    text += f.read().splitlines()[-lines:]
+            except OSError:
+                pass
+        return "\n".join(text)
+
     def stop(self):
         if self.process.poll() is None:
             self.process.terminate()
@@ -68,5 +81,8 @@ class Polo:
         except subprocess.TimeoutExpired:
             self.process.kill()
             status = self.process.wait()
+        self.stderr.close()
+        if status != 0:
+            print(f"polo exited with {status}:\n{self.tail()}")
         shutil.rmtree(self.tmp, ignore_errors=True)
         return status

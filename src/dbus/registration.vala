@@ -46,6 +46,7 @@ namespace Polo.Dbus {
             return_value = GLib.Value (typeof (bool));
             unowned Registration self = (Registration) data;
             var invocation = (GLib.DBusMethodInvocation) param_values[6].dup_object ();
+            invocation.unref ();
             self.on_method (param_values[1].get_string (), param_values[4].get_string (),
                             param_values[5].get_variant (), (owned) invocation);
         }
