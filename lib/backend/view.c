@@ -85,6 +85,29 @@ polo_backend_view_set_position(PoloBackendView *view, double x, double y)
 	weston_compositor_schedule_repaint(view->view->surface->compositor);
 }
 
+gboolean
+polo_backend_view_set_deformation(PoloBackendView *view, const float *vertices,
+				  guint cols, guint rows)
+{
+	g_return_val_if_fail(POLO_BACKEND_IS_VIEW(view), FALSE);
+	G_STATIC_ASSERT(sizeof(struct weston_view_deform_vertex) ==
+			4 * sizeof(float));
+	if (!view->view)
+		return FALSE;
+	return weston_view_set_deformation(
+		       view->view,
+		       (const struct weston_view_deform_vertex *)vertices, cols,
+		       rows) == 0;
+}
+
+void
+polo_backend_view_clear_deformation(PoloBackendView *view)
+{
+	g_return_if_fail(POLO_BACKEND_IS_VIEW(view));
+	if (view->view)
+		weston_view_clear_deformation(view->view);
+}
+
 void
 polo_backend_view_get_position(PoloBackendView *view, double *x, double *y)
 {
@@ -96,9 +119,29 @@ polo_backend_view_get_position(PoloBackendView *view, double *x, double *y)
 		return;
 	}
 
-	pos = weston_view_get_pos_offset_global(view->view);
+	if (view->view->geometry.parent) {
+		/* A subsurface's offset is relative to its parent. */
+		weston_view_update_transform(view->view);
+		pos = weston_coord_surface_to_global(
+			view->view,
+			weston_coord_surface(0, 0, view->view->surface));
+	} else {
+		pos = weston_view_get_pos_offset_global(view->view);
+	}
 	*x = pos.c.x;
 	*y = pos.c.y;
+}
+
+void
+polo_backend_view_get_size(PoloBackendView *view, int *width, int *height)
+{
+	g_return_if_fail(POLO_BACKEND_IS_VIEW(view));
+	if (!view->view) {
+		*width = *height = 0;
+		return;
+	}
+	*width = view->view->surface->width;
+	*height = view->view->surface->height;
 }
 
 void

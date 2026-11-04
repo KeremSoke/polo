@@ -28,6 +28,10 @@ struct _PoloBackendOutput {
 	gboolean has_work_area;
 	struct weston_geometry work_area;
 	gboolean primary;
+
+	struct wl_listener post_latch;
+	struct weston_animation animation;
+	gboolean animating;
 };
 
 enum {
@@ -54,6 +58,47 @@ clear_background(PoloBackendOutput *self)
 }
 
 static void
+output_latched(struct wl_listener *listener, void *data)
+{
+	PoloBackendOutput *self = wl_container_of(listener, self, post_latch);
+	const struct timespec *time = &self->output->frame_time;
+	gint64 usec =
+		(gint64)time->tv_sec * G_USEC_PER_SEC + time->tv_nsec / 1000;
+
+	polo_backend_server_emit_frame(self->server, self, usec);
+}
+
+/* After the repaint is submitted, when the repaint machinery no longer
+ * clears the request: ask for the next frame, as libweston's own animations
+ * do. */
+static void
+animation_frame(struct weston_animation *animation,
+		struct weston_output *output, const struct timespec *time)
+{
+	weston_output_schedule_repaint(output);
+}
+
+void
+polo_backend_output_set_animating(PoloBackendOutput *self, gboolean animating)
+{
+	if (!self->output || self->animating == animating)
+		return;
+	self->animating = animating;
+	if (animating) {
+		wl_signal_add(&self->output->post_latch_signal,
+			      &self->post_latch);
+		wl_list_insert(&self->output->animation_list,
+			       &self->animation.link);
+		weston_output_schedule_repaint(self->output);
+	} else {
+		wl_list_remove(&self->post_latch.link);
+		wl_list_init(&self->post_latch.link);
+		wl_list_remove(&self->animation.link);
+		wl_list_init(&self->animation.link);
+	}
+}
+
+static void
 head_destroyed(struct wl_listener *listener, void *data)
 {
 	PoloBackendOutput *self = wl_container_of(listener, self, head_destroy);
@@ -68,6 +113,10 @@ polo_backend_output_new(PoloBackendServer *server, struct weston_output *output)
 	self->server = server;
 	self->output = output;
 	self->name = g_strdup(output->name);
+	self->post_latch.notify = output_latched;
+	wl_list_init(&self->post_latch.link);
+	self->animation.frame = animation_frame;
+	wl_list_init(&self->animation.link);
 	self->head_destroy.notify = head_destroyed;
 	weston_head_add_destroy_listener(
 		weston_output_iterate_heads(output, NULL), &self->head_destroy);
@@ -87,6 +136,7 @@ polo_backend_output_destroy(PoloBackendOutput *self)
 		return;
 
 	clear_background(self);
+	polo_backend_output_set_animating(self, FALSE);
 	wl_list_remove(&self->head_destroy.link);
 	self->output = NULL;
 	g_signal_emit(self, signals[SIGNAL_DESTROYED], 0);

@@ -750,6 +750,17 @@ namespace Polo.Policy {
         /* Emitted after a window is withdrawn or destroyed, before focus is replaced. */
         public signal void window_unmanaged (Window window);
 
+        public signal void window_geometry_transition (Window window,
+                                                       Marco.Rect old_rect,
+                                                       Marco.Rect new_rect);
+
+        private void report_geometry_transition (Window window, Marco.Rect old_rect) {
+            var new_rect = window.client_rect ();
+            if (!old_rect.equal (new_rect)) {
+                window_geometry_transition (window, old_rect, new_rect);
+            }
+        }
+
         public void unmanage (Window window) {
             window_unmanaged (window);
             bool had_focus = focused == window;
@@ -1172,6 +1183,7 @@ namespace Polo.Policy {
         }
 
         public void maximize (Window window, WindowState directions) {
+            var old_rect = window.client_rect ();
             bool h = (directions & WindowState.MAXIMIZED_H) != 0;
             bool v = (directions & WindowState.MAXIMIZED_V) != 0;
             if (!((h && !window.has_state (WindowState.MAXIMIZED_H)) ||
@@ -1195,9 +1207,11 @@ namespace Polo.Policy {
             maximize_internal (window, directions & WindowState.MAXIMIZED, saved);
             update_tile_state (window);
             move_resize_now (window);
+            report_geometry_transition (window, old_rect);
         }
 
         public void unmaximize (Window window, WindowState directions) {
+            var old_rect = window.client_rect ();
             bool h = (directions & WindowState.MAXIMIZED_H) != 0;
             bool v = (directions & WindowState.MAXIMIZED_V) != 0;
             window.tile_mode = Marco.TileMode.NONE;
@@ -1230,6 +1244,7 @@ namespace Polo.Policy {
             recalc_window_features (window);
             window.adapter.set_maximized (window.has_state (WindowState.MAXIMIZED_H) ||
                                           window.has_state (WindowState.MAXIMIZED_V));
+            report_geometry_transition (window, old_rect);
         }
 
         private void update_tile_state (Window window) {
@@ -1269,6 +1284,7 @@ namespace Polo.Policy {
         }
 
         public void tile (Window window) {
+            var old_rect = window.client_rect ();
             switch (window.tile_mode) {
                 case Marco.TileMode.NONE:
                     return;
@@ -1287,6 +1303,7 @@ namespace Polo.Policy {
             update_tile_state (window);
             recalc_window_features (window);
             move_resize_now (window);
+            report_geometry_transition (window, old_rect);
         }
 
         public bool can_tile_maximized (Window window) {

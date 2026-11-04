@@ -108,6 +108,9 @@ namespace Polo.Input {
         private const uint32 XK_L = 0x6c;
 
         private Policy.Model model;
+        private Effects.Engine effects;
+        private Effects.WobblyEffect? wobbly_effect;
+        private Effects.BackendTarget? wobbly_target;
 
         public GrabOp op { get; private set; default = GrabOp.NONE; }
         public Window? window { get; private set; default = null; }
@@ -133,8 +136,9 @@ namespace Polo.Input {
         public signal void tile_preview_shown (Marco.Rect area);
         public signal void tile_preview_hidden ();
 
-        public MoveResize (Policy.Model model) {
+        public MoveResize (Policy.Model model, Effects.Engine effects) {
             this.model = model;
+            this.effects = effects;
             model.window_unmanaged.connect ((w) => {
                 if (w == window) {
                     end_grab_op ();
@@ -190,6 +194,7 @@ namespace Polo.Input {
                 window.resize_gravity = op.resize_gravity ();
                 window.resizing = true;
             }
+            start_wobbly (window, new_op.is_resizing (), root_x, root_y);
             if (grab != null) {
                 connect_grab ();
             }
@@ -249,6 +254,11 @@ namespace Polo.Input {
             if (ending != null) {
                 ending.resizing = false;
             }
+            if (wobbly_effect != null) {
+                wobbly_effect.release ();
+            }
+            wobbly_effect = null;
+            wobbly_target = null;
             if (ending_op.is_moving () || ending_op.is_resizing ()) {
                 cleanup_edges ();
             }
@@ -289,6 +299,46 @@ namespace Polo.Input {
                 update_move (snap, (int) x, (int) y);
             } else if (op.is_resizing ()) {
                 update_resize (snap, (int) x, (int) y);
+            }
+            update_wobbly_target ();
+        }
+
+        private void start_wobbly (Window target_window, bool resizing,
+                                   int root_x, int root_y) {
+            var xdg = target_window.adapter as Shell.XdgWindow;
+            if (xdg == null) {
+                return;
+            }
+            Marco.Rect rect;
+            var target = xdg.create_effect_target ();
+            if (!target.get_surface_rect (out rect)) {
+                return;
+            }
+            if (effects.settings == null) {
+                return;
+            }
+            var effect = new Effects.WobblyEffect (effects.settings);
+            double grab_u = ((double) root_x - rect.x) / rect.width;
+            double grab_v = ((double) root_y - rect.y) / rect.height;
+            if (!effects.allowed (effect) ||
+                !effect.prepare (target, rect, rect, resizing, grab_u, grab_v)) {
+                return;
+            }
+            effect.grab ();
+            if (!effects.run (target, effect)) {
+                return;
+            }
+            wobbly_target = target;
+            wobbly_effect = effect;
+        }
+
+        private void update_wobbly_target () {
+            if (window == null || wobbly_effect == null || wobbly_target == null) {
+                return;
+            }
+            Marco.Rect rect = {};
+            if (wobbly_target.get_surface_rect (out rect)) {
+                wobbly_effect.set_target (rect);
             }
         }
 

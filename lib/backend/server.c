@@ -36,6 +36,7 @@ enum {
 	SIGNAL_SYSTEM_BELL,
 	SIGNAL_NEW_LAYER_SURFACE,
 	SIGNAL_SHUTDOWN,
+	SIGNAL_FRAME,
 	N_SIGNALS,
 };
 
@@ -184,6 +185,7 @@ head_enable(PoloBackendServer *server, struct weston_head *head)
 
 	handle = polo_backend_output_new(server, output);
 	g_ptr_array_add(server->outputs, handle);
+	polo_backend_output_set_animating(handle, server->animating);
 	polo_log_scope_info(log_scope(), "output %s discovered: %dx%d scale %d",
 			    output->name, output->width, output->height,
 			    output->current_scale);
@@ -381,6 +383,31 @@ compositor_exit(struct weston_compositor *compositor)
 	PoloBackendServer *server = weston_compositor_get_user_data(compositor);
 
 	g_signal_emit(server, signals[SIGNAL_SHUTDOWN], 0);
+}
+
+void
+polo_backend_server_set_animating(PoloBackendServer *server, gboolean animating)
+{
+	g_return_if_fail(POLO_BACKEND_IS_SERVER(server));
+	server->animating = animating;
+	for (guint i = 0; i < server->outputs->len; i++)
+		polo_backend_output_set_animating(server->outputs->pdata[i],
+						  animating);
+}
+
+void
+polo_backend_server_emit_frame(PoloBackendServer *server,
+			       PoloBackendOutput *output, gint64 usec)
+{
+	g_signal_emit(server, signals[SIGNAL_FRAME], 0, output, usec);
+}
+
+gboolean
+polo_backend_server_supports_deformation(PoloBackendServer *server)
+{
+	g_return_val_if_fail(POLO_BACKEND_IS_SERVER(server), FALSE);
+	return server->compositor &&
+		weston_compositor_supports_view_deformation(server->compositor);
 }
 
 static enum weston_renderer_type
@@ -951,6 +978,10 @@ polo_backend_server_class_init(PoloBackendServerClass *klass)
 	object_class->dispose = polo_backend_server_dispose;
 	object_class->finalize = polo_backend_server_finalize;
 
+	signals[SIGNAL_FRAME] = g_signal_new(
+		"frame", G_TYPE_FROM_CLASS(klass), G_SIGNAL_RUN_LAST, 0, NULL,
+		NULL, NULL, G_TYPE_NONE, 2, POLO_BACKEND_TYPE_OUTPUT,
+		G_TYPE_INT64);
 	signals[SIGNAL_OUTPUTS_CHANGED] = g_signal_new(
 		"outputs-changed", G_TYPE_FROM_CLASS(klass), G_SIGNAL_RUN_LAST,
 		0, NULL, NULL, NULL, G_TYPE_NONE, 0);

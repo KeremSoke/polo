@@ -231,6 +231,13 @@ typedef gboolean (*PoloBackendGlobalFilter)(PoloBackendClient *client,
 PoloBackendServer *
 polo_backend_server_new(void);
 
+gboolean
+polo_backend_server_supports_deformation(PoloBackendServer *server);
+
+void
+polo_backend_server_set_animating(PoloBackendServer *server,
+				  gboolean animating);
+
 /*
  * Create the display and compositor, load the backend and open the socket.
  * Signals for outputs and seats that exist at start-up are emitted before
@@ -675,6 +682,17 @@ polo_backend_view_set_position(PoloBackendView *view, double x, double y);
 void
 polo_backend_view_get_position(PoloBackendView *view, double *x, double *y);
 
+void
+polo_backend_view_get_size(PoloBackendView *view, int *width, int *height);
+
+gboolean
+polo_backend_view_set_deformation(PoloBackendView *view,
+				  const float *vertices, guint cols,
+				  guint rows);
+
+void
+polo_backend_view_clear_deformation(PoloBackendView *view);
+
 /* Put the view on top of @layer (NULL: remove it from any layer). */
 void
 polo_backend_view_move_to_layer(PoloBackendView *view,
@@ -765,6 +783,9 @@ polo_backend_toplevel_map(PoloBackendToplevel *toplevel);
 /* Valid until "destroyed". */
 PoloBackendView *
 polo_backend_toplevel_get_view(PoloBackendToplevel *toplevel);
+
+GPtrArray *
+polo_backend_toplevel_get_surface_tree_views(PoloBackendToplevel *toplevel);
 
 PoloBackendClient *
 polo_backend_toplevel_get_client(PoloBackendToplevel *toplevel);

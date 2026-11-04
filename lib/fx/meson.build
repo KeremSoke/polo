@@ -1,5 +1,8 @@
 fx_lib = static_library('polo-fx',
   'fx.c',
+  'grid.c',
+  'wobbly.c',
+  'wobbly-presets.c',
   dependencies: [glib_dep],
 )
 

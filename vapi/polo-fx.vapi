@@ -9,4 +9,99 @@
 namespace Polo.Fx {
     [CCode (cname = "polo_fx_source")]
     public unowned string source ();
+
+    [CCode (cname = "POLO_FX_GRID_MAX_VERTICES")]
+    public const uint GRID_MAX_VERTICES;
+
+    [CCode (cname = "POLO_FX_WOBBLY_MARGIN")]
+    public const uint WOBBLY_MARGIN;
+
+    [CCode (cname = "PoloFxVec2", has_type_id = false)]
+    [SimpleType]
+    public struct Vec2 {
+        public double x;
+        public double y;
+    }
+
+    [CCode (cname = "PoloFxOrigin", has_type_id = false)]
+    [SimpleType]
+    public struct Origin {
+        public int x;
+        public int y;
+    }
+
+    [CCode (cname = "PoloFxSize", has_type_id = false)]
+    [SimpleType]
+    public struct Size {
+        public int width;
+        public int height;
+    }
+
+    [CCode (cname = "PoloFxWobblyParameters", has_type_id = false)]
+    [SimpleType]
+    public struct WobblyParameters {
+        public double stiffness;
+        public double drag;
+        public double move_factor;
+        public double min_velocity;
+        public double max_velocity;
+        public double stop_velocity;
+        public double min_acceleration;
+        public double max_acceleration;
+        public double stop_acceleration;
+        public int x_tessellation;
+        public int y_tessellation;
+    }
+
+    [CCode (cname = "polo_fx_wobbly_parameters_for_level")]
+    public WobblyParameters wobbly_parameters_for_level (int level);
+
+    /* cols × rows vertices, row-major: x, y (global logical), u, v (0..1 over the surface). */
+    [Compact]
+    [CCode (cname = "PoloFxGrid", free_function = "polo_fx_grid_free")]
+    public class Grid {
+        public uint cols;
+        public uint rows;
+        [CCode (array_length_cname = "n_floats")]
+        public float[] vertices;
+
+        [CCode (cname = "polo_fx_grid_new")]
+        public static Grid? create (uint cols, uint rows);
+
+        /* The undeformed surface on x, y, width × height. */
+        [CCode (cname = "polo_fx_grid_set_rect")]
+        public void set_rect (float x, float y, float width, float height);
+
+        [CCode (cname = "polo_fx_grid_set_subgrid")]
+        public void set_subgrid (Grid source, float u0, float v0, float u1, float v1);
+    }
+
+    [Compact]
+    [CCode (cname = "PoloFxWobbly", free_function = "polo_fx_wobbly_free")]
+    public class Wobbly {
+        [CCode (cname = "polo_fx_wobbly_new")]
+        public Wobbly ();
+
+        [CCode (cname = "polo_fx_wobbly_start")]
+        public void start (Origin origin, Size size, WobblyParameters parameters,
+                           double anchor_u, double anchor_v);
+
+        [CCode (cname = "polo_fx_wobbly_advance")]
+        public bool advance (Origin origin, Size size, double elapsed_ms);
+
+        [CCode (cname = "polo_fx_wobbly_fill_grid")]
+        public void fill_grid (Grid grid);
+
+        /* Ease the bend out once the springs stop, for maximize and tile. */
+        [CCode (cname = "polo_fx_wobbly_set_ease_out")]
+        public void set_ease_out (bool ease);
+
+        /* Draws the bend whole for half of total_ms, then fades it to none by total_ms. */
+        [CCode (cname = "polo_fx_wobbly_set_fade")]
+        public void set_fade (double elapsed_ms, double total_ms);
+
+        [CCode (cname = "polo_fx_wobbly_point")]
+        public static Vec2 point ([CCode (array_length = false)] Vec2[] points,
+                                  double x, double y);
+    }
 }

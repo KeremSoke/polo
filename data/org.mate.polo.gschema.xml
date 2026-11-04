@@ -18,4 +18,88 @@
       <description>Desktop ids or program names started with GDK_BACKEND=x11, because they call X directly.</description>
     </key>
   </schema>
+  <schema id="org.mate.polo.effects" path="/org/mate/polo/effects/">
+    <key name="wobbly-windows" type="b">
+      <default>false</default>
+      <summary>Enable wobbly windows</summary>
+      <description>Animate windows with the Wobbly effect while moving or resizing them.</description>
+    </key>
+    <key name="wobbly-level" type="i">
+      <range min="0" max="4"/>
+      <default>0</default>
+      <summary>Wobbly effect preset</summary>
+      <description>Select the Wobbly effect preset; 0 uses the default preset.</description>
+    </key>
+    <key name="wobbly-move" type="b">
+      <default>true</default>
+      <summary>Wobble windows while moving</summary>
+      <description>Apply the Wobbly effect while moving windows.</description>
+    </key>
+    <key name="wobbly-resize" type="b">
+      <default>true</default>
+      <summary>Wobble windows while resizing</summary>
+      <description>Apply the Wobbly effect while resizing windows.</description>
+    </key>
+    <key name="wobbly-stiffness" type="d">
+      <default>-1.0</default>
+      <summary>Wobbly spring stiffness</summary>
+      <description>Override the preset stiffness; -1 uses the selected preset.</description>
+    </key>
+    <key name="wobbly-drag" type="d">
+      <default>-1.0</default>
+      <summary>Wobbly spring drag</summary>
+      <description>Override the preset drag; -1 uses the selected preset.</description>
+    </key>
+    <key name="wobbly-move-factor" type="d">
+      <default>-1.0</default>
+      <summary>Wobbly movement factor</summary>
+      <description>Override the preset movement factor; -1 uses the selected preset.</description>
+    </key>
+    <key name="wobbly-min-velocity" type="d">
+      <default>0.0</default>
+      <summary>Minimum Wobbly velocity</summary>
+      <description>Minimum velocity for Wobbly movement response.</description>
+    </key>
+    <key name="wobbly-max-velocity" type="d">
+      <default>1000.0</default>
+      <summary>Maximum Wobbly velocity</summary>
+      <description>Maximum velocity for Wobbly movement response.</description>
+    </key>
+    <key name="wobbly-stop-velocity" type="d">
+      <default>0.5</default>
+      <summary>Wobbly stop velocity</summary>
+      <description>Velocity below which the Wobbly simulation can settle.</description>
+    </key>
+    <key name="wobbly-min-acceleration" type="d">
+      <default>0.0</default>
+      <summary>Minimum Wobbly acceleration</summary>
+      <description>Minimum acceleration for Wobbly movement response.</description>
+    </key>
+    <key name="wobbly-max-acceleration" type="d">
+      <default>1000.0</default>
+      <summary>Maximum Wobbly acceleration</summary>
+      <description>Maximum acceleration for Wobbly movement response.</description>
+    </key>
+    <key name="wobbly-stop-acceleration" type="d">
+      <default>0.5</default>
+      <summary>Wobbly stop acceleration</summary>
+      <description>Acceleration below which the Wobbly simulation can settle.</description>
+    </key>
+    <key name="wobbly-mesh-spacing" type="u">
+      <default>20</default>
+      <summary>Wobbly mesh spacing</summary>
+      <description>Spacing in pixels between vertices in the Wobbly deformation grid.</description>
+    </key>
+    <key name="magic-lamp" type="b">
+      <default>false</default>
+      <summary>Enable Magic Lamp</summary>
+      <description>Animate windows with the Magic Lamp effect when minimizing or restoring.</description>
+    </key>
+    <key name="magic-lamp-duration-ms" type="u">
+      <range min="50" max="5000"/>
+      <default>250</default>
+      <summary>Magic Lamp duration</summary>
+      <description>Duration in milliseconds for the Magic Lamp animation.</description>
+    </key>
+  </schema>
 </schemalist>

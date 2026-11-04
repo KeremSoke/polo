@@ -13,3 +13,8 @@ test('bg', test_bg, suite: 'unit-c', protocol: 'tap', args: ['--tap'])
 
 test_theme = executable('test-theme', 'test-theme.c', dependencies: [polo_marco_dep])
 test('theme', test_theme, suite: 'unit-c', protocol: 'tap', args: ['--tap'], timeout: 120)
+
+test_wobbly = executable('test-wobbly', 'wobbly.c',
+  dependencies: [polo_fx_dep, cc.find_library('m')],
+)
+test('wobbly', test_wobbly, suite: 'unit-c')

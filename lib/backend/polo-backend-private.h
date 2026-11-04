@@ -48,7 +48,8 @@ struct _PoloBackendServer {
 	PoloBackendLayer layers[POLO_BACKEND_N_LAYERS];
 
 	GPtrArray *outputs; /* PoloBackendOutput, owned */
-	GPtrArray *seats;   /* PoloBackendSeat, owned */
+	gboolean animating;
+	GPtrArray *seats; /* PoloBackendSeat, owned */
 	GHashTable
 		*input_devices; /* libinput_device -> PoloBackendInputDevice */
 	GHashTable *clients;    /* wl_client -> PoloBackendClient, owned */
@@ -180,6 +181,14 @@ polo_backend_output_get_weston_output(PoloBackendOutput *output);
 
 void
 polo_backend_output_destroy(PoloBackendOutput *output);
+
+void
+polo_backend_output_set_animating(PoloBackendOutput *output,
+				  gboolean animating);
+
+void
+polo_backend_server_emit_frame(PoloBackendServer *server,
+			       PoloBackendOutput *output, gint64 usec);
 
 /* seat.c */
 PoloBackendSeat *

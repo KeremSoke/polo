@@ -380,6 +380,16 @@ namespace Polo {
             public signal void new_layer_surface (LayerSurface surface);
             /* libweston requested shutdown, e.g. when the nested window closed. */
             public signal void shutdown ();
+
+            [CCode (cname = "polo_backend_server_supports_deformation")]
+            public bool supports_deformation ();
+
+            /* While animating, outputs repaint continuously and emit frame just before each repaint. */
+            [CCode (cname = "polo_backend_server_set_animating")]
+            public void set_animating (bool animating);
+
+            /* usec: the output's presentation time, monotonic microseconds. */
+            public signal void frame (Output output, int64 usec);
         }
 
         [CCode (cname = "PoloBackendMode", has_type_id = false)]
@@ -599,6 +609,16 @@ namespace Polo {
             [CCode (cname = "polo_backend_view_get_position")]
             public void get_position (out double x, out double y);
 
+            [CCode (cname = "polo_backend_view_get_size")]
+            public void get_size (out int width, out int height);
+
+            /* cols × rows vertices of x, y, u, v; false leaves the view undeformed. */
+            [CCode (cname = "polo_backend_view_set_deformation")]
+            public bool set_deformation ([CCode (array_length = false)] float[] vertices, uint cols, uint rows);
+
+            [CCode (cname = "polo_backend_view_clear_deformation")]
+            public void clear_deformation ();
+
             /* On top of layer; null removes the view from any layer. */
             [CCode (cname = "polo_backend_view_move_to_layer")]
             public void move_to_layer (Layer? layer);
@@ -657,6 +677,9 @@ namespace Polo {
             /* Valid until destroyed. */
             [CCode (cname = "polo_backend_toplevel_get_view")]
             public unowned View get_view ();
+
+            [CCode (cname = "polo_backend_toplevel_get_surface_tree_views")]
+            public GLib.GenericArray<View> get_surface_tree_views ();
 
             [CCode (cname = "polo_backend_toplevel_get_client")]
             public unowned Client? get_client ();

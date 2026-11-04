@@ -19,6 +19,7 @@ struct _PoloBackendToplevel {
 	PoloBackendServer *server;
 	struct weston_desktop_surface *desktop_surface; /* NULL once gone */
 	PoloBackendView *view;
+	GPtrArray *subsurface_views;
 	struct wl_listener metadata_listener;
 	char *title;
 	char *app_id;
@@ -162,6 +163,13 @@ surface_removed(struct weston_desktop_surface *desktop_surface, void *data)
 	weston_desktop_surface_set_user_data(desktop_surface, NULL);
 
 	view = polo_backend_view_get_weston_view(self->view);
+	for (guint i = 0;
+	     self->subsurface_views && i < self->subsurface_views->len; i++) {
+		PoloBackendView *subsurface_view =
+			g_ptr_array_index(self->subsurface_views, i);
+		polo_backend_view_destroy(subsurface_view);
+	}
+	g_clear_pointer(&self->subsurface_views, g_ptr_array_unref);
 	polo_backend_view_destroy(self->view);
 	weston_desktop_surface_unlink_view(view);
 	weston_view_destroy(view);
@@ -594,6 +602,54 @@ polo_backend_toplevel_get_view(PoloBackendToplevel *toplevel)
 	return toplevel->view;
 }
 
+static void
+collect_surface_tree_views(PoloBackendToplevel *toplevel,
+			   struct weston_surface *surface, GPtrArray *views)
+{
+	struct weston_view *weston_view;
+	struct weston_subsurface *subsurface;
+	struct weston_subsurface *next;
+
+	wl_list_for_each(weston_view, &surface->views, surface_link)
+	{
+		PoloBackendView *handle = polo_backend_server_lookup_view(
+			toplevel->server, weston_view);
+		if (!handle) {
+			handle = polo_backend_view_new(toplevel->server,
+						       weston_view, toplevel);
+			g_ptr_array_add(toplevel->subsurface_views,
+					g_object_ref(handle));
+		}
+		g_ptr_array_add(views, g_object_ref(handle));
+	}
+
+	wl_list_for_each_safe(subsurface, next, &surface->subsurface_list,
+			      parent_link)
+	{
+		if (subsurface->surface != surface)
+			collect_surface_tree_views(toplevel,
+						   subsurface->surface, views);
+	}
+}
+
+GPtrArray *
+polo_backend_toplevel_get_surface_tree_views(PoloBackendToplevel *toplevel)
+{
+	GPtrArray *views;
+	struct weston_surface *surface;
+
+	g_return_val_if_fail(POLO_BACKEND_IS_TOPLEVEL(toplevel), NULL);
+	if (!toplevel->desktop_surface || !toplevel->view)
+		return g_ptr_array_new_with_free_func(g_object_unref);
+	if (!toplevel->subsurface_views)
+		toplevel->subsurface_views =
+			g_ptr_array_new_with_free_func(g_object_unref);
+	views = g_ptr_array_new_with_free_func(g_object_unref);
+	surface = weston_desktop_surface_get_surface(toplevel->desktop_surface);
+	collect_surface_tree_views(toplevel, surface, views);
+	return views;
+}
+
 PoloBackendClient *
 polo_backend_toplevel_get_client(PoloBackendToplevel *toplevel)
 {
@@ -707,6 +763,13 @@ static void
 polo_backend_toplevel_finalize(GObject *object)
 {
 	PoloBackendToplevel *self = POLO_BACKEND_TOPLEVEL(object);
+	if (self->subsurface_views) {
+		for (guint i = 0; i < self->subsurface_views->len; i++) {
+			polo_backend_view_destroy(
+				g_ptr_array_index(self->subsurface_views, i));
+		}
+		g_clear_pointer(&self->subsurface_views, g_ptr_array_unref);
+	}
 
 	g_clear_object(&self->view);
 	g_free(self->icon_name);

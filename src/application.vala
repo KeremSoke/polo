@@ -73,6 +73,7 @@ namespace Polo {
     public class Application : GLib.Object {
         private GLib.MainLoop loop;
         private Backend.Server? server;
+        private Effects.Engine? effects_engine;
         private Shell.Desktop? desktop;
         private Protocols.ForeignToplevels? foreign_toplevels;
         private Protocols.Workspaces? workspaces;
@@ -159,6 +160,16 @@ namespace Polo {
             loop = new GLib.MainLoop (null, false);
             server = new Backend.Server ();
             model = new Policy.Model (CommandLine.test_mode ? test_prefs () : MarcoPrefs.defaults ());
+            effects_engine = new Effects.Engine (settings_if_installed ("org.mate.interface"),
+                                                 settings_if_installed ("org.mate.polo.effects"));
+            effects_engine.set_reduced_resources (model.prefs.reduced_resources);
+            model.notify["prefs"].connect (() => {
+                effects_engine.set_reduced_resources (model.prefs.reduced_resources);
+            });
+            effects_engine.notify["animating"].connect (() => {
+                server.set_animating (effects_engine.animating);
+            });
+            server.frame.connect ((output, usec) => effects_engine.tick (usec));
             if (!CommandLine.test_mode) {
                 marco_prefs = new Settings.MarcoPrefsReader (model);
             }
@@ -169,6 +180,7 @@ namespace Polo {
             }
             desktop = new Shell.Desktop (server, model, store,
                                          config.kind == Backend.Kind.DRM || config.manage_outputs,
+                                         effects_engine,
                                          system_keyboard);
             foreign_toplevels = new Protocols.ForeignToplevels (server, model, desktop);
             desktop.switcher.set_minimize_target (foreign_toplevels.minimize_target);
@@ -188,6 +200,7 @@ namespace Polo {
                 return 1;
             }
             server.attach (GLib.MainContext.default ());
+            effects_engine.deformation_supported = server.supports_deformation ();
 #if POLO_HAVE_XWAYLAND
             start_xwayland ();
 #endif
@@ -386,8 +399,18 @@ namespace Polo {
             loop.quit ();
         }
 
+        private static GLib.Settings? settings_if_installed (string id) {
+            var source = GLib.SettingsSchemaSource.get_default ();
+            var schema = source != null ? source.lookup (id, true) : null;
+            return schema != null ? new GLib.Settings.full (schema, null, null) : null;
+        }
+
         /* Reverse order of construction. */
         private void teardown () {
+            if (effects_engine != null) {
+                effects_engine.shutdown ();
+                effects_engine = null;
+            }
             if (rename_workspace != null) {
                 rename_workspace.shutdown ();
                 rename_workspace = null;

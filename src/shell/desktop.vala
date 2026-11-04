@@ -36,6 +36,7 @@ namespace Polo.Shell {
         private Input.DeviceSettings device_settings;
 
         private Outputs.Store store;
+        public Effects.Engine effects { get; construct; }
         private bool drm;
         private GLib.GenericArray<Backend.Output> heads = new GLib.GenericArray<Backend.Output> ();
 
@@ -51,8 +52,9 @@ namespace Polo.Shell {
         public Decor.Decorations decorations { get; private set; }
 
         public Desktop (Backend.Server server, Policy.Model model, Outputs.Store store, bool drm,
+                        Effects.Engine effects,
                         Input.XkbConfig system_keyboard) {
-            Object (server: server, model: model);
+            Object (server: server, model: model, effects: effects);
             this.store = store;
             this.drm = drm;
             keyboard = new Input.Keyboard (server, model, system_keyboard);
@@ -105,10 +107,11 @@ namespace Polo.Shell {
             model.stack_changed.connect (restack);
             model.focus_changed.connect (on_focus_changed);
             model.pointer_warped.connect (on_pointer_warped);
+            model.window_geometry_transition.connect (on_window_geometry_transition);
             model.work_areas_changed.connect (push_work_areas);
             activation_tokens = new Policy.ActivationTokens ();
             bindings = new Input.Bindings ();
-            move_resize = new Input.MoveResize (model);
+            move_resize = new Input.MoveResize (model, effects);
             actions = new Input.MarcoActions (model, bindings, move_resize);
             tile_preview = new TilePreview (server);
             tile_preview.changed.connect (restack);
@@ -130,6 +133,38 @@ namespace Polo.Shell {
             model.notify["prefs"].connect (on_prefs_changed);
             server.set_activation_mint (on_activation_mint);
             server.set_activation_activate (on_activation_activate);
+        }
+
+        /* Keep maximize and tile wobble animations under half a second. */
+        private const double TRANSITION_SECONDS = 0.5;
+
+        private void on_window_geometry_transition (Window window, Marco.Rect old_rect,
+                                                    Marco.Rect new_rect) {
+            if (effects.settings == null) {
+                return;
+            }
+            /* A drag can end in a tile after its wobble settles; update that
+             * effect to the tiled geometry. */
+            var running = effects.effect_of (window) as Effects.WobblyEffect;
+            if (running != null) {
+                running.limit_to (TRANSITION_SECONDS);
+                return;
+            }
+            var xdg = window.adapter as XdgWindow;
+            if (xdg == null) {
+                return;
+            }
+            var target = xdg.create_effect_target ();
+            Marco.Rect drawn;
+            if (!target.get_surface_rect (out drawn)) {
+                return;
+            }
+            /* The views still have their old geometry, so animate them to the new one. */
+            var effect = new Effects.WobblyEffect (effects.settings);
+            if (effects.allowed (effect) && effect.prepare (target, drawn, new_rect, false)) {
+                effect.limit_to (TRANSITION_SECONDS);
+                effects.run (target, effect);
+            }
         }
 
         private string? on_activation_mint (Backend.ActivationRequest request) {

@@ -13,6 +13,35 @@ namespace Polo.Shell {
         public Window window { get; private set; }
         public bool mapped { get; private set; default = false; }
 
+        internal Effects.BackendTarget create_effect_target () {
+            return new Effects.BackendTarget (window, toplevel, effect_views);
+        }
+
+        private GLib.GenericArray<Backend.View> effect_views () {
+            var views = toplevel.get_surface_tree_views ();
+            if (decor != null) {
+                for (int i = 0; i < Decor.Frame.Edge.COUNT; i++) {
+                    Marco.Rect rect;
+                    unowned Backend.PixelBuffer? edge = decor.get_edge ((Decor.Frame.Edge) i, out rect);
+                    unowned Backend.View? view = edge != null ? edge.get_view () : null;
+                    if (view != null) {
+                        views.add (view);
+                    }
+                }
+            }
+            if (shadow != null) {
+                for (int i = 0; i < Marco.ShadowPiece.COUNT; i++) {
+                    Marco.Rect rect;
+                    unowned Backend.PixelBuffer? piece = shadow.get_piece ((Marco.ShadowPiece) i, out rect);
+                    unowned Backend.View? view = piece != null ? piece.get_view () : null;
+                    if (view != null) {
+                        views.add (view);
+                    }
+                }
+            }
+            return views;
+        }
+
         protected unowned Desktop desktop;
 
         /* Window geometry offset inside the surface (CSD shadows). */
