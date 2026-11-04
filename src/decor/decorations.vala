@@ -78,6 +78,44 @@ namespace Polo.Decor {
             return true;
         }
 
+
+        /* meta_theme_set_current (): the theme in use is not loaded again. */
+        public bool set_theme (string name) {
+            if (theme != null && name == theme_name) {
+                return true;
+            }
+            return load_theme (name);
+        }
+
+        /* main.c: with no theme yet, Simple, then any installed theme that loads. */
+        public void ensure_theme () {
+            if (theme != null || load_theme ("Simple")) {
+                return;
+            }
+            var names = new GLib.GenericArray<string> ();
+            foreach (unowned string dir in GLib.Environment.get_system_data_dirs ()) {
+                var themes = GLib.Path.build_filename (dir, "themes");
+                try {
+                    var listing = GLib.Dir.open (themes);
+                    for (unowned string? name = listing.read_name (); name != null; name = listing.read_name ()) {
+                        if (GLib.FileUtils.test (GLib.Path.build_filename (themes, name, "metacity-1"),
+                                                 GLib.FileTest.IS_DIR)) {
+                            names.add (name);
+                        }
+                    }
+                } catch (GLib.FileError e) {
+                    continue;
+                }
+            }
+            names.sort (GLib.strcmp);
+            foreach (unowned string name in names) {
+                if (load_theme (name)) {
+                    return;
+                }
+            }
+            Logging.scope (LogDomain.POLO).warning ("no window theme loads; windows stay undecorated");
+        }
+
         /* Marco's normal-window borders with no state flags. */
         public Marco.FrameBorders normal_borders () {
             if (theme == null || theme.get_frame_style (Marco.FrameType.NORMAL, 0) == null) {
