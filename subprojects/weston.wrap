@@ -15,4 +15,5 @@ diff_files =
   weston/0008-desktop-configure-after-unmap.patch,
   weston/0009-pointer-set-sprite.patch,
   weston/0010-pointer-gesture-signal.patch,
-  weston/0011-linux-drm-syncobj.patch
+  weston/0011-linux-drm-syncobj.patch,
+  weston/0012-view-deformation.patch

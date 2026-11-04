@@ -1,0 +1,660 @@
+--- a/include/libweston/libweston.h
++++ b/include/libweston/libweston.h
+@@ -1867,6 +1867,16 @@
+  *    Mparent * Mn * ... * M2 * M1
+  */
+ 
++/** A vertex of a view deformation grid.
++ *
++ * x and y are in global logical coordinates; u and v are surface
++ * coordinates normalised to [0, 1] over the surface's width and height.
++ */
++struct weston_view_deform_vertex {
++	float x, y;
++	float u, v;
++};
++
+ struct weston_view {
+ 	/** Derived from weston_surface::view_id_counter */
+ 	uint64_t internal_id;
+@@ -1965,6 +1975,13 @@
+ 
+ 	bool is_mapped;
+ 	struct weston_log_pacer subsurface_parent_log_pacer;
++
++	/* Set by weston_view_set_deformation(): cols x rows vertices,
++	 * row-major. NULL when the view is drawn undeformed. */
++	struct {
++		struct weston_view_deform_vertex *grid;
++		uint32_t cols, rows;
++	} deformation;
+ };
+ 
+ enum weston_surface_status {
+@@ -2368,6 +2385,17 @@
+ void
+ weston_view_set_alpha(struct weston_view *view, float alpha);
+ 
++int
++weston_view_set_deformation(struct weston_view *view,
++			    const struct weston_view_deform_vertex *grid,
++			    uint32_t cols, uint32_t rows);
++
++void
++weston_view_clear_deformation(struct weston_view *view);
++
++bool
++weston_compositor_supports_view_deformation(struct weston_compositor *compositor);
++
+ void
+ weston_view_move_to_layer(struct weston_view *view,
+ 			  struct weston_layer_entry *layer);
+--- a/libweston/compositor.c
++++ b/libweston/compositor.c
+@@ -345,6 +345,8 @@
+ 
+ 		pnode->simple_transform = weston_matrix_to_transform(mat,
+ 								     &pnode->transform);
++		if (pnode->view->deformation.grid)
++			pnode->simple_transform = false;
+ 		if (pnode->simple_transform)
+ 			paint_node_update_rectangles(pnode);
+ 	}
+@@ -2106,6 +2108,31 @@
+ 	return 0;
+ }
+ 
++/* A deformed view covers its grid's bounding box and occludes nothing. */
++static void
++view_deformation_bbox(struct weston_view *view)
++{
++	const struct weston_view_deform_vertex *grid = view->deformation.grid;
++	uint32_t n = view->deformation.cols * view->deformation.rows;
++	float min_x = HUGE_VALF, min_y = HUGE_VALF;
++	float max_x = -HUGE_VALF, max_y = -HUGE_VALF;
++	uint32_t i;
++
++	for (i = 0; i < n; i++) {
++		min_x = MIN(min_x, grid[i].x);
++		min_y = MIN(min_y, grid[i].y);
++		max_x = MAX(max_x, grid[i].x);
++		max_y = MAX(max_y, grid[i].y);
++	}
++
++	pixman_region32_fini(&view->transform.boundingbox);
++	pixman_region32_init_rect(&view->transform.boundingbox,
++				  floorf(min_x), floorf(min_y),
++				  ceilf(max_x) - floorf(min_x),
++				  ceilf(max_y) - floorf(min_y));
++	pixman_region32_clear(&view->transform.opaque);
++}
++
+ static void
+ weston_view_update_transform_internal(struct weston_view *view)
+ {
+@@ -2136,6 +2163,9 @@
+ 			weston_view_update_transform_disable(view);
+ 	}
+ 
++	if (view->deformation.grid)
++		view_deformation_bbox(view);
++
+ 	layer = get_view_layer(view);
+ 	if (layer) {
+ 		pixman_region32_init_with_extents(&mask, &layer->mask);
+@@ -2484,7 +2514,7 @@
+ 
+ 	weston_view_update_transform(ev);
+ 
+-	if (ev->alpha < 1.0)
++	if (ev->alpha < 1.0 || ev->deformation.grid)
+ 		return false;
+ 
+ 	if (ev->surface->is_opaque)
+@@ -2506,7 +2536,7 @@
+ {
+ 	weston_view_update_transform(ev);
+ 
+-	if (ev->alpha < 1.0)
++	if (ev->alpha < 1.0 || ev->deformation.grid)
+ 		return true;
+ 
+ 	if (ev->surface->is_opaque)
+@@ -2850,6 +2880,7 @@
+ 	pixman_region32_fini(&view->geometry.scissor);
+ 	pixman_region32_fini(&view->transform.boundingbox);
+ 	pixman_region32_fini(&view->transform.opaque);
++	free(view->deformation.grid);
+ 
+ 	weston_view_set_transform_parent(view, NULL);
+ 	weston_view_set_output(view, NULL);
+@@ -3450,7 +3481,9 @@
+ 		return;
+ 
+ 	pixman_region32_init(&damage);
+-	if (view->transform.enabled) {
++	if (view->deformation.grid) {
++		pixman_region32_copy(&damage, &view->transform.boundingbox);
++	} else if (view->transform.enabled) {
+ 		pixman_box32_t *extents;
+ 
+ 		extents = pixman_region32_extents(&view->surface->damage);
+@@ -4702,6 +4735,89 @@
+ 	weston_view_update_transform(view);
+ }
+ 
++/** Draw a view through a mesh
++ *
++ * \param view The view to deform.
++ * \param grid cols x rows vertices, row-major: global logical positions with
++ * normalised surface coordinates. It is copied.
++ * \param cols Vertices per row, at least 2.
++ * \param rows Rows of vertices, at least 2.
++ * \return 0 on success, -EINVAL for a bad grid, or -ENOTSUP when the
++ * renderer cannot deform views; the view is then drawn undeformed.
++ *
++ * The renderer draws the grid as triangles, texturing them from the
++ * surface. The view's bounding box becomes the grid's, it occludes nothing
++ * below it, and it never goes on a hardware plane. Input still uses the
++ * undeformed view.
++ */
++WL_EXPORT int
++weston_view_set_deformation(struct weston_view *view,
++			    const struct weston_view_deform_vertex *grid,
++			    uint32_t cols, uint32_t rows)
++{
++	struct weston_view_deform_vertex *copy;
++	size_t n;
++	size_t i;
++
++	if (!weston_compositor_supports_view_deformation(view->surface->compositor))
++		return -ENOTSUP;
++	if (!grid || cols < 2 || rows < 2 || (size_t)cols * rows > UINT16_MAX)
++		return -EINVAL;
++
++	n = (size_t)cols * rows;
++	for (i = 0; i < n; i++) {
++		if (!isfinite(grid[i].x) || !isfinite(grid[i].y) ||
++		    !isfinite(grid[i].u) || !isfinite(grid[i].v))
++			return -EINVAL;
++	}
++
++	if (view->deformation.grid &&
++	    view->deformation.cols * view->deformation.rows == n) {
++		copy = view->deformation.grid;
++	} else {
++		copy = malloc(n * sizeof *copy);
++		if (!copy)
++			return -ENOMEM;
++		free(view->deformation.grid);
++	}
++	memcpy(copy, grid, n * sizeof *copy);
++	view->deformation.grid = copy;
++	view->deformation.cols = cols;
++	view->deformation.rows = rows;
++	weston_view_geometry_dirty(view);
++
++	return 0;
++}
++
++/** Whether weston_view_set_deformation() can succeed
++ *
++ * \param compositor The compositor.
++ * \return True when the renderer draws deformed views.
++ */
++WL_EXPORT bool
++weston_compositor_supports_view_deformation(struct weston_compositor *compositor)
++{
++	return compositor->renderer &&
++	       compositor->renderer->type == WESTON_RENDERER_GL;
++}
++
++/** Draw a view undeformed again
++ *
++ * \param view The view.
++ */
++WL_EXPORT void
++weston_view_clear_deformation(struct weston_view *view)
++{
++	if (!view->deformation.grid)
++		return;
++
++	free(view->deformation.grid);
++	view->deformation.grid = NULL;
++	view->deformation.cols = 0;
++	view->deformation.rows = 0;
++	weston_view_geometry_dirty(view);
++}
++
+ static bool
+ layer_is_visible(struct weston_layer_entry *layer_entry)
+ {
+@@ -9990,6 +10106,7 @@
+ 	case FAILURE_REASONS_SOLID_SURFACE:		    return "solid surface";
+ 	case FAILURE_REASONS_OCCLUDED_BY_RENDERER:	    return "occluded by renderer";
+ 	case FAILURE_REASONS_OUTPUT_COLOR_EFFECT:	    return "output contains color effect";
++	case FAILURE_REASONS_DEFORMED:			    return "view is deformed";
+ 	}
+ 	return "???";
+ }
+--- a/libweston/libweston-internal.h
++++ b/libweston/libweston-internal.h
+@@ -679,6 +679,7 @@
+ 	FAILURE_REASONS_SOLID_SURFACE = 1 << 16,
+ 	FAILURE_REASONS_OCCLUDED_BY_RENDERER = 1 << 17,
+ 	FAILURE_REASONS_OUTPUT_COLOR_EFFECT = 1 << 18,
++	FAILURE_REASONS_DEFORMED = 1 << 19,
+ };
+ 
+ /**
+--- a/libweston/renderer-gl/gl-renderer.c
++++ b/libweston/renderer-gl/gl-renderer.c
+@@ -2512,6 +2512,131 @@
+ 		gr->barycentric_stream.size = 0;
+ }
+ 
++/* A view deformed by weston_view_set_deformation (): the whole grid as
++ * triangle strips joined by degenerate triangles, cut to the repaint region
++ * with the scissor. */
++static void
++draw_deformed(struct gl_renderer *gr,
++	      struct weston_paint_node *pnode,
++	      struct gl_shader_config *sconf,
++	      pixman_region32_t *repaint)
++{
++	struct gl_surface_state *gs = get_surface_state(pnode->surface);
++	struct gl_output_state *go = get_output_state(pnode->output);
++	struct gl_buffer_state *gb = gs->buffer;
++	const struct weston_view *view = pnode->view;
++	const struct weston_view_deform_vertex *grid = view->deformation.grid;
++	const uint32_t cols = view->deformation.cols;
++	const uint32_t rows = view->deformation.rows;
++	const uint32_t n = cols * rows;
++	const int nidx = (rows - 1) * cols * 2 + (rows - 2) * 2;
++	const uint32_t bx = 0xff0000, by = 0x00ff00, bz = 0x0000ff;
++	const uint32_t corners[3] = { bx, by, bz };
++	bool wireframe = gr->debug_mode == DEBUG_MODE_WIREFRAME;
++	struct clipper_vertex *positions, *texcoords;
++	uint32_t *barycentrics = NULL;
++	uint16_t *indices;
++	EGLint *rects;
++	EGLint nrects;
++	GLint swizzle_a;
++	uint32_t r, c, i;
++	int k = 0;
++
++	positions = wl_array_add(&gr->position_stream,
++				 2 * n * sizeof *positions);
++	indices = wl_array_add(&gr->indices, nidx * sizeof *indices);
++	if (wireframe)
++		barycentrics = wl_array_add(&gr->barycentric_stream,
++					    n * sizeof *barycentrics);
++	if (!positions || !indices || (wireframe && !barycentrics))
++		goto out;
++	texcoords = positions + n;
++
++	for (i = 0; i < n; i++) {
++		struct weston_vector v = { .v.el = {
++			grid[i].u * pnode->surface->width,
++			grid[i].v * pnode->surface->height,
++			0.0f, 1.0f
++		} };
++
++		positions[i].x = grid[i].x;
++		positions[i].y = grid[i].y;
++		weston_matrix_transform(&sconf->surface_to_buffer, &v);
++		texcoords[i].x = v.v.el[0];
++		texcoords[i].y = v.v.el[1];
++	}
++
++	/* Each row of quads is one strip; neighbouring vertices of a strip's
++	 * triangles never share a corner value. */
++	for (r = 0; r + 1 < rows; r++) {
++		if (r > 0) {
++			indices[k] = indices[k - 1];
++			k++;
++			indices[k++] = r * cols;
++		}
++		for (c = 0; c < cols; c++) {
++			indices[k++] = r * cols + c;
++			indices[k++] = (r + 1) * cols + c;
++		}
++	}
++	assert(k == nidx);
++	if (wireframe) {
++		for (r = 0; r < rows; r++)
++			for (c = 0; c < cols; c++)
++				barycentrics[r * cols + c] =
++					corners[(c + 2 * r) % 3];
++	}
++
++	if (!pnode->draw_solid)
++		sconf->req.texcoord_input = SHADER_TEXCOORD_INPUT_ATTRIB;
++	sconf->projection = go->output_matrix;
++
++	set_blend_state(gr, pnode, !go->shader_blender);
++	if (!pnode->draw_solid && gb->shader_variant == SHADER_VARIANT_RGBA) {
++		swizzle_a = gb->texture_format[0].swizzles.a;
++		if (gb->parameters[0].swizzles.a != swizzle_a) {
++			gb->parameters[0].swizzles.a = swizzle_a;
++			gb->parameters[0].flags |= TEXTURE_SWIZZLES_DIRTY;
++		}
++	}
++
++	if (gr->debug_mode)
++		set_debug_mode(gr, sconf, barycentrics, false);
++
++	gl_log_paint_node(gr, "\t\tdrawing deformed paint node\n");
++	if (!gl_renderer_use_program(gr, pnode, sconf))
++		gl_renderer_send_shader_error(pnode);
++
++	glEnableVertexAttribArray(SHADER_ATTRIB_LOC_TEXCOORD);
++	glVertexAttribPointer(SHADER_ATTRIB_LOC_POSITION, 2, GL_FLOAT, GL_FALSE,
++			      0, positions);
++	glVertexAttribPointer(SHADER_ATTRIB_LOC_TEXCOORD, 2, GL_FLOAT, GL_FALSE,
++			      0, texcoords);
++
++	pixman_region_to_egl(pnode->output, repaint, go->border_status,
++			     &rects, &nrects);
++	glEnable(GL_SCISSOR_TEST);
++	for (i = 0; i < (uint32_t)nrects; i++) {
++		EGLint *rect = &rects[i * 4];
++
++		glScissor(rect[0], rect[1], rect[2], rect[3]);
++		glDrawElements(GL_TRIANGLE_STRIP, nidx, GL_UNSIGNED_SHORT,
++			       indices);
++	}
++	glDisable(GL_SCISSOR_TEST);
++	free(rects);
++
++	glDisableVertexAttribArray(SHADER_ATTRIB_LOC_TEXCOORD);
++	if (wireframe)
++		glDisableVertexAttribArray(SHADER_ATTRIB_LOC_BARYCENTRIC);
++
++out:
++	gr->position_stream.size = 0;
++	gr->indices.size = 0;
++	if (wireframe)
++		gr->barycentric_stream.size = 0;
++}
++
+ const char *
+ weston_output_cvd_type_to_str(struct weston_cvd_correction cvd)
+ {
+@@ -2691,6 +2816,13 @@
+ 		goto out;
+ 	}
+ 
++	if (pnode->view->deformation.grid) {
++		gl_log_paint_node_bbox_and_region(gr, pnode, "repaint region", &repaint);
++		draw_deformed(gr, pnode, &sconf, &repaint);
++		gs->used_in_output_repaint = true;
++		goto out;
++	}
++
+ 	if (pnode->is_fully_opaque) {
+ 		pixman_region32_init_rect(&surface_opaque, 0, 0,
+ 					  pnode->surface->width,
+--- a/libweston/backend-drm/state-propose.c
++++ b/libweston/backend-drm/state-propose.c
+@@ -746,6 +746,13 @@
+ 		return NULL;
+ 	}
+ 
++	/* the renderer draws deformed views; no plane can */
++	if (pnode->view->deformation.grid) {
++		pnode->try_view_on_plane_failure_reasons |=
++			FAILURE_REASONS_DEFORMED;
++		return NULL;
++	}
++
+ 	/* check view for valid buffer, doesn't make sense to even try */
+ 	if (!weston_paint_node_has_valid_buffer(pnode)) {
+ 		pnode->try_view_on_plane_failure_reasons |=
+--- a/tests/meson.build
++++ b/tests/meson.build
+@@ -146,6 +146,7 @@
+ 			input_timestamps_unstable_v1_protocol_c,
+ 		],
+ 	},
++	{	'name': 'view-deformation', },
+ 	{	'name': 'viewporter', },
+ 	{	'name': 'viewporter-shot', },
+ 	{	'name': 'safe-signal', },
+--- /dev/null
++++ b/tests/view-deformation-test.c
+@@ -0,0 +1,234 @@
++/*
++ * Copyright 2026 Kerem Soke
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining
++ * a copy of this software and associated documentation files (the
++ * "Software"), to deal in the Software without restriction, including
++ * without limitation the rights to use, copy, modify, merge, publish,
++ * distribute, sublicense, and/or sell copies of the Software, and to
++ * permit persons to whom the Software is furnished to do so, subject to
++ * the following conditions:
++ *
++ * The above copyright notice and this permission notice (including the
++ * next paragraph) shall be included in all copies or substantial
++ * portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
++ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ * NONINFRINGEMENT.  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
++ * BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
++ * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
++ * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
++ * SOFTWARE.
++ */
++
++#include "config.h"
++
++#include <errno.h>
++#include <stdio.h>
++
++#include "libweston-internal.h"
++#include "weston-test-client-helper.h"
++#include "weston-test-fixture-compositor.h"
++#include "weston-test-assert.h"
++#include "image-iter.h"
++
++struct setup_args {
++	struct fixture_metadata meta;
++	enum weston_renderer_type renderer;
++};
++
++static const struct setup_args my_setup_args[] = {
++	{
++		.renderer = WESTON_RENDERER_PIXMAN,
++		.meta.name = "pixman"
++	},
++	{
++		.renderer = WESTON_RENDERER_GL,
++		.meta.name = "GL"
++	},
++};
++
++static enum test_result_code
++fixture_setup(struct weston_test_harness *harness, const struct setup_args *arg)
++{
++	struct compositor_setup setup;
++
++	compositor_setup_defaults(&setup);
++	setup.renderer = arg->renderer;
++	setup.width = 320;
++	setup.height = 240;
++	setup.shell = SHELL_TEST_DESKTOP;
++	setup.logging_scopes = "log,test-harness-plugin";
++	setup.refresh = HIGHEST_OUTPUT_REFRESH;
++
++	return weston_test_harness_execute_as_client(harness, &setup);
++}
++DECLARE_FIXTURE_SETUP_WITH_ARG(fixture_setup, my_setup_args, meta);
++
++#define SIZE 64
++#define ORIGIN_X 10
++#define ORIGIN_Y 10
++#define GRID_X 100
++#define GRID_Y 50
++
++static const uint32_t red = 0xffff0000;
++static const uint32_t blue = 0xff0000ff;
++
++/* A SIZE x SIZE surface, red on the left half and blue on the right. */
++static struct client *
++create_halves_client(void)
++{
++	struct client *client = create_client();
++	struct surface *surface = create_test_surface(client);
++	pixman_color_t left, right;
++	pixman_rectangle16_t half = { 0, 0, SIZE / 2, SIZE };
++	pixman_image_t *solid;
++
++	client->surface = surface;
++	surface->width = SIZE;
++	surface->height = SIZE;
++	surface->buffer = create_shm_buffer_a8r8g8b8(client, SIZE, SIZE);
++
++	color_rgb888(&left, 255, 0, 0);
++	pixman_image_fill_rectangles(PIXMAN_OP_SRC, surface->buffer->image,
++				     &left, 1, &half);
++	half.x = SIZE / 2;
++	color_rgb888(&right, 0, 0, 255);
++	solid = surface->buffer->image;
++	pixman_image_fill_rectangles(PIXMAN_OP_SRC, solid, &right, 1, &half);
++
++	move_client_frame_sync(client, ORIGIN_X, ORIGIN_Y);
++
++	return client;
++}
++
++static struct weston_view *
++find_view(struct weston_compositor *compositor)
++{
++	struct weston_view *view;
++
++	wl_list_for_each(view, &compositor->view_list, link) {
++		if (view->surface->width == SIZE &&
++		    view->surface->height == SIZE)
++			return view;
++	}
++	return NULL;
++}
++
++static uint32_t
++pixel_at(struct client *client, int x, int y)
++{
++	struct buffer *shot = capture_screenshot_of_output(client, NULL,
++							   NO_DECORATIONS);
++	struct image_header ih = image_header_from(shot->image);
++	uint32_t pixel = image_header_get_row_u32(&ih, y)[x];
++
++	buffer_destroy(shot);
++	return pixel;
++}
++
++/* The surface mirrored left to right onto SIZE x SIZE at GRID_X, GRID_Y,
++ * through a 3 x 3 grid so the rows of triangle strips join. */
++static void
++mirror_grid(struct weston_view_deform_vertex grid[9])
++{
++	int r, c;
++
++	for (r = 0; r < 3; r++) {
++		for (c = 0; c < 3; c++) {
++			grid[r * 3 + c] = (struct weston_view_deform_vertex) {
++				.x = GRID_X + c * SIZE / 2,
++				.y = GRID_Y + r * SIZE / 2,
++				.u = 1.0f - c / 2.0f,
++				.v = r / 2.0f,
++			};
++		}
++	}
++}
++
++static enum test_result_code
++deform_and_clear(struct wet_testsuite_data *suite_data)
++{
++	const struct setup_args *args = &my_setup_args[get_test_fixture_index()];
++	bool supported = args->renderer == WESTON_RENDERER_GL;
++	struct client *client;
++
++	client = create_halves_client();
++	test_assert_ptr_not_null(client);
++	weston_test_move_pointer(client->test->weston_test, 0, 1, 0, 300, 230);
++
++	test_assert_u32_eq(pixel_at(client, ORIGIN_X + 8, ORIGIN_Y + 32), red);
++
++	client_push_breakpoint(client, suite_data,
++			       WESTON_TEST_BREAKPOINT_POST_REPAINT,
++			       (struct wl_proxy *) client->output->wl_output);
++	move_client(client, ORIGIN_X, ORIGIN_Y);
++	RUN_INSIDE_BREAKPOINT(client, suite_data) {
++		struct weston_view_deform_vertex grid[9];
++		struct weston_view *view = find_view(breakpoint->compositor);
++		pixman_box32_t *box;
++		int ret;
++
++		test_assert_ptr_not_null(view);
++		test_assert_int_eq(weston_view_set_deformation(view, NULL, 3, 3),
++				   supported ? -EINVAL : -ENOTSUP);
++		mirror_grid(grid);
++		ret = weston_view_set_deformation(view, grid, 3, 3);
++		if (!supported) {
++			test_assert_int_eq(ret, -ENOTSUP);
++			test_assert_ptr_null(view->deformation.grid);
++			continue;
++		}
++		test_assert_int_eq(ret, 0);
++		test_assert_int_eq(weston_view_set_deformation(view, grid, 1, 9),
++				   -EINVAL);
++
++		weston_view_update_transform(view);
++		box = pixman_region32_extents(&view->transform.boundingbox);
++		test_assert_int_eq(box->x1, GRID_X);
++		test_assert_int_eq(box->y1, GRID_Y);
++		test_assert_int_eq(box->x2, GRID_X + SIZE);
++		test_assert_int_eq(box->y2, GRID_Y + SIZE);
++		test_assert_false(pixman_region32_not_empty(&view->transform.opaque));
++		test_assert_false(weston_view_is_opaque(view, &view->transform.boundingbox));
++	}
++
++	if (!supported) {
++		test_assert_u32_eq(pixel_at(client, ORIGIN_X + 8, ORIGIN_Y + 32),
++				   red);
++		client_destroy(client);
++		return RESULT_OK;
++	}
++
++	/* Mirrored, in each row of the grid, and gone from where it was. */
++	test_assert_u32_eq(pixel_at(client, GRID_X + 8, GRID_Y + 8), blue);
++	test_assert_u32_eq(pixel_at(client, GRID_X + 8, GRID_Y + 56), blue);
++	test_assert_u32_eq(pixel_at(client, GRID_X + 56, GRID_Y + 8), red);
++	test_assert_u32_eq(pixel_at(client, GRID_X + 56, GRID_Y + 56), red);
++	test_assert_u32_ne(pixel_at(client, ORIGIN_X + 8, ORIGIN_Y + 32), red);
++
++	client_push_breakpoint(client, suite_data,
++			       WESTON_TEST_BREAKPOINT_POST_REPAINT,
++			       (struct wl_proxy *) client->output->wl_output);
++	move_client(client, ORIGIN_X, ORIGIN_Y);
++	RUN_INSIDE_BREAKPOINT(client, suite_data) {
++		struct weston_view *view = find_view(breakpoint->compositor);
++
++		test_assert_ptr_not_null(view);
++		weston_view_clear_deformation(view);
++		test_assert_ptr_null(view->deformation.grid);
++	}
++
++	test_assert_u32_eq(pixel_at(client, ORIGIN_X + 8, ORIGIN_Y + 32), red);
++	test_assert_u32_eq(pixel_at(client, ORIGIN_X + 56, ORIGIN_Y + 32), blue);
++	test_assert_u32_ne(pixel_at(client, GRID_X + 8, GRID_Y + 8), blue);
++
++	client_destroy(client);
++	return RESULT_OK;
++}
++
++DECLARE_TEST_LIST(
++	TESTFN(deform_and_clear),
++);
