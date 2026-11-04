@@ -1408,6 +1408,31 @@ gboolean polo_backend_output_get_mode(PoloBackendOutput *self, int index, PoloBa
 gboolean polo_backend_output_apply(PoloBackendOutput *self, int width, int height, int refresh,
  int scale, int transform, int x, int y, gboolean enabled, GError **error);
 
+/* Variable refresh rate, libweston's game mode. */
+gboolean polo_backend_output_get_adaptive_sync_supported(PoloBackendOutput *self);
+gboolean polo_backend_output_get_adaptive_sync(PoloBackendOutput *self);
+gboolean polo_backend_output_set_adaptive_sync(PoloBackendOutput *self, gboolean enabled);
+
+typedef struct {
+	PoloBackendOutput *output;
+	gboolean enabled;
+	int width, height, refresh;
+	int x, y;
+	int transform;
+	double scale;
+	gboolean adaptive_sync;
+} PoloBackendOutputRequest;
+
+typedef gboolean (*PoloBackendOutputConfigHandler)(const PoloBackendOutputRequest *requests,
+						   guint n_requests, gboolean test,
+						   gpointer user_data);
+
+void polo_backend_server_set_output_config_handler(PoloBackendServer *server,
+						   PoloBackendOutputConfigHandler handler,
+						   gpointer user_data, GDestroyNotify destroy);
+
+void polo_backend_server_output_state_changed(PoloBackendServer *server);
+
 G_END_DECLS
 
 #endif /* POLO_BACKEND_H */

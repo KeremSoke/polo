@@ -404,6 +404,9 @@ int main () {
     server.lock_restart_requested.connect (() => {});
     server.set_lock_prompt (null);
     server.force_unlock ();
+    server.set_output_config_handler ((requests, test) => requests.length > 0 && test);
+    server.output_state_changed ();
+    server.set_output_config_handler (null);
     server.set_keyboard_repeat (25, 600);
     server.set_test_settings ((schema, key, value) => value);
     assert (Polo.Backend.Keymap.has_layout ("us", null));

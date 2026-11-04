@@ -472,3 +472,34 @@ failed:
 		    "cannot apply output %s", self->name);
 	return FALSE;
 }
+
+gboolean
+polo_backend_output_get_adaptive_sync_supported(PoloBackendOutput *self)
+{
+	g_return_val_if_fail(POLO_BACKEND_IS_OUTPUT(self), FALSE);
+	return self->output &&
+		(weston_output_get_supported_vrr_modes(self->output) &
+		 WESTON_VRR_MODE_GAME) != 0;
+}
+
+gboolean
+polo_backend_output_get_adaptive_sync(PoloBackendOutput *self)
+{
+	g_return_val_if_fail(POLO_BACKEND_IS_OUTPUT(self), FALSE);
+	return self->output && self->output->vrr_mode != WESTON_VRR_MODE_NONE;
+}
+
+gboolean
+polo_backend_output_set_adaptive_sync(PoloBackendOutput *self, gboolean enabled)
+{
+	g_return_val_if_fail(POLO_BACKEND_IS_OUTPUT(self), FALSE);
+	if (!self->output)
+		return FALSE;
+	if (polo_backend_output_get_adaptive_sync(self) == !!enabled)
+		return TRUE;
+	if (enabled && !polo_backend_output_get_adaptive_sync_supported(self))
+		return FALSE;
+	return weston_output_set_vrr_mode(self->output,
+					  enabled ? WESTON_VRR_MODE_GAME
+						  : WESTON_VRR_MODE_NONE) == 0;
+}

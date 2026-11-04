@@ -104,6 +104,7 @@ struct _PoloBackendServer {
 	struct wl_list idle_inhibitors;
 	struct wl_global *idle_notifier_global;
 	struct polo_session_lock *session_lock;
+	struct polo_output_management *output_management;
 	struct wl_list idle_watches;
 	struct wl_listener idle_wake_listener;
 	struct wl_listener idle_idle_listener;
@@ -330,6 +331,12 @@ polo_backend_idle_notify_init(PoloBackendServer *server, GError **error);
 
 void
 polo_backend_idle_notify_fini(PoloBackendServer *server);
+
+gboolean
+polo_backend_output_management_init(PoloBackendServer *server, GError **error);
+
+void
+polo_backend_output_management_fini(PoloBackendServer *server);
 
 gboolean
 polo_backend_session_lock_init(PoloBackendServer *server, GError **error);

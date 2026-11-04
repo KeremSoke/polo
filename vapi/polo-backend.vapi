@@ -278,6 +278,27 @@ namespace Polo {
             public bool surface_focused;
         }
 
+        /* One head of a zwlr_output_manager_v1 configuration, unset properties filled in. */
+        [CCode (cname = "PoloBackendOutputRequest", has_type_id = false, has_copy_function = false,
+                has_destroy_function = false)]
+        public struct OutputRequest {
+            public unowned Output output;
+            public bool enabled;
+            public int width;
+            public int height;
+            public int refresh;
+            public int x;
+            public int y;
+            public int transform;
+            public double scale;
+            public bool adaptive_sync;
+        }
+
+        /* test: validate only. An apply that fails must have reverted what it changed. */
+        [CCode (cname = "PoloBackendOutputConfigHandler", has_target = true)]
+        public delegate bool OutputConfigHandler ([CCode (array_length_type = "guint")] OutputRequest[] requests,
+                                                  bool test);
+
         [CCode (cname = "PoloBackendActivationMint", has_target = true)]
         public delegate string? ActivationMint (ActivationRequest request);
 
@@ -341,6 +362,13 @@ namespace Polo {
             /* Blanked outputs back on, as input would. */
             [CCode (cname = "polo_backend_server_unblank_outputs")]
             public void unblank_outputs ();
+
+            [CCode (cname = "polo_backend_server_set_output_config_handler")]
+            public void set_output_config_handler (owned OutputConfigHandler? handler);
+
+            /* Outputs changed outside a hotplug: resend their state to output managers. */
+            [CCode (cname = "polo_backend_server_output_state_changed")]
+            public void output_state_changed ();
 
             [CCode (cname = "polo_backend_server_get_lock_state")]
             public LockState get_lock_state ();
@@ -452,6 +480,11 @@ namespace Polo {
             public bool get_mode (int index, out Mode mode);
             public bool apply (int width, int height, int refresh, int scale, int transform,
                                int x, int y, bool enabled) throws GLib.Error;
+
+            /* Variable refresh rate: libweston's game mode. */
+            public bool get_adaptive_sync_supported ();
+            public bool get_adaptive_sync ();
+            public bool set_adaptive_sync (bool enabled);
 
             [CCode (cname = "polo_backend_output_get_name")]
             public unowned string get_name ();
