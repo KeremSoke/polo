@@ -228,6 +228,8 @@
       <entry name="rename_workspace" value="1"/>
       <entry name="end_session" value="2"/>
       <entry name="message" value="3"/>
+      <entry name="display_confirmation" value="4"
+             summary="mate-settings-daemon's &quot;Does the display look OK?&quot;; payload: the seconds left"/>
     </enum>
 
     <event name="show_dialog">

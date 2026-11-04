@@ -12,6 +12,11 @@ namespace PoloShellUi {
     private const uint DIALOG_RENAME_WORKSPACE = 1;
     private const uint DIALOG_END_SESSION = 2;
     private const uint DIALOG_MESSAGE = 3;
+    private const uint DIALOG_DISPLAY_CONFIRMATION = 4;
+    private const string MSD = "mate-settings-daemon";
+
+    [CCode (cname = "g_dngettext", cheader_filename = "glib.h")]
+    private extern unowned string msd_ngettext (string domain, string msgid, string plural, ulong n);
     private const string ZENITY_UI = "/org/mate/polo/shell-ui/zenity.ui";
 
     public class Dialogs : GLib.Object {
@@ -43,6 +48,8 @@ namespace PoloShellUi {
                 dialog = rename_workspace (id, payload);
             } else if (kind == DIALOG_MESSAGE) {
                 dialog = message (id, payload ?? "");
+            } else if (kind == DIALOG_DISPLAY_CONFIRMATION) {
+                dialog = display_confirmation (id, payload);
             } else if (kind == DIALOG_END_SESSION) {
                 dialog = EndSessionDialogs.create (payload);
                 if (dialog != null) {
@@ -53,7 +60,7 @@ namespace PoloShellUi {
                 client.dialog_response (id, -1, null);
                 return;
             }
-            if (kind != DIALOG_END_SESSION) {
+            if (kind != DIALOG_END_SESSION && kind != DIALOG_DISPLAY_CONFIRMATION) {
                 dialog.title = marco ("Marco");
             }
             open.insert (id, dialog);
@@ -97,6 +104,44 @@ namespace PoloShellUi {
             text.get_settings ().gtk_label_select_on_focus = false;
 
             dialog.response.connect ((response) => answer (id, response, null));
+            return dialog;
+        }
+
+        private Gtk.Dialog display_confirmation (uint id, string? payload) {
+            int countdown = int.parse (payload ?? "");
+            if (countdown <= 0) {
+                countdown = 30;
+            }
+            var dialog = new Gtk.MessageDialog (null, Gtk.DialogFlags.MODAL, Gtk.MessageType.QUESTION,
+                                                Gtk.ButtonsType.NONE, "%s",
+                                                msm_gettext (MSD, "Does the display look OK?"));
+            dialog.icon_name = "preferences-desktop-display";
+            dialog.add_button (msm_gettext (MSD, "_Restore Previous Configuration"), Gtk.ResponseType.CANCEL);
+            dialog.add_button (msm_gettext (MSD, "_Keep This Configuration"), Gtk.ResponseType.ACCEPT);
+            dialog.set_default_response (Gtk.ResponseType.ACCEPT);
+            GLib.SourceFunc show_countdown = () => {
+                dialog.format_secondary_text (msd_ngettext (
+                    MSD, "The display will be reset to its previous configuration in %d second",
+                    "The display will be reset to its previous configuration in %d seconds", countdown), countdown);
+                return GLib.Source.CONTINUE;
+            };
+            show_countdown ();
+            uint timer = GLib.Timeout.add (1000, () => {
+                countdown--;
+                if (countdown == 0) {
+                    dialog.response (Gtk.ResponseType.CANCEL);
+                    return GLib.Source.REMOVE;
+                }
+                return show_countdown ();
+            });
+            dialog.destroy.connect (() => {
+                if (countdown > 0) {
+                    GLib.Source.remove (timer);
+                }
+            });
+            dialog.response.connect ((response) => {
+                answer (id, response == Gtk.ResponseType.DELETE_EVENT ? Gtk.ResponseType.CANCEL : response, null);
+            });
             return dialog;
         }
 

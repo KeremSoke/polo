@@ -1032,7 +1032,8 @@ namespace Polo {
             NOT_RESPONDING,
             RENAME_WORKSPACE,
             END_SESSION,
-            MESSAGE
+            MESSAGE,
+            DISPLAY_CONFIRMATION
         }
 
         /* ext_session_lock_v1. ABANDONED: the locker went away while locked; the curtain stays. */
