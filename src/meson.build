@@ -56,6 +56,7 @@ polo_sources = files(
   'dbus/sm-client.vala',
   'dbus/sm-inhibitor.vala',
   'dbus/sm-app.vala',
+  'dbus/sm-presence.vala',
   'dbus/sm-manager.vala',
   'core/spawn.vala',
   'decor/decorations.vala',

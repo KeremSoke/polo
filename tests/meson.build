@@ -48,7 +48,6 @@ test('sm-abi', python,
   suite: 'session',
   timeout: 60,
   is_parallel: false,
-  should_fail: true,
 )
 
 test('sm-manager', python,

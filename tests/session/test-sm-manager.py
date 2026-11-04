@@ -185,6 +185,40 @@ def clients(bus, signals):
     check(client_error(bus, path, client, "GetStatus") is not None, "a removed client is still exported")
 
 
+def presence(bus):
+    path, interface = ROOT + "/Presence", NAME + ".Presence"
+    properties = "org.freedesktop.DBus.Properties"
+    seen = []
+    bus.signal_subscribe(NAME, interface, None, path, None, Gio.DBusSignalFlags.NONE,
+                         lambda c, s, p, i, name, params: seen.append((name, params.unpack())))
+
+    def wait(name, value):
+        context = GLib.MainContext.default()
+        end = time.monotonic() + 5
+        while time.monotonic() < end:
+            while context.pending():
+                context.iteration(False)
+            if (name, value) in seen:
+                return True
+            time.sleep(0.01)
+        return False
+
+    def get(prop):
+        return client_call(bus, path, properties, "Get", GLib.Variant("(ss)", (interface, prop)), "(v)")[0]
+
+    check(get("status") == 0, "the session does not start available")
+    client_call(bus, path, interface, "SetStatus", GLib.Variant("(u)", (2,)))
+    check(wait("StatusChanged", (2,)) and get("status") == 2, "SetStatus did not make the session busy")
+    client_call(bus, path, interface, "SetStatusText", GLib.Variant("(s)", ("away",)))
+    check(wait("StatusTextChanged", ("away",)) and get("status-text") == "away", "SetStatusText")
+    check(client_error(bus, path, interface, "SetStatusText", GLib.Variant("(s)", ("x" * 141,))) ==
+          interface + ".GeneralError", "a status text over 140 bytes was accepted")
+    check(get("status-text") == "away", "a refused status text replaced the old one")
+    client_call(bus, path, properties, "Set",
+                GLib.Variant("(ssv)", (interface, "status", GLib.Variant("u", 0))))
+    check(wait("StatusChanged", (0,)) and get("status") == 0, "setting the status property")
+
+
 def logout(bus, signals, polo):
     call(bus, "Logout", GLib.Variant("(u)", (1,)))
     check(signals.wait("SessionOver"), "SessionOver was not sent")
@@ -209,6 +243,7 @@ def main():
         phases(bus)
         inhibitors(bus, signals)
         clients(bus, signals)
+        presence(bus)
         logout(bus, signals, polo)
     finally:
         polo.stop()

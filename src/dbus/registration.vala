@@ -9,21 +9,28 @@ namespace Polo.Dbus {
 
     public delegate GLib.Variant? PropertyHandler (string property);
 
+    public delegate bool PropertySetter (string property, GLib.Variant value);
+
     public class Registration : GLib.Object {
         private GLib.DBusConnection connection;
         private uint id = 0;
         private MethodHandler on_method;
         private PropertyHandler? on_property;
+        private PropertySetter? on_set;
 
         public Registration (GLib.DBusConnection connection, string path, GLib.DBusInterfaceInfo info,
-                             owned MethodHandler on_method, owned PropertyHandler? on_property = null)
+                             owned MethodHandler on_method, owned PropertyHandler? on_property = null,
+                             owned PropertySetter? on_set = null)
             throws GLib.Error {
             this.connection = connection;
             this.on_method = (owned) on_method;
             this.on_property = (owned) on_property;
+            this.on_set = (owned) on_set;
             var method_closure = closure (marshal_method);
             GLib.Closure? property_closure = this.on_property != null ? closure (marshal_property) : null;
-            id = connection.register_object_with_closures (path, info, method_closure, property_closure, null);
+            GLib.Closure? set_closure = this.on_set != null ? closure (marshal_set) : null;
+            id = connection.register_object_with_closures (path, info, method_closure, property_closure,
+                                                           set_closure);
         }
 
         public void unregister () {
@@ -56,6 +63,13 @@ namespace Polo.Dbus {
             unowned Registration self = (Registration) data;
             return_value = GLib.Value (typeof (GLib.Variant));
             return_value.set_variant (self.on_property (param_values[4].get_string ()));
+        }
+
+        private static void marshal_set (GLib.Closure closure, out GLib.Value return_value,
+                                         GLib.Value[] param_values, void* hint, void* data) {
+            unowned Registration self = (Registration) data;
+            return_value = GLib.Value (typeof (bool));
+            return_value.set_boolean (self.on_set (param_values[4].get_string (), param_values[5].get_variant ()));
         }
 
         public static GLib.DBusInterfaceInfo load (string resource, string name) throws GLib.Error {

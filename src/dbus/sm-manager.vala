@@ -71,6 +71,7 @@ namespace Polo.Dbus {
         private GLib.HashTable<string, Inhibitor> inhibitors =
             new GLib.HashTable<string, Inhibitor> (GLib.str_hash, GLib.str_equal);
         private GLib.GenericArray<App> apps = new GLib.GenericArray<App> ();
+        public Presence presence { get; private set; }
         private int pending = 0;
         private GLib.Cancellable cancellable = new GLib.Cancellable ();
         private GLib.Subprocess? checking = null;
@@ -78,6 +79,7 @@ namespace Polo.Dbus {
 
         public Manager (GLib.DBusConnection connection) {
             this.connection = connection;
+            presence = new Presence (connection);
             var source = GLib.SettingsSchemaSource.get_default ();
             var schema = source != null ? source.lookup (LOCKDOWN_SCHEMA, true) : null;
             if (schema != null && schema.has_key ("disable-log-out")) {
@@ -88,6 +90,7 @@ namespace Polo.Dbus {
         public void register () throws GLib.Error {
             var info = Registration.load (RESOURCE, NAME);
             registration = new Registration (connection, PATH, info, on_method, on_property);
+            presence.export ();
         }
 
         public void unregister () {
@@ -95,6 +98,7 @@ namespace Polo.Dbus {
                 registration.unregister ();
                 registration = null;
             }
+            presence.unexport ();
             watches.foreach ((name, watch) => GLib.Bus.unwatch_name (watch));
             watches.remove_all ();
             finish_pending ();
@@ -444,6 +448,7 @@ namespace Polo.Dbus {
                 return;
             }
             inhibitors.insert (inhibitor.path, inhibitor);
+            update_idle_enabled ();
             watch (sender);
             invocation.return_value (new GLib.Variant ("(u)", cookie));
             emit ("InhibitorAdded", new GLib.Variant ("(o)", inhibitor.path));
@@ -465,7 +470,12 @@ namespace Polo.Dbus {
             }
             inhibitor.unexport ();
             inhibitors.remove (path);
+            update_idle_enabled ();
             emit ("InhibitorRemoved", new GLib.Variant ("(o)", path));
+        }
+
+        private void update_idle_enabled () {
+            presence.idle_enabled = !is_inhibited (InhibitorFlags.IDLE);
         }
 
         public void add_apps (GLib.List<AutostartApp> session_apps) {
