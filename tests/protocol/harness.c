@@ -18,6 +18,7 @@
 #include <linux/input.h>
 
 #include "harness.h"
+#include "weston-output-capture-client-protocol.h"
 
 static struct harness *current;
 
@@ -398,6 +399,9 @@ registry_global(void *data, struct wl_registry *registry, uint32_t name,
 		h->layer_shell = wl_registry_bind(
 			registry, name, &zwlr_layer_shell_v1_interface,
 			version < 5 ? version : 5);
+	} else if (strcmp(interface, weston_capture_v1_interface.name) == 0) {
+		h->capture = wl_registry_bind(registry, name,
+					      &weston_capture_v1_interface, 1);
 	} else if (strcmp(interface, wl_output_interface.name) == 0) {
 		if (h->n_outputs < 8) {
 			h->outputs[h->n_outputs++] = wl_registry_bind(
@@ -474,7 +478,7 @@ harness_start(int argc, char **argv)
 		_exit(127);
 	}
 
-	for (i = 0; i < 200 && !h->display; i++) {
+	for (i = 0; i < 600 && !h->display; i++) {
 		int status;
 
 		h->display = wl_display_connect(h->socket);
@@ -524,6 +528,8 @@ harness_stop(struct harness *h)
 		zxdg_decoration_manager_v1_destroy(h->decoration_manager);
 	if (h->layer_shell)
 		zwlr_layer_shell_v1_destroy(h->layer_shell);
+	if (h->capture)
+		weston_capture_v1_destroy(h->capture);
 	for (i = 0; i < h->n_outputs; i++)
 		wl_output_release(h->outputs[i]);
 	wl_shm_destroy(h->shm);
@@ -980,4 +986,108 @@ harness_cpu_ticks(struct harness *h)
 	CHECK(p && sscanf(p, " %lu %lu", &utime, &stime) == 2, "malformed %s",
 	      path);
 	return (long)(utime + stime);
+}
+
+struct capture_state {
+	int width, height;
+	int done; /* 1 complete, 2 retry, 3 failed */
+};
+
+static void
+capture_format(void *data, struct weston_capture_source_v1 *source,
+	       uint32_t format)
+{
+}
+
+static void
+capture_size(void *data, struct weston_capture_source_v1 *source,
+	     int32_t width, int32_t height)
+{
+	struct capture_state *state = data;
+
+	state->width = width;
+	state->height = height;
+}
+
+static void
+capture_complete(void *data, struct weston_capture_source_v1 *source)
+{
+	((struct capture_state *)data)->done = 1;
+}
+
+static void
+capture_retry(void *data, struct weston_capture_source_v1 *source)
+{
+	((struct capture_state *)data)->done = 2;
+}
+
+static void
+capture_failed(void *data, struct weston_capture_source_v1 *source,
+	       const char *msg)
+{
+	((struct capture_state *)data)->done = 3;
+}
+
+static const struct weston_capture_source_v1_listener capture_listener = {
+	.format = capture_format,
+	.size = capture_size,
+	.complete = capture_complete,
+	.retry = capture_retry,
+	.failed = capture_failed,
+};
+
+uint32_t *
+harness_capture(struct harness *h, int *width, int *height)
+{
+	struct capture_state state = { 0 };
+	struct weston_capture_source_v1 *source;
+	uint32_t *copy = NULL;
+
+	*width = *height = 0;
+	if (!h->capture || h->n_outputs == 0)
+		return NULL;
+	source = weston_capture_v1_create(h->capture, h->outputs[0],
+					  WESTON_CAPTURE_V1_SOURCE_FRAMEBUFFER);
+	weston_capture_source_v1_add_listener(source, &capture_listener,
+					      &state);
+	harness_roundtrip(h);
+	size_t size = (size_t)state.width * state.height * 4;
+	int fd = state.width > 0 ? memfd_create("capture", MFD_CLOEXEC) : -1;
+
+	if (fd < 0 || ftruncate(fd, (off_t)size) != 0) {
+		if (fd >= 0)
+			close(fd);
+		weston_capture_source_v1_destroy(source);
+		return NULL;
+	}
+	uint32_t *pixels =
+		mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	struct wl_shm_pool *pool = wl_shm_create_pool(h->shm, fd, size);
+	struct wl_buffer *buffer = wl_shm_pool_create_buffer(
+		pool, 0, state.width, state.height, state.width * 4,
+		WL_SHM_FORMAT_XRGB8888);
+
+	for (int attempt = 0; attempt < 20 && state.done != 1; attempt++) {
+		state.done = 0;
+		weston_capture_source_v1_capture(source, buffer);
+		for (int i = 0; i < 200 && !state.done; i++) {
+			harness_roundtrip(h);
+			sleep_ms(5);
+		}
+	}
+	if (state.done == 1 && pixels != MAP_FAILED) {
+		copy = malloc(size);
+		if (copy) {
+			memcpy(copy, pixels, size);
+			*width = state.width;
+			*height = state.height;
+		}
+	}
+	wl_buffer_destroy(buffer);
+	wl_shm_pool_destroy(pool);
+	weston_capture_source_v1_destroy(source);
+	if (pixels != MAP_FAILED)
+		munmap(pixels, size);
+	close(fd);
+	return copy;
 }

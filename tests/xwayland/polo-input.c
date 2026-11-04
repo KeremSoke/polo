@@ -5,10 +5,12 @@
  * Runs a headless Polo with eager Xwayland for replay-x.py and smoke.py, and gives them
  * Polo's real input path, which XTEST inside Xwayland never reaches. Prints
  * "DISPLAY XAUTHORITY", then reads lines: "move X Y", "pinch PHASE SCALE%", "back X Y" (10 right and straight back, with no round trip between), "button CODE 0|1", "key
- * CODE 0|1", and answers each with "ok". Stops Polo at end of input.
+ * CODE 0|1", and "capture 0 0" (the output as a PPM at $POLO_INPUT_CAPTURE),
+ * and answers each with "ok" ("failed" for a capture that did not happen). Stops Polo at end of input.
  * Exits 77 without Xwayland.
  */
 
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,6 +18,30 @@
 #include <unistd.h>
 
 #include "harness.h"
+
+static bool
+capture_output(struct harness *h, const char *path)
+{
+	int width, height;
+	uint32_t *pixels = path ? harness_capture(h, &width, &height) : NULL;
+	bool written = false;
+	FILE *f;
+
+	if (!pixels)
+		return false;
+	f = fopen(path, "w");
+	if (f) {
+		fprintf(f, "P6\n%d %d\n255\n", width, height);
+		for (int i = 0; i < width * height; i++) {
+			fputc((pixels[i] >> 16) & 0xff, f);
+			fputc((pixels[i] >> 8) & 0xff, f);
+			fputc(pixels[i] & 0xff, f);
+		}
+		written = fclose(f) == 0;
+	}
+	free(pixels);
+	return written;
+}
 
 static int
 x_display(struct harness *h)
@@ -91,6 +117,15 @@ main(int argc, char **argv)
 			polo_test_v1_key(h->test, a,
 					 b ? WL_KEYBOARD_KEY_STATE_PRESSED
 					   : WL_KEYBOARD_KEY_STATE_RELEASED);
+		else if (strcmp(command, "capture") == 0) {
+			harness_roundtrip(h);
+			fprintf(out, "%s\n",
+				capture_output(h, getenv("POLO_INPUT_CAPTURE"))
+					? "ok"
+					: "failed");
+			fflush(out);
+			continue;
+		}
 		harness_roundtrip(h);
 		fprintf(out, "ok\n");
 		fflush(out);

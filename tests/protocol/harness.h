@@ -77,6 +77,7 @@ struct harness {
 	struct wl_keyboard *keyboard;
 	struct polo_test_v1 *test;
 	struct zwlr_layer_shell_v1 *layer_shell;
+	struct weston_capture_v1 *capture;
 
 	/* wl_outputs, in registry order. */
 	struct wl_output *outputs[8];
@@ -206,6 +207,11 @@ harness_set_setting(struct harness *h, const char *schema, const char *key,
 
 const char *
 harness_get_setting(struct harness *h, const char *schema, const char *key);
+
+/* The first output's framebuffer as width x height XRGB8888 pixels (free
+ * them), or NULL. */
+uint32_t *
+harness_capture(struct harness *h, int *width, int *height);
 
 void
 harness_move_pointer(struct harness *h, int x, int y);
