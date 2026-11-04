@@ -43,8 +43,7 @@ find_largest_sizes(const guint32 *data, gsize nitems, int *width, int *height)
 /* find_best_size () */
 static gboolean
 find_best_size(const guint32 *data, gsize nitems, int ideal_width,
-	       int ideal_height, int *width, int *height,
-	       const guint32 **start)
+	       int ideal_height, int *width, int *height, const guint32 **start)
 {
 	int best_w = 0;
 	int best_h = 0;
@@ -194,7 +193,8 @@ polo_marco_icon_new_from_argb32(const guint8 *pixels, int width, int height,
 	pixdata = g_new(guchar, (gsize)width * height * 4);
 	p = pixdata;
 	for (int y = 0; y < height; y++) {
-		const guint32 *row = (const guint32 *)(pixels + (gsize)y * stride);
+		const guint32 *row =
+			(const guint32 *)(pixels + (gsize)y * stride);
 
 		for (int x = 0; x < width; x++) {
 			guint32 argb = row[x];
@@ -203,9 +203,10 @@ polo_marco_icon_new_from_argb32(const guint8 *pixels, int width, int height,
 			for (int shift = 16; shift >= 0; shift -= 8) {
 				guint c = (argb >> shift) & 0xff;
 
-				*p++ = alpha ? MIN(255, (c * 255 + alpha / 2) /
-								alpha)
-					     : 0;
+				*p++ = alpha
+					? MIN(255,
+					      (c * 255 + alpha / 2) / alpha)
+					: 0;
 			}
 			*p++ = alpha;
 		}

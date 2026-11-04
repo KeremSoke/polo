@@ -221,17 +221,16 @@ handle_icon(struct wl_client *client, struct wl_resource *resource,
 	length = lseek(fd, 0, SEEK_END);
 	if (length < 0 || (gsize)length < mini_size + size) {
 		close(fd);
-		wl_resource_post_error(resource,
-				       POLO_SHELL_UI_V1_ERROR_INVALID_ICON,
-				       "icon pixels need %zu bytes",
-				       mini_size + size);
+		wl_resource_post_error(
+			resource, POLO_SHELL_UI_V1_ERROR_INVALID_ICON,
+			"icon pixels need %zu bytes", mini_size + size);
 		return;
 	}
 	data = mmap(NULL, mini_size + size, PROT_READ, MAP_PRIVATE, fd, 0);
 	close(fd);
 	if (data == MAP_FAILED) {
-		g_signal_emit(self, signals[SIGNAL_ICON], 0, serial, NULL, 0,
-			      0, NULL, 0, 0);
+		g_signal_emit(self, signals[SIGNAL_ICON], 0, serial, NULL, 0, 0,
+			      NULL, 0, 0);
 		return;
 	}
 	mini = icon_bytes(data, mini_width, mini_height);
