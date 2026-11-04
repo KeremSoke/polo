@@ -59,6 +59,9 @@ namespace Polo.Dbus {
         public signal void shutdown_dialog_requested ();
         public signal void shutdown_requested (bool reboot);
         public signal void initialization_error (string message, bool fatal);
+        public signal void inhibitors_changed ();
+        public signal void client_removed (Client client);
+        public signal void client_response (Client client, bool is_ok, string reason);
 
         public AppMatcher? match_app = null;
         public ConditionCheck? handles_condition = null;
@@ -180,7 +183,11 @@ namespace Polo.Dbus {
             invocation.return_dbus_error (ERROR_PREFIX + error, message);
         }
 
-        private bool log_out_locked_down () {
+        private void on_client_response (Client client, bool is_ok, string reason) {
+            client_response (client, is_ok, reason);
+        }
+
+        public bool log_out_locked_down () {
             return lockdown != null && lockdown.get_boolean ("disable-log-out");
         }
 
@@ -385,6 +392,7 @@ namespace Polo.Dbus {
             AutostartApp? app = match_app != null ? match_app (startup_id, app_id) : null;
             client.app_id = app != null ? app.id : app_id;
             client.status = ClientStatus.REGISTERED;
+            client.end_session_response.connect (on_client_response);
             clients.insert (client.path, client);
             watch (sender);
 
@@ -435,23 +443,72 @@ namespace Polo.Dbus {
                 fail (invocation, "GeneralError", "Invalid inhibit flags");
                 return;
             }
+            var inhibitor = new Inhibitor (app_id, xid, reason, flags, sender, unique_cookie ());
+            if (!export_inhibitor (inhibitor)) {
+                fail (invocation, "GeneralError", "Unable to inhibit");
+                return;
+            }
+            watch (sender);
+            invocation.return_value (new GLib.Variant ("(u)", inhibitor.cookie));
+            announce_inhibitor (inhibitor);
+        }
+
+        private uint unique_cookie () {
             uint cookie = 0;
             do {
                 cookie = (uint) GLib.Random.int_range (1, int32.MAX);
             } while (find_cookie (cookie) != null);
-            var inhibitor = new Inhibitor (app_id, xid, reason, flags, sender, cookie);
+            return cookie;
+        }
+
+        private bool export_inhibitor (Inhibitor inhibitor) {
             try {
                 inhibitor.export (connection);
             } catch (GLib.Error e) {
                 Logging.scope (LogDomain.POLO).warning ("cannot export %s: %s", inhibitor.path, e.message);
-                fail (invocation, "GeneralError", "Unable to inhibit");
-                return;
+                return false;
             }
             inhibitors.insert (inhibitor.path, inhibitor);
             update_idle_enabled ();
-            watch (sender);
-            invocation.return_value (new GLib.Variant ("(u)", cookie));
+            return true;
+        }
+
+        private void announce_inhibitor (Inhibitor inhibitor) {
             emit ("InhibitorAdded", new GLib.Variant ("(o)", inhibitor.path));
+            inhibitors_changed ();
+        }
+
+        public void inhibit_for_client (Client client, string reason) {
+            string app_id = client.app_id != "" ? client.app_id : client.startup_id;
+            var inhibitor = new Inhibitor.for_client (client.path, app_id, InhibitorFlags.LOGOUT, reason,
+                                                      client.bus_name, unique_cookie ());
+            if (export_inhibitor (inhibitor)) {
+                announce_inhibitor (inhibitor);
+            }
+        }
+
+        public void remove_client_inhibitors (Client client) {
+            string[] gone = {};
+            foreach (unowned Inhibitor inhibitor in inhibitors.get_values ()) {
+                if (inhibitor.client_id == client.path) {
+                    gone += inhibitor.path;
+                }
+            }
+            foreach (unowned string path in gone) {
+                remove_inhibitor (path);
+            }
+        }
+
+        public void remove_client_owned_inhibitors () {
+            string[] gone = {};
+            foreach (unowned Inhibitor inhibitor in inhibitors.get_values ()) {
+                if (inhibitor.client_id != null) {
+                    gone += inhibitor.path;
+                }
+            }
+            foreach (unowned string path in gone) {
+                remove_inhibitor (path);
+            }
         }
 
         private unowned Inhibitor? find_cookie (uint cookie) {
@@ -472,6 +529,7 @@ namespace Polo.Dbus {
             inhibitors.remove (path);
             update_idle_enabled ();
             emit ("InhibitorRemoved", new GLib.Variant ("(o)", path));
+            inhibitors_changed ();
         }
 
         private void update_idle_enabled () {
@@ -494,13 +552,15 @@ namespace Polo.Dbus {
         }
 
         private void remove_client (string path) {
-            var client = clients.lookup (path);
+            Client? client = clients.lookup (path);
             if (client == null) {
                 return;
             }
+            remove_client_inhibitors (client);
             client.unexport ();
             clients.remove (path);
             emit ("ClientRemoved", new GLib.Variant ("(o)", path));
+            client_removed (client);
         }
 
         private void watch (string bus_name) {

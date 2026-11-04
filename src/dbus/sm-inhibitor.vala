@@ -27,11 +27,19 @@ namespace Polo.Dbus {
         public uint flags { get; construct; }
         public string bus_name { get; construct; }
         public uint cookie { get; construct; }
+        public string? client_id { get; construct; }
 
         public Inhibitor (string app_id, uint toplevel_xid, string reason, uint flags, string bus_name,
                           uint cookie) {
             Object (app_id: app_id, toplevel_xid: toplevel_xid, reason: reason, flags: flags,
                     bus_name: bus_name, cookie: cookie);
+            path = "%s/Inhibitor%u".printf (Manager.PATH, serial++);
+        }
+
+        public Inhibitor.for_client (string client_id, string app_id, uint flags, string reason,
+                                     string bus_name, uint cookie) {
+            Object (app_id: app_id, toplevel_xid: 0, reason: reason, flags: flags, bus_name: bus_name,
+                    cookie: cookie, client_id: client_id);
             path = "%s/Inhibitor%u".printf (Manager.PATH, serial++);
         }
 
@@ -53,7 +61,11 @@ namespace Polo.Dbus {
                     invocation.return_value (new GLib.Variant ("(s)", app_id));
                     break;
                 case "GetClientId":
-                    invocation.return_dbus_error (INTERFACE + ".NotSet", "Value is not set");
+                    if (client_id == null) {
+                        invocation.return_dbus_error (INTERFACE + ".NotSet", "Value is not set");
+                    } else {
+                        invocation.return_value (new GLib.Variant ("(o)", client_id));
+                    }
                     break;
                 case "GetReason":
                     invocation.return_value (new GLib.Variant ("(s)", reason));
