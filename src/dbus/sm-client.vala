@@ -63,6 +63,11 @@ namespace Polo.Dbus {
             send ("Stop", null);
         }
 
+        /* gsm's dbus_client_save (): mate-session 1.28 saves no D-Bus client. */
+        public virtual GLib.KeyFile? save () {
+            return null;
+        }
+
         public void query_end_session (uint flags) {
             send ("QueryEndSession", new GLib.Variant ("(u)", flags));
         }

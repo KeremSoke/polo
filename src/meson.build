@@ -54,6 +54,7 @@ polo_sources = files(
   'session/phases.vala',
   'session/end-session.vala',
   'session/logind.vala',
+  'session/saved-session.vala',
   'dbus/registration.vala',
   'dbus/sm-client.vala',
   'dbus/sm-inhibitor.vala',

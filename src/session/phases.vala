@@ -229,7 +229,7 @@ namespace Polo {
                 if (is_listed (app, argv[0], x11_components)) {
                     flags |= SpawnFlags.X11;
                 }
-                app.startup_id = Dbus.Manager.generate_startup_id ();
+                app.startup_id = app.saved_startup_id ?? Dbus.Manager.generate_startup_id ();
                 var process = spawn.launch (argv, flags, app.working_directory,
                                             { "DESKTOP_AUTOSTART_ID=" + app.startup_id });
                 processes.insert (app, process);

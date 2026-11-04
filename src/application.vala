@@ -93,6 +93,7 @@ namespace Polo {
         private Logind? logind = null;
         private IdleTracker? idle_tracker = null;
         private Protocols.SessionLock? session_lock = null;
+        private WindowStates? window_states = null;
         private const uint CHILD_TERM_SECONDS = 5;
         private Spawn? spawn;
         private Shell.NotResponding? not_responding;
@@ -245,8 +246,17 @@ namespace Polo {
                     });
                     end_session = new EndSession (manager, server.get_shell_ui (), logind);
                     end_session.finished.connect (() => quit (0));
+                    end_session.saving.connect (() => {
+                        if (window_states != null) {
+                            window_states.save (model);
+                        }
+                    });
                     manager.initialization_error.connect (on_initialization_error);
                 }
+                SavedSession.record_session_start ();
+                window_states = new WindowStates ();
+                window_states.load ();
+                model.restore_state = window_states.restore;
                 session_env = new SessionEnv ();
                 session_env.publish (server.get_socket_name ());
             }
@@ -315,6 +325,10 @@ namespace Polo {
             log.info ("shutting down");
             session_lock.shutdown ();
             session_lock = null;
+            if (window_states != null) {
+                model.restore_state = null;
+                window_states = null;
+            }
             idle_tracker.shutdown ();
             idle_tracker = null;
             if (phases != null) {

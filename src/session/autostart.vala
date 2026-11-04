@@ -47,6 +47,8 @@ namespace Polo {
         public string? condition_string { get; private set; default = null; }
         /* DESKTOP_AUTOSTART_ID of its latest launch, for RegisterClient. */
         public string startup_id { get; set; default = ""; }
+        /* X-MATE-Autostart-startup-id, kept by a saved session's entries */
+        public string? saved_startup_id { get; private set; default = null; }
         public string? command { get; private set; default = null; }
         public string? component { get; set; default = null; }
         public bool required { get { return component != null; } }
@@ -99,6 +101,7 @@ namespace Polo {
         }
 
         private void read_keys () {
+            saved_startup_id = optional_string (Autostart.STARTUP_ID_KEY);
             var phase_name = optional_string ("X-MATE-Autostart-Phase");
             phase = AutostartPhase.parse (phase_name);
             autorestart = optional_boolean ("X-MATE-AutoRestart");
@@ -367,7 +370,25 @@ namespace Polo {
     }
 
     namespace Autostart {
+        public const string STARTUP_ID_KEY = "X-MATE-Autostart-startup-id";
+        public const string DISCARD_KEY = "X-MATE-Autostart-discard-exec";
         private const string SESSION_SCHEMA = "org.mate.session";
+
+        public string saved_session_directory () {
+            return GLib.Path.build_filename (GLib.Environment.get_user_config_dir (), "mate-session", "saved-session");
+        }
+
+        /* mate-session's maybe_load_saved_session_apps (): not for a greeter session. */
+        public bool restores_saved_session () {
+            if (GLib.Environment.get_variable ("XDG_SESSION_CLASS") == "greeter") {
+                return false;
+            }
+            var source = GLib.SettingsSchemaSource.get_default ();
+            var schema = source != null ? source.lookup (SESSION_SCHEMA, true) : null;
+            return schema != null && schema.has_key ("auto-save-session") &&
+                   new GLib.Settings.full (schema, null, null).get_boolean ("auto-save-session");
+        }
+
         private const string REQUIRED_SCHEMA = "org.mate.session.required-components";
         private const string WINDOW_MANAGER = "windowmanager";
 
@@ -414,9 +435,16 @@ namespace Polo {
             return apps;
         }
 
-        /* Load standard apps without saved-session entries; Polo is the window manager. */
+        /* mate-session's load_standard_apps (): the saved session first, when auto-save-session is on. */
         public GLib.List<AutostartApp> session_apps () {
-            var apps = scan (directories ());
+            string[] dirs = {};
+            if (restores_saved_session ()) {
+                dirs += saved_session_directory ();
+            }
+            foreach (unowned string dir in directories ()) {
+                dirs += dir;
+            }
+            var apps = scan (dirs);
             var source = GLib.SettingsSchemaSource.get_default ();
             var session = source != null ? source.lookup (SESSION_SCHEMA, true) : null;
             var required = source != null ? source.lookup (REQUIRED_SCHEMA, true) : null;

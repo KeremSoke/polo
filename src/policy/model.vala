@@ -49,6 +49,11 @@ namespace Polo.Policy {
          */
         public delegate GLib.SList<Marco.Strut?> LayerStruts ();
 
+        public delegate void RestoreState (Window window);
+
+        /* saved session state */
+        public RestoreState? restore_state = null;
+
         /* A plain field: delegates cannot be GObject properties. */
         public LayerStruts? layer_struts = null;
 
@@ -285,6 +290,9 @@ namespace Polo.Policy {
         public void map (Window window) {
             if (!is_managed (window)) {
                 manage (window);
+            }
+            if (restore_state != null && !window.placed) {
+                restore_state (window);
             }
             take_initial_state (window);
             if (window.initially_iconic && !window.placed) {

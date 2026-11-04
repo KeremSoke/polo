@@ -30,6 +30,7 @@ namespace Polo {
         private const uint STOP_TIMEOUT_MS = 1000;
         private const uint TERM_TIMEOUT_MS = 1000;
         private const uint FLAG_FORCEFUL = 1;
+        private const uint FLAG_SAVE = 2;
 
         [CCode (cname = "kill", cheader_filename = "signal.h")]
         private static extern int kill (int pid, int sig);
@@ -43,6 +44,7 @@ namespace Polo {
         private delegate bool Done ();
 
         public signal void finished (EndAction action);
+        public signal void saving ();
 
         private Dbus.Manager manager;
         private Backend.ShellUi shell_ui;
@@ -237,7 +239,11 @@ namespace Polo {
                 ending = false;
                 return;
             }
+            saving ();
             yield end_session ();
+            if (SavedSession.auto_save_enabled () && !SavedSession.is_login_window ()) {
+                SavedSession.save (manager);
+            }
             yield exit ();
             if (cancellable.is_cancelled ()) {
                 return;
@@ -296,8 +302,9 @@ namespace Polo {
             if (waiting.length == 0) {
                 return;
             }
+            uint end_flags = flags () | (SavedSession.auto_save_enabled () ? FLAG_SAVE : 0);
             foreach (var client in waiting.get_values ()) {
-                client.end_session (flags ());
+                client.end_session (end_flags);
             }
             yield wait (PHASE_TIMEOUT_MS, () => waiting.length == 0 &&
                         (mode == Dbus.LogoutMode.FORCE || !manager.is_inhibited (Dbus.InhibitorFlags.LOGOUT)));

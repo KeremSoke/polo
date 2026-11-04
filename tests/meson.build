@@ -58,6 +58,14 @@ test('sm-manager', python,
   is_parallel: false,
 )
 
+test('saved-session', python,
+  args: [files('session/test-saved-session.py'), polo_exe],
+  env: vapi_test_env,
+  suite: 'session',
+  timeout: 60,
+  is_parallel: false,
+)
+
 autostart_dump = executable('autostart-dump',
   'session/autostart-dump.vala', meson.project_source_root() / 'src/session/autostart.vala',
   vala_args: vala_args,
