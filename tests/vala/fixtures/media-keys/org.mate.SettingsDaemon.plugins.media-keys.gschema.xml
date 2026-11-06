@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- mate-settings-daemon 1.28's media-keys keys that the test binds, with their defaults. -->
+<schemalist>
+  <schema id="org.mate.SettingsDaemon.plugins.media-keys" path="/org/mate/settings-daemon/plugins/media-keys/">
+    <key name="enable-osd" type="b"><default>true</default></key>
+    <key name="volume-step" type="i"><default>6</default></key>
+    <key name="touchpad" type="s"><default>'XF86TouchpadToggle'</default></key>
+    <key name="volume-mute" type="s"><default>'XF86AudioMute'</default></key>
+    <key name="volume-down" type="s"><default>'XF86AudioLowerVolume'</default></key>
+    <key name="volume-up" type="s"><default>'XF86AudioRaiseVolume'</default></key>
+    <key name="volume-mute-quiet" type="s"><default>'&lt;Alt&gt;XF86AudioMute'</default></key>
+    <key name="volume-down-quiet" type="s"><default>'&lt;Alt&gt;XF86AudioLowerVolume'</default></key>
+    <key name="volume-up-quiet" type="s"><default>'&lt;Alt&gt;XF86AudioRaiseVolume'</default></key>
+    <key name="mic-mute" type="s"><default>'XF86AudioMicMute'</default></key>
+    <key name="power" type="s"><default>'&lt;Control&gt;&lt;Alt&gt;Delete'</default></key>
+    <key name="home" type="s"><default>'XF86Explorer'</default></key>
+    <key name="screensaver" type="s"><default>'&lt;Control&gt;&lt;Alt&gt;l'</default></key>
+    <key name="help" type="s"><default>''</default></key>
+    <key name="play" type="s"><default>'XF86AudioPlay'</default></key>
+    <key name="logout" type="s"><default>''</default></key>
+  </schema>
+</schemalist>

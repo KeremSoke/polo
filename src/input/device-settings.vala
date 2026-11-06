@@ -74,6 +74,15 @@ namespace Polo.Input {
             }
         }
 
+        public bool has_touchpad () {
+            foreach (var device in devices) {
+                if (device.is_touchpad ()) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         public void remove (PointerDevice device) {
             devices.remove (device);
         }

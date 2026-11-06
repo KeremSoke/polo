@@ -533,6 +533,10 @@ namespace Polo.Shell {
             return outputs.lookup (backend_output);
         }
 
+        public bool has_touchpad () {
+            return device_settings.has_touchpad ();
+        }
+
         public Backend.Output? backend_output (Policy.Output output) {
             foreach (var head in heads) {
                 if (outputs.lookup (head) == output) {
@@ -573,7 +577,25 @@ namespace Polo.Shell {
             get { return move_resize.active || switcher.active || workspace_switcher.active || frame_input.active; }
         }
 
+        private Input.MediaKeys? media_keys = null;
+
+
+        public void set_media_keys (Input.MediaKeys? keys) {
+            if (media_keys != null) {
+                media_keys.stop_repeat ();
+            }
+            media_keys = keys;
+        }
+
         private Backend.FilterResult on_key (Backend.Seat seat, Backend.KeyEvent event) {
+            bool locked = server.get_lock_state () != Backend.LockState.UNLOCKED;
+            if (media_keys != null && (!grab_active || !event.pressed) &&
+                media_keys.filter (event, locked) == Backend.FilterResult.CONSUME) {
+                return Backend.FilterResult.CONSUME;
+            }
+            if (locked) {
+                return Backend.FilterResult.PASS;
+            }
             if (grab_active) {
                 Backend.FilterResult grabbed;
                 if (move_resize.active) {

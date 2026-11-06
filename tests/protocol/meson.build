@@ -106,6 +106,12 @@ test('shell-ui', executable('test-shell-ui', 'test-shell-ui.c', dependencies: ha
   suite: 'protocol',
   timeout: 60,
 )
+test('media-keys-osd', executable('test-media-keys', 'test-media-keys.c', dependencies: harness_dep),
+  args: [polo_exe, fake_shell_ui],
+  env: protocol_test_env,
+  suite: 'protocol',
+  timeout: 60,
+)
 test('switcher', executable('test-switcher', 'test-switcher.c', dependencies: harness_dep),
   args: [polo_exe, fake_shell_ui],
   env: protocol_test_env,

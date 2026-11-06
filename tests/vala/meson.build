@@ -170,3 +170,25 @@ interface_mirror_test = executable('test-interface-mirror',
 test('interface-mirror', interface_mirror_test, suite: 'unit-vala', protocol: 'tap', args: ['--tap'],
   env: ['GSETTINGS_BACKEND=memory', 'GSETTINGS_SCHEMA_DIR=' + meson.project_build_root() / 'data'],
   depends: polo_schemas)
+
+media_keys_schemas = custom_target('media-keys-schemas',
+  input: 'fixtures/media-keys/org.mate.SettingsDaemon.plugins.media-keys.gschema.xml',
+  output: 'gschemas.compiled',
+  build_by_default: true,
+  command: [find_program('glib-compile-schemas'), '--targetdir', meson.current_build_dir(),
+            meson.current_source_dir() / 'fixtures' / 'media-keys'],
+)
+media_keys_test = executable('test-media-keys',
+  'acme-keys.vala',
+  meson.project_source_root() / 'src/input/media-keys.vala',
+  meson.project_source_root() / 'src/input/accelerator.vala',
+  meson.project_source_root() / 'src/input/mpris.vala',
+  meson.project_source_root() / 'src/log.vala',
+  vala_args: vala_args + ['--pkg', 'polo-backend', '--pkg', 'polo-marco'],
+  c_args: vala_c_args,
+  dependencies: [polo_backend_dep, polo_marco_dep, gio_dep],
+)
+test('media-keys', media_keys_test, suite: 'unit-vala', protocol: 'tap', args: ['--tap'],
+  env: ['GSETTINGS_BACKEND=memory', 'POLO_MEDIA_KEYS_SCHEMAS=' + meson.current_build_dir(),
+        'WESTON_MODULE_MAP=' + weston_module_map],
+  depends: media_keys_schemas)

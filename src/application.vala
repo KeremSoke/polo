@@ -93,6 +93,8 @@ namespace Polo {
         private Logind? logind = null;
         private IdleTracker? idle_tracker = null;
         private Protocols.SessionLock? session_lock = null;
+        private Shell.MediaKeyActions? media_key_actions = null;
+        private Input.MediaKeys? media_keys = null;
         private Protocols.OutputManagement? output_management = null;
         private Dbus.Outputs? outputs_dbus = null;
         private WindowStates? window_states = null;
@@ -286,15 +288,7 @@ namespace Polo {
             desktop.set_command_launcher ((command) => {
                 spawn.launch_command (command);
             });
-            desktop.set_error_dialog ((message) => {
-                string[] argv = { "zenity", "--error", "--title", Shell.NotResponding.marco ("Marco"),
-                                  "--text", message };
-                try {
-                    spawn.launch (argv);
-                } catch (GLib.Error e) {
-                    log.warning ("cannot show \"%s\": %s", message, e.message);
-                }
-            });
+            desktop.set_error_dialog (show_error);
             desktop.decorations.attach (server.get_shell_ui ());
             not_responding = new Shell.NotResponding (model, spawn, desktop, server.get_shell_ui ());
             rename_workspace = new Shell.RenameWorkspace (model, desktop, server.get_shell_ui (), write_preference);
@@ -342,8 +336,20 @@ namespace Polo {
                     logind.lock_shown ();
                 }
             });
+            media_key_actions = new Shell.MediaKeyActions (server, model, desktop, spawn, logind, () => {
+                if (session_lock != null) {
+                    session_lock.lock_screen.begin ();
+                }
+            }, show_error);
+            media_keys = new Input.MediaKeys (media_key_actions.media_keys_settings (), media_key_actions);
+            desktop.set_media_keys (media_keys);
             loop.run ();
             log.info ("shutting down");
+            desktop.set_media_keys (null);
+            media_keys.shutdown ();
+            media_keys = null;
+            media_key_actions.shutdown ();
+            media_key_actions = null;
             session_lock.shutdown ();
             session_lock = null;
             if (window_states != null) {
@@ -505,6 +511,19 @@ namespace Polo {
         private void quit (int status) {
             exit_status = status;
             loop.quit ();
+        }
+
+        private void show_error (string message) {
+            if (spawn == null) {
+                return;
+            }
+            string[] argv = { "zenity", "--error", "--title", Shell.NotResponding.marco ("Marco"),
+                              "--text", message };
+            try {
+                spawn.launch (argv);
+            } catch (GLib.Error e) {
+                Logging.scope (LogDomain.POLO).warning ("cannot show \"%s\": %s", message, e.message);
+            }
         }
 
         private static GLib.Settings? settings_if_installed (string id) {

@@ -25,6 +25,8 @@ namespace Polo {
     public interface LoginSession : GLib.Object {
         public abstract bool active { get; }
         public abstract async void set_idle_hint (bool idle) throws GLib.Error;
+        public abstract async void set_brightness (string subsystem, string name, uint brightness)
+            throws GLib.Error;
         [DBus (name = "Lock")]
         public signal void lock_session ();
         [DBus (name = "Unlock")]
@@ -277,6 +279,21 @@ namespace Polo {
                 return true;
             } catch (GLib.Error e) {
                 log.warning ("logind: %s", e.message);
+                return false;
+            }
+        }
+
+        /* org.freedesktop.login1.Session.SetBrightness, for a backlight without mate-power-manager. */
+        public async bool set_brightness (string subsystem, string name, uint brightness) {
+            yield start ();
+            if (session == null) {
+                return false;
+            }
+            try {
+                yield session.set_brightness (subsystem, name, brightness);
+                return true;
+            } catch (GLib.Error e) {
+                Logging.scope (LogDomain.POLO).warning ("logind brightness: %s", e.message);
                 return false;
             }
         }
