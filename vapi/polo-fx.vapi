@@ -104,4 +104,34 @@ namespace Polo.Fx {
         public static Vec2 point ([CCode (array_length = false)] Vec2[] points,
                                   double x, double y);
     }
+
+    [CCode (cname = "PoloFxMagicLampDirection", cprefix = "POLO_FX_MAGIC_LAMP_", has_type_id = false)]
+    public enum MagicLampDirection {
+        BOTTOM,
+        TOP,
+        LEFT,
+        RIGHT
+    }
+
+    [CCode (cname = "PoloFxMagicLamp", has_type_id = false)]
+    public struct MagicLamp {
+        public double progress;
+        public MagicLampDirection direction;
+        public Vec2 origin;
+        public Vec2 size;
+        public Vec2 target;
+        public Vec2 target_size;
+
+        [CCode (cname = "polo_fx_magic_lamp_point")]
+        public Vec2 point (Vec2 source);
+
+        [CCode (cname = "polo_fx_magic_lamp_grid_size")]
+        public void grid_size (out uint cols, out uint rows);
+
+        [CCode (cname = "polo_fx_magic_lamp_fill_grid")]
+        public void fill_grid (Grid grid);
+
+        [CCode (cname = "polo_fx_magic_lamp_advance")]
+        public static double advance (double progress, bool restoring, double elapsed_ms, double duration_ms);
+    }
 }

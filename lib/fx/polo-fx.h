@@ -62,6 +62,22 @@ typedef struct {
 
 typedef struct _PoloFxWobbly PoloFxWobbly;
 
+typedef enum {
+	POLO_FX_MAGIC_LAMP_BOTTOM,
+	POLO_FX_MAGIC_LAMP_TOP,
+	POLO_FX_MAGIC_LAMP_LEFT,
+	POLO_FX_MAGIC_LAMP_RIGHT,
+} PoloFxMagicLampDirection;
+
+typedef struct {
+	double progress;
+	PoloFxMagicLampDirection direction;
+	PoloFxVec2 origin;
+	PoloFxVec2 size;
+	PoloFxVec2 target;
+	PoloFxVec2 target_size;
+} PoloFxMagicLamp;
+
 /* NULL unless 2 <= cols, 2 <= rows and cols * rows <= the limit. */
 PoloFxGrid *
 polo_fx_grid_new(guint cols, guint rows);
@@ -110,6 +126,20 @@ polo_fx_wobbly_set_ease_out(PoloFxWobbly *wobbly, gboolean ease);
 void
 polo_fx_wobbly_set_fade(PoloFxWobbly *wobbly, double elapsed_ms,
 			double total_ms);
+
+double
+polo_fx_magic_lamp_advance(double progress, gboolean restoring,
+			   double elapsed_ms, double duration_ms);
+
+PoloFxVec2
+polo_fx_magic_lamp_point(const PoloFxMagicLamp *lamp, PoloFxVec2 source);
+
+void
+polo_fx_magic_lamp_grid_size(const PoloFxMagicLamp *lamp, guint *cols,
+			     guint *rows);
+
+void
+polo_fx_magic_lamp_fill_grid(const PoloFxMagicLamp *lamp, PoloFxGrid *grid);
 
 G_END_DECLS
 

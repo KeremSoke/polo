@@ -18,3 +18,8 @@ test_wobbly = executable('test-wobbly', 'wobbly.c',
   dependencies: [polo_fx_dep, cc.find_library('m')],
 )
 test('wobbly', test_wobbly, suite: 'unit-c')
+
+test_magic_lamp = executable('test-magic-lamp', 'magic-lamp.c',
+  dependencies: [polo_fx_dep, cc.find_library('m')],
+)
+test('magic-lamp', test_magic_lamp, suite: 'unit-c', protocol: 'tap', args: ['--tap'])
