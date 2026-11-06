@@ -746,14 +746,14 @@ polo_backend_shell_ui_hide_window_menu(PoloBackendShellUi *self,
 void
 polo_backend_shell_ui_show_osd(PoloBackendShellUi *self,
 			       PoloBackendOsdKind kind,
-			       PoloBackendOutput *output, const char *text,
-			       int value)
+			       PoloBackendOutput *output, const char *icon,
+			       const char *text, int value)
 {
 	g_return_if_fail(POLO_BACKEND_IS_SHELL_UI(self));
 	if (self->resource)
 		polo_shell_ui_v1_send_show_osd(self->resource, kind,
 					       output_resource(self, output),
-					       text, value);
+					       icon, text, value);
 }
 
 void

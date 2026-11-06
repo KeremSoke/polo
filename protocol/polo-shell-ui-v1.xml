@@ -219,6 +219,7 @@
     <event name="show_osd">
       <arg name="kind" type="uint" enum="osd_kind"/>
       <arg name="output" type="object" interface="wl_output" allow-null="true"/>
+      <arg name="icon" type="string" allow-null="true" summary="icon theme names, comma-separated: the first one found"/>
       <arg name="text" type="string" allow-null="true"/>
       <arg name="value" type="int" summary="0 to 100, or -1 for none"/>
     </event>

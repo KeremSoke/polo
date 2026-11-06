@@ -178,10 +178,11 @@ hide_window_menu(void *data, struct polo_shell_ui_v1 *ui, uint32_t window_id)
 
 static void
 show_osd(void *data, struct polo_shell_ui_v1 *ui, uint32_t kind,
-	 struct wl_output *output, const char *text, int32_t value)
+	 struct wl_output *output, const char *icon, const char *text,
+	 int32_t value)
 {
-	record("show_osd %u %s %s %d", kind, output_name(output),
-	       text ? text : "(null)", value);
+	record("show_osd %u %s %s %s %d", kind, output_name(output),
+	       icon ? icon : "(null)", text ? text : "(null)", value);
 }
 
 static void

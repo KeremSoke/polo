@@ -445,7 +445,7 @@ int main () {
     shell_ui.show_window_menu (1, null, 0, 0, Polo.Backend.MenuOp.DELETE | Polo.Backend.MenuOp.RECOVER,
                                Polo.Backend.MenuOp.NONE, 0, 1);
     shell_ui.hide_window_menu (1);
-    shell_ui.show_osd (Polo.Backend.OsdKind.WORKSPACE, null, null, -1);
+    shell_ui.show_osd (Polo.Backend.OsdKind.WORKSPACE, null, null, null, -1);
     shell_ui.show_dialog (1, Polo.Backend.DialogKind.NOT_RESPONDING, null, "title");
     shell_ui.hide_dialog (1);
     assert ((uint) Polo.Backend.MenuOp.RECOVER == 0x20000);

@@ -239,10 +239,11 @@ hide_window_menu(void *data, struct polo_shell_ui_v1 *shell_ui,
 
 static void
 show_osd(void *data, struct polo_shell_ui_v1 *shell_ui, uint32_t kind,
-	 struct wl_output *output, const char *text, int32_t value)
+	 struct wl_output *output, const char *icon, const char *text,
+	 int32_t value)
 {
 	g_signal_emit(data, signals[SIGNAL_SHOW_OSD], 0, kind,
-		      monitor_for(data, output), text, value);
+		      monitor_for(data, output), icon, text, value);
 }
 
 static void
@@ -578,10 +579,10 @@ polo_shell_ui_client_class_init(PoloShellUiClientClass *klass)
 	signals[SIGNAL_HIDE_WINDOW_MENU] =
 		g_signal_new("hide-window-menu", type, G_SIGNAL_RUN_LAST, 0,
 			     NULL, NULL, NULL, G_TYPE_NONE, 1, G_TYPE_UINT);
-	signals[SIGNAL_SHOW_OSD] =
-		g_signal_new("show-osd", type, G_SIGNAL_RUN_LAST, 0, NULL, NULL,
-			     NULL, G_TYPE_NONE, 4, G_TYPE_UINT,
-			     GDK_TYPE_MONITOR, G_TYPE_STRING, G_TYPE_INT);
+	signals[SIGNAL_SHOW_OSD] = g_signal_new(
+		"show-osd", type, G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL,
+		G_TYPE_NONE, 5, G_TYPE_UINT, GDK_TYPE_MONITOR, G_TYPE_STRING,
+		G_TYPE_STRING, G_TYPE_INT);
 	signals[SIGNAL_SHOW_DIALOG] =
 		g_signal_new("show-dialog", type, G_SIGNAL_RUN_LAST, 0, NULL,
 			     NULL, NULL, G_TYPE_NONE, 4, G_TYPE_UINT,

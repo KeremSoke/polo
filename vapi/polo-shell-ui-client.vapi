@@ -67,7 +67,7 @@ namespace PoloShellUi {
         public signal void show_window_menu (uint window_id, Gdk.Monitor? monitor, int x, int y, uint ops,
                                              uint insensitive, uint active_workspace, uint n_workspaces, uint time);
         public signal void hide_window_menu (uint window_id);
-        public signal void show_osd (uint kind, Gdk.Monitor? monitor, string? text, int value);
+        public signal void show_osd (uint kind, Gdk.Monitor? monitor, string? icon, string? text, int value);
         public signal void show_dialog (uint dialog_id, uint kind, Gdk.Monitor? monitor, string? payload);
         public signal void hide_dialog (uint dialog_id);
     }

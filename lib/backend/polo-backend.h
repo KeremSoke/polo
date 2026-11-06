@@ -1321,8 +1321,8 @@ polo_backend_shell_ui_hide_window_menu(PoloBackendShellUi *shell_ui,
 void
 polo_backend_shell_ui_show_osd(PoloBackendShellUi *shell_ui,
 			       PoloBackendOsdKind kind,
-			       PoloBackendOutput *output, const char *text,
-			       int value);
+			       PoloBackendOutput *output, const char *icon,
+			       const char *text, int value);
 
 void
 polo_backend_shell_ui_show_dialog(PoloBackendShellUi *shell_ui,

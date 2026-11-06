@@ -354,7 +354,7 @@ test_shell_ui_samples(struct wl_client *client, struct wl_resource *resource)
 					       2);
 	polo_backend_shell_ui_hide_window_menu(ui, 7);
 	polo_backend_shell_ui_show_osd(ui, POLO_BACKEND_OSD_WORKSPACE, output,
-				       "Workspace 2", -1);
+				       NULL, "Workspace 2", -1);
 	polo_backend_shell_ui_show_dialog(
 		ui, 3, POLO_BACKEND_DIALOG_NOT_RESPONDING, output, "Hung");
 	polo_backend_shell_ui_hide_dialog(ui, 3);

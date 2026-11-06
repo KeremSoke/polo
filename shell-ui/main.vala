@@ -13,6 +13,7 @@ namespace PoloShellUi {
         private Dialogs dialogs;
         private ColorResolver colors;
         private WindowIcons icons;
+        private Osd osd;
         private GLib.Settings? interface_settings = null;
 
         public Helper (Client client) {
@@ -26,6 +27,7 @@ namespace PoloShellUi {
             dialogs = new Dialogs (client);
             colors = new ColorResolver (client);
             icons = new WindowIcons (client);
+            osd = new Osd (client);
         }
 
         /* Marco's frames take their colours and icons from the GTK and icon themes MATE sets, which reached

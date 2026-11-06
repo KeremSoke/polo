@@ -82,7 +82,7 @@ static const char *const expected_events[] = {
 	"window_menu_workspace 1 Workspace 2",
 	"show_window_menu 7 output 10 20 0x3ffff 0x2 1 2",
 	"hide_window_menu 7",
-	"show_osd 0 output Workspace 2 -1",
+	"show_osd 0 output (null) Workspace 2 -1",
 	"show_dialog 3 0 output Hung",
 	"hide_dialog 3",
 };

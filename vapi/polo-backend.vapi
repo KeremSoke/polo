@@ -1106,7 +1106,7 @@ namespace Polo {
             [CCode (cname = "polo_backend_shell_ui_hide_window_menu")]
             public void hide_window_menu (uint window_id);
             [CCode (cname = "polo_backend_shell_ui_show_osd")]
-            public void show_osd (OsdKind kind, Output? output, string? text, int value);
+            public void show_osd (OsdKind kind, Output? output, string? icon, string? text, int value);
             [CCode (cname = "polo_backend_shell_ui_show_dialog")]
             public void show_dialog (uint dialog_id, DialogKind kind, Output? output, string? payload);
             [CCode (cname = "polo_backend_shell_ui_lookup_color")]
