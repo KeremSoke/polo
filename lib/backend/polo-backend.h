@@ -512,6 +512,33 @@ typedef PoloBackendFilterResult (*PoloBackendKeyFilter)(
 	gpointer user_data);
 
 void
+polo_backend_server_set_key_prefilter(PoloBackendServer *server,
+				      PoloBackendKeyFilter filter,
+				      gpointer user_data, GDestroyNotify destroy);
+
+void
+polo_backend_seat_inject_key(PoloBackendSeat *seat, guint32 key,
+			     gboolean pressed);
+
+void
+polo_backend_seat_get_modifier_state(PoloBackendSeat *seat,
+				     PoloBackendModifiers *depressed,
+				     PoloBackendModifiers *latched,
+				     PoloBackendModifiers *locked);
+
+void
+polo_backend_seat_set_latched_locked(PoloBackendSeat *seat,
+				     PoloBackendModifiers latched,
+				     PoloBackendModifiers locked);
+
+void
+polo_backend_seat_move_pointer(PoloBackendSeat *seat, double dx, double dy);
+
+void
+polo_backend_seat_inject_button(PoloBackendSeat *seat, guint32 button,
+				gboolean pressed);
+
+void
 polo_backend_seat_set_key_filter(PoloBackendSeat *seat,
 				 PoloBackendKeyFilter filter,
 				 gpointer user_data, GDestroyNotify destroy);
@@ -522,6 +549,9 @@ polo_backend_keysym_from_name(const char *name);
 
 guint32
 polo_backend_keysym_to_lower(guint32 keysym);
+
+char *
+polo_backend_keysym_name(guint32 keysym);
 
 typedef PoloBackendFilterResult (*PoloBackendButtonFilter)(
 	PoloBackendSeat *seat, PoloBackendButtonEvent *event,

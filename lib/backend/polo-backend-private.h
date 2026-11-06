@@ -69,6 +69,9 @@ struct _PoloBackendServer {
 	PoloBackendGlobalFilter global_filter;
 	gpointer global_filter_data;
 	GDestroyNotify global_filter_destroy;
+	PoloBackendKeyFilter key_prefilter;
+	gpointer key_prefilter_data;
+	GDestroyNotify key_prefilter_destroy;
 
 	PoloBackendTestInspector test_inspector;
 	gpointer test_inspector_data;
@@ -441,6 +444,10 @@ polo_backend_gtk_shell_fini(PoloBackendServer *server);
 
 void
 polo_backend_gtk_shell_surface_added(PoloBackendServer *server);
+
+bool
+polo_backend_seat_prefilter_key(const struct weston_key_event *event,
+				void *data);
 
 void
 polo_backend_flash_init(PoloBackendServer *server);

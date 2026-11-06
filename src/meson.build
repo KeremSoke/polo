@@ -80,6 +80,7 @@ polo_sources = files(
   'protocols/session-lock.vala',
   'protocols/output-management.vala',
   'input/idle-tracker.vala',
+  'input/a11y.vala',
   'input/accelerator.vala',
   'input/keyboard.vala',
   'input/bindings.vala',

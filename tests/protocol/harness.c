@@ -186,6 +186,9 @@ keyboard_key(void *data, struct wl_keyboard *k, uint32_t serial, uint32_t time,
 	h->last_key = key;
 	h->last_key_pressed = state == WL_KEYBOARD_KEY_STATE_PRESSED;
 	h->last_key_surface = h->keyboard_focus;
+	if (h->last_key_pressed)
+		h->key_mods =
+			h->mods_depressed | h->mods_latched | h->mods_locked;
 }
 
 static void
@@ -196,6 +199,8 @@ keyboard_modifiers(void *data, struct wl_keyboard *k, uint32_t serial,
 	struct harness *h = data;
 
 	h->mods_locked = locked;
+	h->mods_depressed = depressed;
+	h->mods_latched = latched;
 	h->group = group;
 }
 
@@ -1000,8 +1005,8 @@ capture_format(void *data, struct weston_capture_source_v1 *source,
 }
 
 static void
-capture_size(void *data, struct weston_capture_source_v1 *source,
-	     int32_t width, int32_t height)
+capture_size(void *data, struct weston_capture_source_v1 *source, int32_t width,
+	     int32_t height)
 {
 	struct capture_state *state = data;
 

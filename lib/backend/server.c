@@ -325,6 +325,21 @@ global_filter(const struct wl_client *wl_client, const struct wl_global *global,
 }
 
 void
+polo_backend_server_set_key_prefilter(PoloBackendServer *server,
+				      PoloBackendKeyFilter filter,
+				      gpointer user_data,
+				      GDestroyNotify destroy)
+{
+	g_return_if_fail(POLO_BACKEND_IS_SERVER(server));
+
+	if (server->key_prefilter_destroy)
+		server->key_prefilter_destroy(server->key_prefilter_data);
+	server->key_prefilter = filter;
+	server->key_prefilter_data = user_data;
+	server->key_prefilter_destroy = destroy;
+}
+
+void
 polo_backend_server_set_global_filter(PoloBackendServer *server,
 				      PoloBackendGlobalFilter filter,
 				      gpointer user_data,
@@ -587,6 +602,11 @@ polo_backend_server_start(PoloBackendServer *server,
 	server->display = wl_display_create();
 	server->compositor = weston_compositor_create(
 		server->display, polo_backend_log_get_context(), server, NULL);
+	if (server->compositor) {
+		server->compositor->key_prefilter =
+			polo_backend_seat_prefilter_key;
+		server->compositor->key_prefilter_data = server;
+	}
 	if (!server->compositor) {
 		g_set_error(error, POLO_BACKEND_ERROR,
 			    POLO_BACKEND_ERROR_FAILED,

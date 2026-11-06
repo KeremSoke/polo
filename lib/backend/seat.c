@@ -17,6 +17,7 @@
 #include <libweston/libweston.h>
 #include <libweston/desktop.h>
 
+#include "backend.h"
 #include "polo-backend-private.h"
 
 /* Exported by libweston, but declared only in its private
@@ -66,6 +67,8 @@ struct _PoloBackendSeat {
 	int n_consumed_keys;
 	guint32 consumed_buttons[8];
 	int n_consumed_buttons;
+	/* A key Polo injects skips the server's key prefilter. */
+	gboolean injecting;
 
 	PoloBackendAxisFilter axis_filter;
 	gpointer axis_filter_data;
@@ -325,33 +328,57 @@ static const struct weston_pointer_grab_interface filter_grab_interface = {
 
 /* ---- Keyboard ------------------------------------------------------------ */
 
+static void
+real_indices(struct weston_xkb_info *info, xkb_mod_index_t indices[8])
+{
+	indices[0] = info->shift_mod;
+	indices[1] = info->caps_mod;
+	indices[2] = info->ctrl_mod;
+	indices[3] = info->alt_mod;
+	indices[4] = info->mod2_mod;
+	indices[5] = info->mod3_mod;
+	indices[6] = info->super_mod;
+	indices[7] = info->mod5_mod;
+}
+
+static guint32
+real_from_xkb(struct weston_xkb_info *info, xkb_mod_mask_t mods)
+{
+	xkb_mod_index_t indices[8];
+	guint32 result = 0;
+
+	real_indices(info, indices);
+	for (int i = 0; i < 8; i++) {
+		if (indices[i] != XKB_MOD_INVALID &&
+		    (mods & (1u << indices[i])))
+			result |= 1u << i;
+	}
+	return result;
+}
+
+static xkb_mod_mask_t
+xkb_from_real(struct weston_xkb_info *info, guint32 real)
+{
+	xkb_mod_index_t indices[8];
+	xkb_mod_mask_t result = 0;
+
+	real_indices(info, indices);
+	for (int i = 0; i < 8; i++) {
+		if (indices[i] != XKB_MOD_INVALID && (real & (1u << i)))
+			result |= 1u << indices[i];
+	}
+	return result;
+}
+
 static guint32
 real_modifiers(struct weston_keyboard *keyboard)
 {
-	struct weston_xkb_info *info;
-	xkb_mod_mask_t mods;
-	guint32 result = 0;
-
-	if (!keyboard)
+	if (!keyboard || !keyboard->xkb_info || !keyboard->xkb_state.state)
 		return 0;
-	info = keyboard->xkb_info;
-	if (!info || !keyboard->xkb_state.state)
-		return 0;
-	mods = xkb_state_serialize_mods(keyboard->xkb_state.state,
-					XKB_STATE_MODS_EFFECTIVE);
-#define REAL(index, bit)                                                       \
-	if ((index) != XKB_MOD_INVALID && (mods & (1u << (index))))            \
-		result |= (bit);
-	REAL(info->shift_mod, POLO_BACKEND_MOD_SHIFT)
-	REAL(info->caps_mod, POLO_BACKEND_MOD_LOCK)
-	REAL(info->ctrl_mod, POLO_BACKEND_MOD_CONTROL)
-	REAL(info->alt_mod, POLO_BACKEND_MOD_MOD1)
-	REAL(info->mod2_mod, POLO_BACKEND_MOD_MOD2)
-	REAL(info->mod3_mod, POLO_BACKEND_MOD_MOD3)
-	REAL(info->super_mod, POLO_BACKEND_MOD_MOD4)
-	REAL(info->mod5_mod, POLO_BACKEND_MOD_MOD5)
-#undef REAL
-	return result;
+	return real_from_xkb(
+		keyboard->xkb_info,
+		xkb_state_serialize_mods(keyboard->xkb_state.state,
+					 XKB_STATE_MODS_EFFECTIVE));
 }
 
 static guint32
@@ -829,6 +856,16 @@ polo_backend_keysym_to_lower(guint32 keysym)
 	return xkb_keysym_to_lower(keysym);
 }
 
+char *
+polo_backend_keysym_name(guint32 keysym)
+{
+	char name[64];
+
+	if (keysym == 0 || xkb_keysym_get_name(keysym, name, sizeof name) < 0)
+		return g_strdup("");
+	return g_strdup(name);
+}
+
 /* ---- Pointer --------------------------------------------------------------
  */
 
@@ -1268,4 +1305,145 @@ polo_backend_seat_set_cursor(PoloBackendSeat *seat, PoloBackendCursor cursor)
 	pointer = seat->seat ? weston_seat_get_pointer(seat->seat) : NULL;
 	if (pointer && pointer->focus)
 		polo_backend_cursor_set_shape(seat->server, pointer, cursor);
+}
+
+/* ---- AccessX ------------------------------------------------------------- */
+
+bool
+polo_backend_seat_prefilter_key(const struct weston_key_event *event,
+				void *data)
+{
+	PoloBackendServer *server = data;
+	struct weston_keyboard *keyboard =
+		weston_seat_get_keyboard(event->base.seat);
+	PoloBackendSeat *self =
+		polo_backend_server_lookup_seat(server, event->base.seat);
+
+	if (!server->key_prefilter || !self || self->injecting || !keyboard)
+		return false;
+
+	xkb_keycode_t keycode = event->key + 8;
+	PoloBackendKeyEvent ev = {
+		.time_msec = (guint32)(event->base.ts.tv_sec * 1000 +
+				       event->base.ts.tv_nsec / 1000000),
+		.keycode = event->key,
+		.keysym = keyboard->xkb_state.state
+			? xkb_state_key_get_one_sym(keyboard->xkb_state.state,
+						    keycode)
+			: 0,
+		.base_keysym = base_keysym(keyboard, keycode),
+		.modifiers = real_modifiers(keyboard),
+		.pressed = event->key_state == WL_KEYBOARD_KEY_STATE_PRESSED,
+	};
+
+	return server->key_prefilter(self, &ev, server->key_prefilter_data) ==
+		POLO_BACKEND_FILTER_CONSUME;
+}
+
+void
+polo_backend_seat_inject_key(PoloBackendSeat *seat, guint32 key,
+			     gboolean pressed)
+{
+	struct weston_key_event event;
+	struct timespec time;
+
+	g_return_if_fail(POLO_BACKEND_IS_SEAT(seat));
+	if (!seat->seat || !weston_seat_get_keyboard(seat->seat))
+		return;
+	weston_compositor_get_time(&time);
+	weston_key_event_init(&event, &time, seat->seat, key,
+			      pressed ? WL_KEYBOARD_KEY_STATE_PRESSED
+				      : WL_KEYBOARD_KEY_STATE_RELEASED,
+			      STATE_UPDATE_AUTOMATIC);
+	seat->injecting = TRUE;
+	notify_key(&event);
+	seat->injecting = FALSE;
+}
+
+void
+polo_backend_seat_get_modifier_state(PoloBackendSeat *seat,
+				     PoloBackendModifiers *depressed,
+				     PoloBackendModifiers *latched,
+				     PoloBackendModifiers *locked)
+{
+	struct weston_keyboard *keyboard;
+	struct xkb_state *state;
+
+	g_return_if_fail(POLO_BACKEND_IS_SEAT(seat));
+	*depressed = *latched = *locked = 0;
+	keyboard = seat->seat ? weston_seat_get_keyboard(seat->seat) : NULL;
+	if (!keyboard || !keyboard->xkb_info || !keyboard->xkb_state.state)
+		return;
+	state = keyboard->xkb_state.state;
+	*depressed = real_from_xkb(
+		keyboard->xkb_info,
+		xkb_state_serialize_mods(state, XKB_STATE_MODS_DEPRESSED));
+	*latched = real_from_xkb(
+		keyboard->xkb_info,
+		xkb_state_serialize_mods(state, XKB_STATE_MODS_LATCHED));
+	*locked = real_from_xkb(
+		keyboard->xkb_info,
+		xkb_state_serialize_mods(state, XKB_STATE_MODS_LOCKED));
+}
+
+void
+polo_backend_seat_set_latched_locked(PoloBackendSeat *seat,
+				     PoloBackendModifiers latched,
+				     PoloBackendModifiers locked)
+{
+	struct weston_keyboard *keyboard;
+	struct xkb_state *state;
+
+	g_return_if_fail(POLO_BACKEND_IS_SEAT(seat));
+	keyboard = seat->seat ? weston_seat_get_keyboard(seat->seat) : NULL;
+	if (!keyboard || !keyboard->xkb_info || !keyboard->xkb_state.state)
+		return;
+	state = keyboard->xkb_state.state;
+	xkb_state_update_mask(
+		state,
+		xkb_state_serialize_mods(state, XKB_STATE_MODS_DEPRESSED),
+		xkb_from_real(keyboard->xkb_info, latched),
+		xkb_from_real(keyboard->xkb_info, locked),
+		xkb_state_serialize_layout(state, XKB_STATE_LAYOUT_DEPRESSED),
+		xkb_state_serialize_layout(state, XKB_STATE_LAYOUT_LATCHED),
+		xkb_state_serialize_layout(state, XKB_STATE_LAYOUT_LOCKED));
+	notify_modifiers(seat->seat,
+			 wl_display_next_serial(seat->server->display));
+}
+
+void
+polo_backend_seat_move_pointer(PoloBackendSeat *seat, double dx, double dy)
+{
+	struct weston_pointer_motion_event event;
+	struct weston_coord rel = weston_coord(dx, dy);
+	struct timespec time;
+
+	g_return_if_fail(POLO_BACKEND_IS_SEAT(seat));
+	if (!seat->seat || !weston_seat_get_pointer(seat->seat))
+		return;
+	weston_compositor_get_time(&time);
+	weston_pointer_motion_event_init(&event, &time, seat->seat,
+					 WESTON_POINTER_MOTION_REL, NULL, &rel,
+					 NULL);
+	notify_motion(&event);
+	notify_pointer_frame(seat->seat);
+}
+
+void
+polo_backend_seat_inject_button(PoloBackendSeat *seat, guint32 button,
+				gboolean pressed)
+{
+	struct weston_pointer_button_event event;
+	struct timespec time;
+
+	g_return_if_fail(POLO_BACKEND_IS_SEAT(seat));
+	if (!seat->seat || !weston_seat_get_pointer(seat->seat))
+		return;
+	weston_compositor_get_time(&time);
+	weston_pointer_button_event_init(
+		&event, &time, seat->seat, button,
+		pressed ? WL_POINTER_BUTTON_STATE_PRESSED
+			: WL_POINTER_BUTTON_STATE_RELEASED);
+	notify_button(&event);
+	notify_pointer_frame(seat->seat);
 }

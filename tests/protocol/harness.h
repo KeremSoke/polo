@@ -103,6 +103,8 @@ struct harness {
 	int keyboard_enters;
 	int keymaps;
 	uint32_t mods_locked;
+	uint32_t mods_depressed, mods_latched;
+	uint32_t key_mods;
 	uint32_t group;
 	int32_t repeat_rate, repeat_delay;
 	int repeat_infos;
@@ -164,7 +166,8 @@ struct harness_window *
 harness_window_create(struct harness *h, int width, int height,
 		      const char *title);
 
-/* Creates one after requesting server-side decorations before its first commit. */
+/* Creates one after requesting server-side decorations before its first commit.
+ */
 struct harness_window *
 harness_window_create_decorated(struct harness *h, int width, int height,
 				const char *title);

@@ -261,6 +261,9 @@ namespace Polo {
 
             [CCode (cname = "polo_backend_keysym_to_lower")]
             public uint32 to_lower (uint32 keysym);
+
+            [CCode (cname = "polo_backend_keysym_name")]
+            public string name (uint32 keysym);
         }
 
         [CCode (cname = "PoloBackendButtonFilter", has_target = true)]
@@ -391,6 +394,9 @@ namespace Polo {
 
             [CCode (cname = "polo_backend_server_set_global_filter")]
             public void set_global_filter (owned GlobalFilter? filter);
+
+            [CCode (cname = "polo_backend_server_set_key_prefilter")]
+            public void set_key_prefilter (owned KeyFilter? filter);
 
             [CCode (cname = "polo_backend_server_set_activation_mint")]
             public void set_activation_mint (owned ActivationMint? mint);
@@ -602,6 +608,21 @@ namespace Polo {
 
             [CCode (cname = "polo_backend_seat_warp_pointer")]
             public void warp_pointer (double x, double y);
+
+            [CCode (cname = "polo_backend_seat_inject_key")]
+            public void inject_key (uint32 key, bool pressed);
+
+            [CCode (cname = "polo_backend_seat_get_modifier_state")]
+            public void get_modifier_state (out Modifiers depressed, out Modifiers latched, out Modifiers locked);
+
+            [CCode (cname = "polo_backend_seat_set_latched_locked")]
+            public void set_latched_locked (Modifiers latched, Modifiers locked);
+
+            [CCode (cname = "polo_backend_seat_move_pointer")]
+            public void move_pointer (double dx, double dy);
+
+            [CCode (cname = "polo_backend_seat_inject_button")]
+            public void inject_button (uint32 button, bool pressed);
 
             /* Sets the cursor until the focused surface's next enter event. */
             [CCode (cname = "polo_backend_seat_set_cursor")]

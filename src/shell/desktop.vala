@@ -589,6 +589,16 @@ namespace Polo.Shell {
 
         private Input.MediaKeys? media_keys = null;
 
+        public void ring_bell () {
+            bell.ring (null);
+        }
+
+        private Input.AccessX? access_x = null;
+
+        public void set_access_x (Input.AccessX? access) {
+            access_x = access;
+        }
+
         private void on_system_bell (Backend.Toplevel? toplevel) {
             var xdg = toplevel != null ? windows.lookup (toplevel) : null;
             bell.ring (xdg != null && xdg.mapped ? xdg.window : null);
@@ -672,6 +682,9 @@ namespace Polo.Shell {
 
         private void on_motion (Backend.Seat seat, double x, double y, uint time_msec, Backend.View? view) {
             model.pointer_moved (x, y);
+            if (access_x != null) {
+                access_x.pointer (false);
+            }
             model.pointer_entered (window_of (view), time_msec);
             frame_input.motion (seat, x, y, view != null ? frame_owner (view) : null);
         }
@@ -705,6 +718,9 @@ namespace Polo.Shell {
                 event.view != null ? "a view" : "nothing");
 
             model.pointer_moved (event.x, event.y);
+            if (access_x != null) {
+                access_x.pointer (!event.pressed);
+            }
             if (event.pressed) {
                 locate_pointer.button ();
             }

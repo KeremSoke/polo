@@ -95,6 +95,7 @@ namespace Polo {
         private Protocols.SessionLock? session_lock = null;
         private Shell.MediaKeyActions? media_key_actions = null;
         private Input.MediaKeys? media_keys = null;
+        private Input.AccessX? access_x = null;
         private Protocols.OutputManagement? output_management = null;
         private Dbus.Outputs? outputs_dbus = null;
         private WindowStates? window_states = null;
@@ -343,8 +344,14 @@ namespace Polo {
             }, show_error);
             media_keys = new Input.MediaKeys (media_key_actions.media_keys_settings (), media_key_actions);
             desktop.set_media_keys (media_keys);
+            access_x = new Input.AccessX (server, settings_if_installed (Input.AccessX.SCHEMA),
+                                          () => desktop.ring_bell (), ask_access_x);
+            desktop.set_access_x (access_x);
             loop.run ();
             log.info ("shutting down");
+            desktop.set_access_x (null);
+            access_x.shutdown ();
+            access_x = null;
             desktop.set_media_keys (null);
             media_keys.shutdown ();
             media_keys = null;
@@ -511,6 +518,35 @@ namespace Polo {
         private void quit (int status) {
             exit_status = status;
             loop.quit ();
+        }
+
+        private void ask_access_x (string title, string question, string message, string accept, string reject,
+                                   owned Input.AccessX.Reply reply) {
+            if (CommandLine.test_mode || spawn == null) {
+                reply (true);
+                return;
+            }
+            string[] argv = {
+                "zenity", "--question", "--title", title,
+                "--text", "<b>%s</b>\n\n%s".printf (GLib.Markup.escape_text (question),
+                                                     GLib.Markup.escape_text (message)),
+                "--ok-label", accept.replace ("_", ""), "--cancel-label", reject.replace ("_", "")
+            };
+            try {
+                var process = spawn.launch (argv);
+                process.wait_async.begin (null, (obj, res) => {
+                    try {
+                        process.wait_async.end (res);
+                    } catch (GLib.Error e) {
+                        reply (true);
+                        return;
+                    }
+                    reply (process.get_if_exited () && process.get_exit_status () == 0);
+                });
+            } catch (GLib.Error e) {
+                Logging.scope (LogDomain.POLO).warning ("cannot ask \"%s\": %s", question, e.message);
+                reply (true);
+            }
         }
 
         private void show_error (string message) {
