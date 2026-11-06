@@ -125,6 +125,8 @@ struct _PoloBackendServer {
 	struct wl_global *security_context_global;
 	struct wl_list security_contexts;
 	struct wl_global *system_bell_global;
+	struct wl_global *gtk_shell_global;
+	struct wl_list gtk_surfaces;
 	struct wl_global *xdg_decoration_global;
 	struct wl_global *kde_decoration_global;
 	PoloBackendActivationMint activation_mint;
@@ -429,6 +431,16 @@ polo_backend_system_bell_init(PoloBackendServer *server, GError **error);
 
 void
 polo_backend_system_bell_fini(PoloBackendServer *server);
+
+gboolean
+polo_backend_gtk_shell_init(PoloBackendServer *server, GError **error);
+
+void
+polo_backend_gtk_shell_fini(PoloBackendServer *server);
+
+void
+polo_backend_gtk_shell_surface_added(PoloBackendServer *server);
+
 
 void
 polo_backend_server_emit_system_bell(PoloBackendServer *server,

@@ -29,6 +29,7 @@ client_protocols = {
   'xdg-toplevel-icon-v1': wayland_protocols_dir / 'staging' / 'xdg-toplevel-icon' / 'xdg-toplevel-icon-v1.xml',
   'security-context-v1': wayland_protocols_dir / 'staging' / 'security-context' / 'security-context-v1.xml',
   'xdg-system-bell-v1': wayland_protocols_dir / 'staging' / 'xdg-system-bell' / 'xdg-system-bell-v1.xml',
+  'gtk-shell': meson.project_source_root() / 'protocol' / 'gtk-shell.xml',
   'linux-explicit-synchronization-unstable-v1': wayland_protocols_dir / 'unstable' / 'linux-explicit-synchronization' / 'linux-explicit-synchronization-unstable-v1.xml',
   'linux-drm-syncobj-v1': wayland_protocols_dir / 'staging' / 'linux-drm-syncobj' / 'linux-drm-syncobj-v1.xml',
   'linux-dmabuf-v1': wayland_protocols_dir / 'stable' / 'linux-dmabuf' / 'linux-dmabuf-v1.xml',

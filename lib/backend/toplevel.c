@@ -148,6 +148,7 @@ surface_added(struct weston_desktop_surface *desktop_surface, void *data)
 	polo_backend_server_emit_new_toplevel(server, self);
 	polo_backend_xdg_foreign_surface_added(server);
 	polo_backend_xdg_dialog_surface_added(server);
+	polo_backend_gtk_shell_surface_added(server);
 }
 
 static void

@@ -644,6 +644,9 @@ polo_backend_server_start(PoloBackendServer *server,
 	if (!polo_backend_system_bell_init(server, error))
 		return FALSE;
 
+	if (!polo_backend_gtk_shell_init(server, error))
+		return FALSE;
+
 	if (!polo_backend_security_context_init(server, error))
 		return FALSE;
 
@@ -819,6 +822,7 @@ polo_backend_server_stop(PoloBackendServer *server)
 	}
 
 	if (server->compositor) {
+		polo_backend_flash_fini(server);
 		polo_backend_desktop_fini(server);
 
 		while (server->outputs->len > 0) {
@@ -871,6 +875,7 @@ polo_backend_server_stop(PoloBackendServer *server)
 		polo_backend_xdg_foreign_fini(server);
 		polo_backend_toplevel_icon_fini(server);
 		polo_backend_system_bell_fini(server);
+		polo_backend_gtk_shell_fini(server);
 		polo_backend_xdg_dialog_fini(server);
 		polo_backend_virtual_keyboard_fini(server);
 		polo_backend_kde_decoration_fini(server);
