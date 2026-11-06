@@ -717,6 +717,37 @@ test_icccm(int argc, char **argv)
 	stop_client(client);
 	pause_ms(h, 300);
 
+	char touched[96];
+
+	snprintf(touched, sizeof touched, "%s.shortcut", log_path);
+	unlink(touched);
+	start_log();
+	client = start_x_client(display, argv[2], true, xauth);
+	wait_for_line(h, "focus");
+	pause_ms(h, 200);
+	char action[160];
+
+	snprintf(action, sizeof action, "'touch %s'", touched);
+	harness_set_setting(h,
+			    "org.mate.control-center.keybinding:"
+			    "/org/mate/desktop/keybindings/custom0/",
+			    "action", action);
+	harness_set_setting(h,
+			    "org.mate.control-center.keybinding:"
+			    "/org/mate/desktop/keybindings/custom0/",
+			    "binding", "'<Alt>k'");
+	pause_ms(h, 100);
+	press(h, KEY_LEFTALT, KEY_K);
+	for (int i = 0; i < 100 && access(touched, F_OK) != 0; i++)
+		pause_ms(h, 20);
+	CHECK(access(touched, F_OK) == 0,
+	      "a custom shortcut did not run with an X window focused");
+	pause_ms(h, 100);
+	CHECK(!log_has("key 45"), "the X window saw the custom shortcut's key");
+	unlink(touched);
+	stop_client(client);
+	pause_ms(h, 300);
+
 	/* WM_CHANGE_STATE. */
 	setenv("X_TEST_ICONIFY", "1", 1);
 	start_log();

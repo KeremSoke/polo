@@ -108,6 +108,8 @@ namespace Polo {
         private Shell.NotResponding? not_responding;
         private Shell.ShellUi? shell_ui;
         private Shell.RenameWorkspace? rename_workspace;
+        private Input.CustomShortcuts? custom_shortcuts = null;
+        private Input.TestShortcutDirectory? test_shortcuts = null;
         private int exit_status = 0;
         private string cursor_theme = "default";
 
@@ -299,6 +301,16 @@ namespace Polo {
             desktop.decorations.attach (server.get_shell_ui ());
             not_responding = new Shell.NotResponding (model, spawn, desktop, server.get_shell_ui ());
             rename_workspace = new Shell.RenameWorkspace (model, desktop, server.get_shell_ui (), write_preference);
+            Input.ShortcutDirectory shortcut_directory;
+            if (CommandLine.test_mode) {
+                test_shortcuts = new Input.TestShortcutDirectory ();
+                shortcut_directory = test_shortcuts;
+            } else {
+                shortcut_directory = new Input.DconfShortcutDirectory ();
+            }
+            custom_shortcuts = new Input.CustomShortcuts (desktop.bindings, shortcut_directory, (command) => {
+                spawn.launch_command (command);
+            }, show_error);
             shell_ui = new Shell.ShellUi (server, spawn, trust);
             shell_ui.start ();
             if (screen_share != null && !CommandLine.test_mode) {
@@ -447,12 +459,14 @@ namespace Polo {
         }
 
         private string? test_setting (string schema_id, string key, string? value) {
+            var parts = schema_id.split (":", 2);
+            string? path = parts.length == 2 ? parts[1] : null;
             var source = GLib.SettingsSchemaSource.get_default ();
-            var schema = source != null ? source.lookup (schema_id, true) : null;
-            if (schema == null || !schema.has_key (key)) {
+            var schema = source != null ? source.lookup (parts[0], true) : null;
+            if (schema == null || !schema.has_key (key) || (path == null) != (schema.get_path () != null)) {
                 return null;
             }
-            var settings = new GLib.Settings.full (schema, null, null);
+            var settings = new GLib.Settings.full (schema, null, path);
             if (value != null) {
                 if (!memory_settings ()) {
                     return null;
@@ -463,6 +477,10 @@ namespace Polo {
                         return null;
                     }
                     apply_test_override (schema_id, key, parsed);
+                    if (path != null && parts[0] == Input.CustomShortcuts.SCHEMA && test_shortcuts != null &&
+                        path.has_prefix (Input.CustomShortcuts.DIR)) {
+                        test_shortcuts.add (path);
+                    }
                 } catch (GLib.VariantParseError e) {
                     return null;
                 }
@@ -601,6 +619,11 @@ namespace Polo {
 
         /* Reverse order of construction. */
         private void teardown () {
+            if (custom_shortcuts != null) {
+                custom_shortcuts.shutdown ();
+                custom_shortcuts = null;
+            }
+            test_shortcuts = null;
             if (effects_engine != null) {
                 effects_engine.shutdown ();
                 effects_engine = null;

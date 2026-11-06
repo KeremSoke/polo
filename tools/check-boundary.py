@@ -28,7 +28,7 @@ import sys
 
 ALLOWED_VALA_PKGS = {
     "glib-2.0", "gobject-2.0", "gio-2.0", "gio-unix-2.0", "posix",
-    "libpulse", "libpulse-mainloop-glib", "libcanberra",
+    "libpulse", "libpulse-mainloop-glib", "libcanberra", "dconf",
     "polo-config", "polo-backend", "polo-xwm", "polo-marco", "polo-fx", "polo-bg",
     "polo-xsmp",
 }

@@ -6,7 +6,8 @@
  * window-keybindings whenever they change. A press matches the keysym at
  * the active level, then the base-level keysym (Marco grabs keycodes, so
  * its bindings work in any layout and with Shift held), then the keycode.
- * Only bindings with an action consume their key.
+ * Only bindings with an action consume their key. Custom shortcuts come
+ * after Marco's, which win a clash.
  */
 
 namespace Polo.Input {
@@ -40,6 +41,9 @@ namespace Polo.Input {
         private GLib.HashTable<string, Action> actions =
             new GLib.HashTable<string, Action> (GLib.str_hash, GLib.str_equal);
 
+        private MarcoPrefs? prefs = null;
+        private GLib.GenericArray<Binding> custom = new GLib.GenericArray<Binding> ();
+
         private static void* key (uint64 value) {
             return (void*) (ulong) value;
         }
@@ -54,6 +58,17 @@ namespace Polo.Input {
 
         public void register (string name, owned BindingAction action) {
             actions.insert (name, new Action ((owned) action));
+        }
+
+        public void unregister (string name) {
+            actions.remove (name);
+        }
+
+        public void set_custom (GLib.GenericArray<Binding> bindings) {
+            custom = bindings;
+            if (prefs != null) {
+                rebuild (prefs);
+            }
         }
 
         public uint size { get { return table.size (); } }
@@ -89,6 +104,7 @@ namespace Polo.Input {
 
         /* Build the table for prefs and swap it in at once. */
         public void rebuild (MarcoPrefs prefs) {
+            this.prefs = prefs;
             var fresh = new GLib.HashTable<void*, Binding> (GLib.direct_hash, GLib.direct_equal);
             unowned LogScope log = Logging.scope (LogDomain.INPUT);
             foreach (unowned string path in MarcoPrefs.KEYS) {
@@ -127,6 +143,9 @@ namespace Polo.Input {
                 if (add_shift && (accelerator.mask & Marco.VirtualModifier.SHIFT_MASK) == 0) {
                     insert (fresh, binding, accelerator.mask | Marco.VirtualModifier.SHIFT_MASK, text);
                 }
+            }
+            foreach (var binding in custom) {
+                insert (fresh, binding, binding.accelerator.mask, binding.name);
             }
             table = fresh;
             log.debug ("%u key bindings", table.size ());

@@ -14,7 +14,7 @@ env:
   FEDORA_DEPS: >-
     gcc gcc-c++ git meson ninja-build python3 pkgconf-pkg-config
     vala valadoc
-    glib2-devel gtk3-devel gtk-layer-shell-devel
+    glib2-devel dconf-devel gtk3-devel gtk-layer-shell-devel
     wayland-devel wayland-protocols-devel libxkbcommon-devel
     libinput-devel libevdev-devel libseat-devel systemd-devel
     libdrm-devel mesa-libgbm-devel libglvnd-devel libdisplay-info-devel

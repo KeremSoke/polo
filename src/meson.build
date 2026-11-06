@@ -93,6 +93,7 @@ polo_sources = files(
   'input/xkb-settings.vala',
   'input/marco-actions.vala',
   'input/media-keys.vala',
+  'input/custom-shortcuts.vala',
   'input/mpris.vala',
   'input/volume.vala',
   'settings/background.vala',
@@ -124,13 +125,15 @@ polo_vala_args = vala_args + systemd_vala_args + [
   '--pkg', 'polo-fx',
   '--pkg', 'polo-bg',
   '--pkg', 'gio-unix-2.0',
+  '--pkg', 'dconf',
   '--pkg', 'libpulse',
   '--pkg', 'libpulse-mainloop-glib',
   '--pkg', 'libcanberra',
 ]
 polo_deps = [glib_dep, gobject_dep, gio_dep, gio_unix_dep, polo_backend_dep, polo_marco_dep,
              polo_fx_dep, polo_bg_dep, polo_policy_dep, polo_output_dep,
-             dependency('libpulse'), dependency('libpulse-mainloop-glib'), dependency('libcanberra')]
+             dependency('libpulse'), dependency('libpulse-mainloop-glib'), dependency('libcanberra'),
+             dependency('dconf')]
 
 if get_option('xwayland')
   polo_sources += files('shell/x11-adapter.vala', 'shell/ewmh.vala')
