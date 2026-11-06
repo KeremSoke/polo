@@ -1,0 +1,27 @@
+--- a/include/libweston/libweston.h
++++ b/include/libweston/libweston.h
+@@ -1585,6 +1585,11 @@
+ 	struct wl_list plane_list;
+ 	struct wl_list key_binding_list;
+ 	struct wl_list modifier_binding_list;
++
++	/* Sees each key before the seat records it, updates the XKB state or
++	 * runs bindings and grabs; true drops the event entirely. */
++	bool (*key_prefilter)(const struct weston_key_event *event, void *data);
++	void *key_prefilter_data;
+ 	struct wl_list button_binding_list;
+ 	struct wl_list touch_binding_list;
+ 	struct wl_list tablet_tool_binding_list;
+--- a/libweston/input.c
++++ b/libweston/input.c
+@@ -2763,6 +2763,10 @@
+ 	enum weston_key_state_update update_state = key_event->key_update_state;
+ 	uint32_t *k, *end;
+ 
++	if (compositor->key_prefilter &&
++	    compositor->key_prefilter(key_event, compositor->key_prefilter_data))
++		return;
++
+ 	end = keyboard->keys.data + keyboard->keys.size;
+ 	for (k = keyboard->keys.data; k < end; k++) {
+ 		if (*k == key) {
