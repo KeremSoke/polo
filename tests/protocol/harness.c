@@ -993,8 +993,14 @@ harness_cpu_ticks(struct harness *h)
 	return (long)(utime + stime);
 }
 
+#define FOURCC_ARGB8888 0x34325241u
+#define FOURCC_XRGB8888 0x34325258u
+#define FOURCC_ABGR8888 0x34324241u
+#define FOURCC_XBGR8888 0x34324258u
+
 struct capture_state {
 	int width, height;
+	uint32_t format; /* DRM fourcc */
 	int done; /* 1 complete, 2 retry, 3 failed */
 };
 
@@ -1002,6 +1008,17 @@ static void
 capture_format(void *data, struct weston_capture_source_v1 *source,
 	       uint32_t format)
 {
+	((struct capture_state *)data)->format = format;
+}
+
+static uint32_t
+shm_format(uint32_t fourcc)
+{
+	if (fourcc == FOURCC_ARGB8888)
+		return WL_SHM_FORMAT_ARGB8888;
+	if (fourcc == FOURCC_XRGB8888)
+		return WL_SHM_FORMAT_XRGB8888;
+	return fourcc;
 }
 
 static void
@@ -1044,14 +1061,20 @@ static const struct weston_capture_source_v1_listener capture_listener = {
 uint32_t *
 harness_capture(struct harness *h, int *width, int *height)
 {
+	return harness_capture_output(h, 0, width, height);
+}
+
+uint32_t *
+harness_capture_output(struct harness *h, int index, int *width, int *height)
+{
 	struct capture_state state = { 0 };
 	struct weston_capture_source_v1 *source;
 	uint32_t *copy = NULL;
 
 	*width = *height = 0;
-	if (!h->capture || h->n_outputs == 0)
+	if (!h->capture || index < 0 || index >= h->n_outputs)
 		return NULL;
-	source = weston_capture_v1_create(h->capture, h->outputs[0],
+	source = weston_capture_v1_create(h->capture, h->outputs[index],
 					  WESTON_CAPTURE_V1_SOURCE_FRAMEBUFFER);
 	weston_capture_source_v1_add_listener(source, &capture_listener,
 					      &state);
@@ -1070,7 +1093,7 @@ harness_capture(struct harness *h, int *width, int *height)
 	struct wl_shm_pool *pool = wl_shm_create_pool(h->shm, fd, size);
 	struct wl_buffer *buffer = wl_shm_pool_create_buffer(
 		pool, 0, state.width, state.height, state.width * 4,
-		WL_SHM_FORMAT_XRGB8888);
+		shm_format(state.format ? state.format : FOURCC_XRGB8888));
 
 	for (int attempt = 0; attempt < 20 && state.done != 1; attempt++) {
 		state.done = 0;
@@ -1084,6 +1107,13 @@ harness_capture(struct harness *h, int *width, int *height)
 		copy = malloc(size);
 		if (copy) {
 			memcpy(copy, pixels, size);
+			if (state.format == FOURCC_ABGR8888 ||
+			    state.format == FOURCC_XBGR8888) {
+				for (size_t i = 0; i < size / 4; i++)
+					copy[i] = (copy[i] & 0xff00ff00u) |
+						  ((copy[i] & 0xffu) << 16) |
+						  ((copy[i] >> 16) & 0xffu);
+			}
 			*width = state.width;
 			*height = state.height;
 		}

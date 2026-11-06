@@ -216,6 +216,9 @@ harness_get_setting(struct harness *h, const char *schema, const char *key);
 uint32_t *
 harness_capture(struct harness *h, int *width, int *height);
 
+uint32_t *
+harness_capture_output(struct harness *h, int index, int *width, int *height);
+
 void
 harness_move_pointer(struct harness *h, int x, int y);
 
