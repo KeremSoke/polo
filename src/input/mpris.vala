@@ -17,7 +17,7 @@ namespace Polo.Input {
         private const string INTERFACE = "org.mpris.MediaPlayer2.Player";
 
         private GLib.DBusConnection bus;
-        private GLib.Queue<string> players = new GLib.Queue<string> ();
+        private GLib.GenericArray<string> players = new GLib.GenericArray<string> ();
         private uint subscription = 0;
 
         public Mpris (GLib.DBusConnection bus) {
@@ -34,7 +34,7 @@ namespace Polo.Input {
                 bus.signal_unsubscribe (subscription);
                 subscription = 0;
             }
-            players.clear ();
+            players.length = 0;
         }
 
         public static string? player_name (string bus_name) {
@@ -63,7 +63,7 @@ namespace Polo.Input {
         }
 
         public unowned string? current {
-            get { return players.peek_head (); }
+            get { return players.length > 0 ? players[0] : null; }
         }
 
         private async void list_names () {
@@ -101,7 +101,7 @@ namespace Polo.Input {
         private void appeared (string name) {
             var player = player_name (name);
             if (player != null) {
-                players.push_head (player);
+                players.insert (0, player);
             }
         }
 
@@ -110,9 +110,9 @@ namespace Polo.Input {
             if (player == null) {
                 return;
             }
-            unowned GLib.List<string>? link = players.find_custom (player, GLib.strcmp);
-            if (link != null) {
-                players.remove (link.data);
+            uint index;
+            if (players.find_with_equal_func (player, GLib.str_equal, out index)) {
+                players.remove_index (index);
             }
         }
 
