@@ -1,0 +1,195 @@
+--- a/include/libweston/libweston.h
++++ b/include/libweston/libweston.h
+@@ -3038,6 +3038,40 @@
+ 	bool denied;
+ };
+ 
++struct weston_capture_source;
++
++struct weston_capture_callbacks {
++	/* The buffer holds the capture. */
++	void (*complete)(void *data);
++	/* The capture failed, for example because the output went. */
++	void (*failed)(void *data, const char *msg);
++	/* The buffer no longer fits: ask for the size and format again. */
++	void (*retry)(void *data);
++};
++
++enum weston_capture_result {
++	WESTON_CAPTURE_QUEUED,
++	WESTON_CAPTURE_BUSY,
++	WESTON_CAPTURE_UNAVAILABLE,
++	WESTON_CAPTURE_INCOMPATIBLE,
++};
++
++struct weston_capture_source *
++weston_output_capture_source_create(struct weston_output *output,
++				    const struct weston_capture_callbacks *callbacks,
++				    void *data);
++
++void
++weston_capture_source_destroy(struct weston_capture_source *csrc);
++
++enum weston_capture_result
++weston_capture_source_capture(struct weston_capture_source *csrc,
++			      struct weston_buffer *buffer);
++
++bool
++weston_output_get_capture_info(struct weston_output *output, int *width,
++			       int *height, uint32_t *drm_format);
++
+ void
+ weston_compositor_add_screenshot_authority(struct weston_compositor *compositor,
+ 					   struct wl_listener *listener,
+--- a/libweston/output-capture.c
++++ b/libweston/output-capture.c
+@@ -98,6 +98,11 @@
+ 	struct weston_output *output;
+ 
+ 	struct weston_capture_task *pending;
++
++	/* A source made with weston_output_capture_source_create () has no
++	 * resource; these report to its owner instead. */
++	const struct weston_capture_callbacks *callbacks;
++	void *data;
+ };
+ 
+ /** A pending task to capture an output */
+@@ -228,7 +233,7 @@
+ 	wl_list_for_each(csrc, &ci->capture_source_list, link) {
+ 		bool send_done;
+ 
+-		if (csrc->pixel_source != csi->pixel_source)
++		if (csrc->pixel_source != csi->pixel_source || !csrc->resource)
+ 			continue;
+ 
+ 		send_done = wl_resource_get_version(csrc->resource) >=
+@@ -444,6 +449,10 @@
+ capture_is_authorized(struct weston_capture_source *csrc)
+ {
+ 	struct weston_compositor *compositor = csrc->output->compositor;
++
++	if (!csrc->resource)
++		return true;
++
+ 	const struct weston_output_capture_client who = {
+ 		.client = wl_resource_get_client(csrc->resource),
+ 		.output = csrc->output,
+@@ -520,7 +529,10 @@
+ 		 * the task was filed.
+ 		 */
+ 		if (!buffer_is_compatible(ct->buffer, csi)) {
+-			weston_capture_source_v1_send_retry(ct->owner->resource);
++			if (ct->owner->resource)
++				weston_capture_source_v1_send_retry(ct->owner->resource);
++			else
++				ct->owner->callbacks->retry(ct->owner->data);
+ 			weston_capture_task_destroy(ct);
+ 			continue;
+ 		}
+@@ -562,8 +574,13 @@
+ WL_EXPORT void
+ weston_capture_task_retire_complete(struct weston_capture_task *ct)
+ {
+-	weston_capture_source_v1_send_complete(ct->owner->resource);
++	struct weston_capture_source *csrc = ct->owner;
++
+ 	weston_capture_task_destroy(ct);
++	if (csrc->resource)
++		weston_capture_source_v1_send_complete(csrc->resource);
++	else
++		csrc->callbacks->complete(csrc->data);
+ }
+ 
+ /** Signal failure of the capture task
+@@ -574,8 +591,13 @@
+ weston_capture_task_retire_failed(struct weston_capture_task *ct,
+ 				  const char *err_msg)
+ {
+-	weston_capture_source_v1_send_failed(ct->owner->resource, err_msg);
++	struct weston_capture_source *csrc = ct->owner;
++
+ 	weston_capture_task_destroy(ct);
++	if (csrc->resource)
++		weston_capture_source_v1_send_failed(csrc->resource, err_msg);
++	else
++		csrc->callbacks->failed(csrc->data, err_msg);
+ }
+ 
+ static void
+@@ -816,3 +838,75 @@
+ {
+ 	wl_signal_add(&task->destroy_signal, listener);
+ }
++
++/** A framebuffer capture source for a compositor component
++ *
++ * Like weston_capture_source_v1 with the framebuffer pixel source, but
++ * reporting through @callbacks. Authorizing the capture is the caller's.
++ */
++WL_EXPORT struct weston_capture_source *
++weston_output_capture_source_create(struct weston_output *output,
++				    const struct weston_capture_callbacks *callbacks,
++				    void *data)
++{
++	struct weston_capture_source *csrc = xzalloc(sizeof *csrc);
++
++	csrc->pixel_source = WESTON_OUTPUT_CAPTURE_SOURCE_FRAMEBUFFER;
++	csrc->callbacks = callbacks;
++	csrc->data = data;
++	csrc->output = output;
++	wl_list_insert(&output->capture_info->capture_source_list, &csrc->link);
++	return csrc;
++}
++
++WL_EXPORT void
++weston_capture_source_destroy(struct weston_capture_source *csrc)
++{
++	if (csrc->pending)
++		weston_capture_task_destroy(csrc->pending);
++	wl_list_remove(&csrc->link);
++	free(csrc);
++}
++
++/** Queue a capture into @buffer on the output's next repaint
++ *
++ * Scheduling that repaint is the caller's.
++ */
++WL_EXPORT enum weston_capture_result
++weston_capture_source_capture(struct weston_capture_source *csrc,
++			      struct weston_buffer *buffer)
++{
++	struct weston_output_capture_source_info *csi;
++
++	if (csrc->pending)
++		return WESTON_CAPTURE_BUSY;
++	if (!csrc->output)
++		return WESTON_CAPTURE_UNAVAILABLE;
++	csi = capture_info_get_csi(csrc->output->capture_info,
++				   csrc->pixel_source);
++	if (!source_info_is_available(csi))
++		return WESTON_CAPTURE_UNAVAILABLE;
++	if (!buffer_is_compatible(buffer, csi))
++		return WESTON_CAPTURE_INCOMPATIBLE;
++	csrc->pending = weston_capture_task_create(csrc, buffer);
++	return WESTON_CAPTURE_QUEUED;
++}
++
++/** The framebuffer capture's buffer size and DRM format, if available */
++WL_EXPORT bool
++weston_output_get_capture_info(struct weston_output *output, int *width,
++			       int *height, uint32_t *drm_format)
++{
++	struct weston_output_capture_source_info *csi;
++
++	if (!output->capture_info)
++		return false;
++	csi = capture_info_get_csi(output->capture_info,
++				   WESTON_OUTPUT_CAPTURE_SOURCE_FRAMEBUFFER);
++	if (!source_info_is_available(csi))
++		return false;
++	*width = csi->width;
++	*height = csi->height;
++	*drm_format = csi->drm_format;
++	return true;
++}
