@@ -201,6 +201,13 @@ namespace Polo {
             public int workspace;
             public uint32 state;
             public bool focused;
+            public bool lamp_known;
+            public int lamp_x;
+            public int lamp_y;
+            public int lamp_width;
+            public int lamp_height;
+            public uint lamp_edge;
+            public uint lamp_source;
         }
 
         [CCode (cname = "PoloBackendGlobalFilter", has_target = true)]

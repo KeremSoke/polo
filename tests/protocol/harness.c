@@ -357,6 +357,22 @@ test_shell_ui_request(void *data, struct polo_test_v1 *test, const char *text)
 		 sizeof h->shell_ui_requests[0], "%s", text);
 }
 
+static void
+test_lamp_target(void *data, struct polo_test_v1 *test,
+		 struct wl_surface *surface, int32_t x, int32_t y, int32_t width,
+		 int32_t height, uint32_t edge, uint32_t source)
+{
+	struct harness_window *w = wl_surface_get_user_data(surface);
+
+	w->lamp = (struct harness_lamp_target){ .known = true,
+						.x = x,
+						.y = y,
+						.width = width,
+						.height = height,
+						.edge = edge,
+						.source = source };
+}
+
 static const struct polo_test_v1_listener test_listener = {
 	test_window_info,
 	test_window_unknown,
@@ -366,6 +382,7 @@ static const struct polo_test_v1_listener test_listener = {
 	test_shell_ui_bound,
 	test_shell_ui_unbound,
 	test_shell_ui_request,
+	test_lamp_target,
 };
 
 static void
@@ -398,7 +415,7 @@ registry_global(void *data, struct wl_registry *registry, uint32_t name,
 		wl_seat_add_listener(h->seat, &seat_listener, h);
 	} else if (strcmp(interface, polo_test_v1_interface.name) == 0) {
 		h->test = wl_registry_bind(registry, name,
-					   &polo_test_v1_interface, 7);
+					   &polo_test_v1_interface, 8);
 		polo_test_v1_add_listener(h->test, &test_listener, h);
 	} else if (strcmp(interface, zwlr_layer_shell_v1_interface.name) == 0) {
 		h->layer_shell = wl_registry_bind(
@@ -894,6 +911,15 @@ harness_window_info(struct harness_window *w)
 	polo_test_v1_get_window_info(w->harness->test, w->surface);
 	harness_roundtrip(w->harness);
 	return &w->info;
+}
+
+const struct harness_lamp_target *
+harness_lamp_target(struct harness_window *w)
+{
+	w->lamp = (struct harness_lamp_target){ .known = false };
+	polo_test_v1_get_lamp_target(w->harness->test, w->surface);
+	harness_roundtrip(w->harness);
+	return &w->lamp;
 }
 
 void

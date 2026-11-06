@@ -1124,6 +1124,8 @@ namespace Polo.Shell {
         }
 
         /* Backend.TestInspector: report the model, not libweston. */
+        public Effects.LampTargets? lamp_targets { get; set; default = null; }
+
         public bool inspect (Backend.Toplevel toplevel, ref Backend.TestWindowInfo info) {
             var xdg = windows.lookup (toplevel);
             if (xdg == null || !xdg.mapped) {
@@ -1151,6 +1153,16 @@ namespace Polo.Shell {
             info.workspace = window.workspace;
             info.state = (uint32) window.state;
             info.focused = model.focused == window;
+            if (lamp_targets != null) {
+                var target = lamp_targets.resolve (window);
+                info.lamp_known = true;
+                info.lamp_x = target.rect.x;
+                info.lamp_y = target.rect.y;
+                info.lamp_width = target.rect.width;
+                info.lamp_height = target.rect.height;
+                info.lamp_edge = (uint) target.edge;
+                info.lamp_source = (uint) target.source;
+            }
             return true;
         }
     }

@@ -32,6 +32,12 @@ struct harness_window_info {
 	bool focused;
 };
 
+struct harness_lamp_target {
+	bool known;
+	int x, y, width, height;
+	uint32_t edge, source;
+};
+
 struct harness_layer_info {
 	bool known;
 	int x, y, width, height;
@@ -58,6 +64,7 @@ struct harness_window {
 	uint32_t tiled;
 	bool xdg_maximized;
 	struct harness_window_info info;
+	struct harness_lamp_target lamp;
 	struct zxdg_toplevel_decoration_v1 *decoration;
 };
 
@@ -195,6 +202,9 @@ harness_window_remap(struct harness_window *w, int width, int height);
 /* Ask Polo for its model of the window (fills w->info). */
 const struct harness_window_info *
 harness_window_info(struct harness_window *w);
+
+const struct harness_lamp_target *
+harness_lamp_target(struct harness_window *w);
 
 /* Draw the last configured size after deliberately delaying a resize. */
 void

@@ -199,3 +199,10 @@ test('media-keys', media_keys_test, suite: 'unit-vala', protocol: 'tap', args: [
   env: ['GSETTINGS_BACKEND=memory', 'POLO_MEDIA_KEYS_SCHEMAS=' + meson.current_build_dir(),
         'WESTON_MODULE_MAP=' + weston_module_map],
   depends: media_keys_schemas)
+
+lamp_target_test = executable('test-lamp-target', 'lamp-target.vala',
+  vala_args: vala_args + ['--pkg', 'polo-marco'],
+  c_args: vala_c_args,
+  dependencies: [polo_policy_dep],
+)
+test('lamp-target', lamp_target_test, suite: 'unit-vala', protocol: 'tap', args: ['--tap'])

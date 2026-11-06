@@ -14,7 +14,7 @@
     tests check policy decisions rather than libweston internals.
   </description>
 
-  <interface name="polo_test_v1" version="7">
+  <interface name="polo_test_v1" version="8">
     <request name="destroy" type="destructor"/>
 
     <request name="get_window_info">
@@ -203,5 +203,28 @@
       </description>
       <arg name="output" type="object" interface="wl_output"/>
     </request>
+
+    <request name="get_lamp_target" since="8">
+      <description summary="ask where the window's Magic Lamp would go">
+        Polo answers with one lamp_target or window_unknown event.
+      </description>
+      <arg name="surface" type="object" interface="wl_surface"/>
+    </request>
+
+    <event name="lamp_target" since="8">
+      <description summary="the Magic Lamp target if the window minimised now">
+        The target rectangle in global logical coordinates; edge is a
+        Polo.Policy.LampEdge (0 bottom, 1 top, 2 left, 3 right) and
+        source a Polo.Effects.LampSource (0 panel button, 1 X icon
+        geometry, 2 pointer).
+      </description>
+      <arg name="surface" type="object" interface="wl_surface"/>
+      <arg name="x" type="int"/>
+      <arg name="y" type="int"/>
+      <arg name="width" type="int"/>
+      <arg name="height" type="int"/>
+      <arg name="edge" type="uint"/>
+      <arg name="source" type="uint"/>
+    </event>
   </interface>
 </protocol>

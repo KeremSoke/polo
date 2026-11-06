@@ -59,6 +59,30 @@ test_get_window_info(struct wl_client *client, struct wl_resource *resource,
 }
 
 static void
+test_get_lamp_target(struct wl_client *client, struct wl_resource *resource,
+		     struct wl_resource *surface_resource)
+{
+	PoloBackendServer *server = wl_resource_get_user_data(resource);
+	struct weston_surface *surface =
+		wl_resource_get_user_data(surface_resource);
+	PoloBackendToplevel *toplevel;
+	PoloBackendTestWindowInfo info = { .workspace = -1 };
+
+	toplevel = polo_backend_toplevel_from_surface(surface);
+	if (!toplevel || !server->test_inspector ||
+	    !server->test_inspector(toplevel, &info,
+				    server->test_inspector_data) ||
+	    !info.lamp_known) {
+		polo_test_v1_send_window_unknown(resource, surface_resource);
+		return;
+	}
+	polo_test_v1_send_lamp_target(resource, surface_resource, info.lamp_x,
+				      info.lamp_y, info.lamp_width,
+				      info.lamp_height, info.lamp_edge,
+				      info.lamp_source);
+}
+
+static void
 test_get_layer_surface_info(struct wl_client *client,
 			    struct wl_resource *resource,
 			    struct wl_resource *surface_resource)
@@ -486,6 +510,7 @@ static const struct polo_test_v1_interface test_implementation = {
 	.shell_ui_dialog = test_shell_ui_dialog,
 	.shell_ui_lookup_color = test_shell_ui_lookup_color,
 	.output_device_changed = test_output_device_changed,
+	.get_lamp_target = test_get_lamp_target,
 };
 
 static void
@@ -543,7 +568,7 @@ polo_backend_test_protocol_init(PoloBackendServer *server, GError **error)
 		server->compositor, &server->screenshot_authority,
 		authorize_screenshot);
 	server->test_global = wl_global_create(
-		server->display, &polo_test_v1_interface, 7, server, test_bind);
+		server->display, &polo_test_v1_interface, 8, server, test_bind);
 	if (!server->test_global) {
 		g_set_error(error, POLO_BACKEND_ERROR,
 			    POLO_BACKEND_ERROR_FAILED,

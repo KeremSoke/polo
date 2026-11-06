@@ -206,6 +206,27 @@ namespace Polo.Shell {
          * desktop (bottom layer, namespace "desktop", which draws its own
          * background). The wallpaper fallback hides then.
          */
+        public bool panel_at (int x, int y, out uint anchor) {
+            anchor = 0;
+            int best_layer = -1;
+            foreach (var entry in entries) {
+                var handle = entry.handle;
+                if (!handle.mapped || handle.layer == 0 || (int) handle.layer <= best_layer ||
+                    handle.get_namespace () == "desktop") {
+                    continue;
+                }
+                double px, py;
+                int width, height;
+                entry.view.get_position (out px, out py);
+                handle.get_size (out width, out height);
+                if (x >= (int) px && x < (int) px + width && y >= (int) py && y < (int) py + height) {
+                    anchor = handle.anchor;
+                    best_layer = (int) handle.layer;
+                }
+            }
+            return best_layer >= 0;
+        }
+
         public bool covers_output (Policy.Output output) {
             foreach (var entry in entries) {
                 var handle = entry.handle;

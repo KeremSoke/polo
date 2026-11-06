@@ -1414,6 +1414,13 @@ typedef struct {
 	int workspace;    /* -1: none yet */
 	guint32 state;    /* Polo.WindowState flags */
 	gboolean focused;
+	gboolean lamp_known;
+	int lamp_x;
+	int lamp_y;
+	int lamp_width;
+	int lamp_height;
+	guint lamp_edge;   /* Polo.Policy.LampEdge */
+	guint lamp_source; /* Polo.Effects.LampSource */
 } PoloBackendTestWindowInfo;
 
 typedef gboolean (*PoloBackendTestInspector)(PoloBackendToplevel *toplevel,

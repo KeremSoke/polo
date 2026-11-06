@@ -201,6 +201,9 @@ namespace Polo {
             foreign_toplevels = new Protocols.ForeignToplevels (server, model, desktop);
             desktop.switcher.set_minimize_target (foreign_toplevels.minimize_target);
             desktop.share_chooser.set_window_lookup (foreign_toplevels.window_for_identifier);
+            var lamp_targets = new Effects.LampTargets (model, desktop.layer_shell);
+            lamp_targets.set_panel_button (foreign_toplevels.minimize_target);
+            desktop.lamp_targets = lamp_targets;
             server.set_global_filter (trust.filter);
             server.set_test_inspector (desktop.inspect);
             if (CommandLine.test_mode) {
@@ -653,6 +656,10 @@ namespace Polo {
             if (desktop != null) {
                 desktop.switcher.set_minimize_target (null);
                 desktop.share_chooser.set_window_lookup (null);
+                if (desktop.lamp_targets != null) {
+                    desktop.lamp_targets.set_panel_button (null);
+                    desktop.lamp_targets = null;
+                }
             }
             if (foreign_toplevels != null) {
                 foreign_toplevels.set_workspaces (null);

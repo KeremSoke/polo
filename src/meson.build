@@ -19,6 +19,7 @@ policy_sources = files(
   'policy/work-areas.vala',
   'policy/screenshot.vala',
   'policy/screen-share.vala',
+  'policy/lamp-target.vala',
 )
 policy_lib = static_library('polo-policy',
   policy_sources,
@@ -73,6 +74,7 @@ polo_sources = files(
   'decor/shadow.vala',
   'core/trust.vala',
   'effects/engine.vala',
+  'effects/lamp-targets.vala',
   'effects/locate-pointer.vala',
   'effects/backend-target.vala',
   'effects/wobbly-effect.vala',
