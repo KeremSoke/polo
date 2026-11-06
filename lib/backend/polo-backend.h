@@ -782,6 +782,10 @@ polo_backend_view_set_deformation(PoloBackendView *view,
 void
 polo_backend_view_clear_deformation(PoloBackendView *view);
 
+/* 0 transparent to 1 opaque, as weston_view_set_alpha () */
+void
+polo_backend_view_set_alpha(PoloBackendView *view, float alpha);
+
 /* Put the view on top of @layer (NULL: remove it from any layer). */
 void
 polo_backend_view_move_to_layer(PoloBackendView *view,

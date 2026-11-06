@@ -718,6 +718,8 @@ namespace Polo {
 
             [CCode (cname = "polo_backend_view_clear_deformation")]
             public void clear_deformation ();
+            [CCode (cname = "polo_backend_view_set_alpha")]
+            public void set_alpha (float alpha);
 
             /* On top of layer; null removes the view from any layer. */
             [CCode (cname = "polo_backend_view_move_to_layer")]

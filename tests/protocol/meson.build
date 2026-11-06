@@ -242,3 +242,9 @@ test('magic-lamp', executable('test-magic-lamp', 'test-magic-lamp.c', dependenci
   suite: 'protocol',
   timeout: 60,
 )
+test('magic-lamp-fade', executable('test-magic-lamp-fade', 'test-magic-lamp-fade.c', dependencies: harness_dep),
+  args: [polo_exe],
+  env: magic_lamp_env,
+  suite: 'protocol',
+  timeout: 60,
+)

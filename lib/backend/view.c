@@ -109,6 +109,16 @@ polo_backend_view_clear_deformation(PoloBackendView *view)
 }
 
 void
+polo_backend_view_set_alpha(PoloBackendView *view, float alpha)
+{
+	g_return_if_fail(POLO_BACKEND_IS_VIEW(view));
+	if (view->view && view->view->alpha != alpha) {
+		weston_view_set_alpha(view->view, alpha);
+		weston_view_schedule_repaint(view->view);
+	}
+}
+
+void
 polo_backend_view_get_position(PoloBackendView *view, double *x, double *y)
 {
 	struct weston_coord_global pos;

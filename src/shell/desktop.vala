@@ -1098,7 +1098,7 @@ namespace Polo.Shell {
             var order = new GLib.GenericArray<Window> ();
             var lamping = new GLib.GenericArray<Window> ();
             foreach (var window in model.get_stack ()) {
-                if (effects.effect_of (window) is Effects.MagicLampEffect) {
+                if (effects.effect_of (window) is Effects.MinimizeEffect) {
                     lamping.add (window);
                 } else {
                     order.add (window);
@@ -1153,17 +1153,18 @@ namespace Polo.Shell {
                 window.has_state (WindowState.SHADED)) {
                 return false;
             }
-            var effect = new Effects.MagicLampEffect (effects.settings);
-            if (!effects.allowed (effect)) {
-                return false;
-            }
             var target = xdg.create_effect_target ();
-            return effect.prepare (target, lamp_targets.resolve (window), restore) &&
-                   effects.run (target, effect, restore);
+            var lamp = new Effects.MagicLampEffect (effects.settings);
+            if (effects.allowed (lamp)) {
+                return lamp.prepare (target, lamp_targets.resolve (window), restore) &&
+                       effects.run (target, lamp, restore);
+            }
+            var fade = new Effects.MagicLampFade (restore);
+            return effects.allowed (fade) && effects.run (target, fade, restore);
         }
 
         private void on_minimizing (Window window, bool animate) {
-            var running = effects.effect_of (window) as Effects.MagicLampEffect;
+            var running = effects.effect_of (window) as Effects.MinimizeEffect;
             if (running != null) {
                 if (!running.minimizing) {
                     running.reverse ();
@@ -1178,7 +1179,7 @@ namespace Polo.Shell {
 
         private void on_unminimized (Window window, bool animate) {
             lamp_held.remove (window);
-            var running = effects.effect_of (window) as Effects.MagicLampEffect;
+            var running = effects.effect_of (window) as Effects.MinimizeEffect;
             if (running != null) {
                 if (running.minimizing) {
                     running.reverse ();
@@ -1191,7 +1192,7 @@ namespace Polo.Shell {
         }
 
         private void on_effect_finished (Window window, Effects.Effect effect) {
-            if (effect is Effects.MagicLampEffect) {
+            if (effect is Effects.MinimizeEffect) {
                 lamp_held.remove (window);
                 restack ();
             }

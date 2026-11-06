@@ -175,6 +175,16 @@ namespace Polo.Effects {
             foreach (var component in components) {
                 if (component.view != null) {
                     component.view.clear_deformation ();
+                    component.view.set_alpha (1.0f);
+                }
+            }
+        }
+
+        public void set_alpha (double alpha) {
+            refresh ();
+            foreach (var component in components) {
+                if (component.view != null) {
+                    component.view.set_alpha ((float) alpha.clamp (0.0, 1.0));
                 }
             }
         }

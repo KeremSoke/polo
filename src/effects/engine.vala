@@ -122,8 +122,8 @@ namespace Polo.Effects {
             entry.gone_handler = target.gone.connect (on_target_gone);
             effect.start (target);
             running[target.window] = entry;
-            if (apply_now && (!effect.apply (target) || !target.deform ())) {
-                target.undeform ();
+            if (apply_now) {
+                apply (target, effect);
             }
             update_animating ();
             return true;
@@ -177,11 +177,17 @@ namespace Polo.Effects {
                     iter.remove ();
                     continue;
                 }
-                if (!entry.effect.apply (entry.target) || !entry.target.deform ()) {
-                    entry.target.undeform ();
-                }
+                apply (entry.target, entry.effect);
             }
             update_animating ();
+        }
+
+        private static void apply (Target target, Effect effect) {
+            if (!effect.deforms) {
+                effect.apply (target);
+            } else if (!effect.apply (target) || !target.deform ()) {
+                target.undeform ();
+            }
         }
 
         private void finish (Entry entry) {
