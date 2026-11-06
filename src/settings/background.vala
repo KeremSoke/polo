@@ -23,6 +23,8 @@ namespace Polo.Settings {
         private class Entry {
             public Policy.Output output;
             public Backend.PixelBuffer buffer;
+            public int x;
+            public int y;
             public int width;
             public int height;
             public int scale;
@@ -140,6 +142,11 @@ namespace Polo.Settings {
                 var entry = entry_for (output);
                 if (entry != null && entry.width == width && entry.height == height &&
                     entry.scale == scale) {
+                    if (entry.x != output.rect.x || entry.y != output.rect.y) {
+                        entry.x = output.rect.x;
+                        entry.y = output.rect.y;
+                        changed = true;
+                    }
                     continue;
                 }
                 if (entry == null) {
@@ -150,6 +157,8 @@ namespace Polo.Settings {
                 if (width <= 0 || height <= 0) {
                     continue;
                 }
+                entry.x = output.rect.x;
+                entry.y = output.rect.y;
                 entry.width = width;
                 entry.height = height;
                 entry.scale = scale;
@@ -219,12 +228,17 @@ namespace Polo.Settings {
         }
 
         private static Marco.Rect screen_of (GLib.GenericArray<Policy.Output> outputs) {
-            int x2 = 0, y2 = 0;
+            if (outputs.length == 0) {
+                return Marco.Rect ();
+            }
+            int x1 = int.MAX, y1 = int.MAX, x2 = int.MIN, y2 = int.MIN;
             foreach (var output in outputs) {
+                x1 = int.min (x1, output.rect.x);
+                y1 = int.min (y1, output.rect.y);
                 x2 = int.max (x2, output.rect.x + output.rect.width);
                 y2 = int.max (y2, output.rect.y + output.rect.height);
             }
-            return Marco.Rect () { x = 0, y = 0, width = x2, height = y2 };
+            return Marco.Rect () { x = x1, y = y1, width = x2 - x1, height = y2 - y1 };
         }
 
         private void redraw () {
