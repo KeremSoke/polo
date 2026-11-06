@@ -30,6 +30,8 @@ client_protocols = {
   'security-context-v1': wayland_protocols_dir / 'staging' / 'security-context' / 'security-context-v1.xml',
   'xdg-system-bell-v1': wayland_protocols_dir / 'staging' / 'xdg-system-bell' / 'xdg-system-bell-v1.xml',
   'gtk-shell': meson.project_source_root() / 'protocol' / 'gtk-shell.xml',
+  'ext-data-control-v1': wayland_protocols_dir / 'staging' / 'ext-data-control' / 'ext-data-control-v1.xml',
+  'wlr-data-control-unstable-v1': meson.project_source_root() / 'protocol' / 'wlr-data-control-unstable-v1.xml',
   'linux-explicit-synchronization-unstable-v1': wayland_protocols_dir / 'unstable' / 'linux-explicit-synchronization' / 'linux-explicit-synchronization-unstable-v1.xml',
   'linux-drm-syncobj-v1': wayland_protocols_dir / 'staging' / 'linux-drm-syncobj' / 'linux-drm-syncobj-v1.xml',
   'linux-dmabuf-v1': wayland_protocols_dir / 'stable' / 'linux-dmabuf' / 'linux-dmabuf-v1.xml',
@@ -74,7 +76,7 @@ protocol_test_env.set('POLO_SHELL_UI', '')
 foreach name : ['ssd', 'frame-input', 'shade', 'frame-scale', 'output-replug', 'decor-live', 'pixel-buffer-gl', 'cursor-no-theme', 'windows', 'interactive', 'outputs', 'managed-outputs', 'debug-kill', 'layer-shell', 'xdg-output', 'foreign-toplevel',
               'ext-foreign-toplevel-list', 'popups',
               'xfce-private', 'ext-workspace', 'focus', 'activation', 'keybindings', 'monitor-keybindings', 'edge-resistance', 'global-keybindings',
-              'window-keybindings', 'keyboard-move-resize', 'mouse-actions', 'keyboard-config', 'tiling', 'decoration', 'primary-selection', 'text-input', 'idle-inhibit', 'idle-notify', 'session-lock', 'output-management', 'shortcuts-inhibit', 'cursor-shape', 'pointer-gestures', 'xdg-foreign', 'security-context', 'system-bell', 'locate-pointer', 'accessx', 'explicit-sync']
+              'window-keybindings', 'keyboard-move-resize', 'mouse-actions', 'keyboard-config', 'tiling', 'decoration', 'primary-selection', 'text-input', 'idle-inhibit', 'idle-notify', 'session-lock', 'output-management', 'shortcuts-inhibit', 'cursor-shape', 'pointer-gestures', 'xdg-foreign', 'security-context', 'system-bell', 'locate-pointer', 'accessx', 'data-control', 'explicit-sync']
   exe = executable('test-' + name, 'test-' + name + '.c',
     dependencies: name == 'cursor-shape' ? [harness_dep, dependency('xcursor')] : harness_dep)
   test(name, exe,

@@ -100,6 +100,10 @@ struct _PoloBackendServer {
 	struct wl_global *xwayland_keyboard_grab_global;
 	struct wl_global *primary_selection_global;
 	struct wl_signal primary_selection_signal; /* struct weston_seat */
+	struct wl_global *ext_data_control_global;
+	struct wl_global *wlr_data_control_global;
+	struct dc_global *ext_data_control;
+	struct dc_global *wlr_data_control;
 	struct wl_global *text_input_global;
 	struct wl_global *input_method_global;
 	struct wl_global *virtual_keyboard_global;
@@ -435,6 +439,12 @@ polo_backend_system_bell_init(PoloBackendServer *server, GError **error);
 
 void
 polo_backend_system_bell_fini(PoloBackendServer *server);
+
+gboolean
+polo_backend_data_control_init(PoloBackendServer *server, GError **error);
+
+void
+polo_backend_data_control_fini(PoloBackendServer *server);
 
 gboolean
 polo_backend_gtk_shell_init(PoloBackendServer *server, GError **error);
