@@ -18,7 +18,7 @@ import subprocess
 import sys
 import tempfile
 
-PLUGINS = ["xrandr", "keyboard", "mouse", "media-keys", "a11y-keyboard", "background"]
+PLUGINS = ["xrandr", "keyboard", "mouse", "media-keys", "a11y-keyboard", "background", "keybindings"]
 SCHEMA = "org.mate.SettingsDaemon.plugins.{}"
 
 

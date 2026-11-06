@@ -5,3 +5,4 @@
 /org/mate/settings-daemon/plugins/media-keys/active
 /org/mate/settings-daemon/plugins/a11y-keyboard/active
 /org/mate/settings-daemon/plugins/background/active
+/org/mate/settings-daemon/plugins/keybindings/active

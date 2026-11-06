@@ -17,3 +17,6 @@ active=false
 
 [org/mate/settings-daemon/plugins/background]
 active=false
+
+[org/mate/settings-daemon/plugins/keybindings]
+active=false
