@@ -88,6 +88,7 @@ polo_sources = files(
   'input/xkb-settings.vala',
   'input/marco-actions.vala',
   'settings/background.vala',
+  'settings/interface-mirror.vala',
   'settings/marco-prefs-reader.vala',
   'shell/desktop.vala',
   'shell/layer-shell.vala',

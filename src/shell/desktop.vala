@@ -32,6 +32,7 @@ namespace Polo.Shell {
 
         public LayerShell layer_shell { get; private set; }
         private Settings.Background background;
+        private Settings.InterfaceMirror interface_mirror;
         private Input.Keyboard keyboard;
         private Input.DeviceSettings device_settings;
 
@@ -63,6 +64,8 @@ namespace Polo.Shell {
             server.input_device_added.connect (on_input_device_added);
             layer_shell = new LayerShell (server, model, this);
             background = new Settings.Background (server, model, this, layer_shell);
+            interface_mirror =
+                new Settings.InterfaceMirror (settings_or_null (Settings.InterfaceMirror.GENERAL_SCHEMA));
             decorations = new Decor.Decorations ();
             interface_settings = settings ("org.mate.interface");
             if (interface_settings != null) {
@@ -234,6 +237,7 @@ namespace Polo.Shell {
             window_menu.shutdown ();
             frame_input.shutdown ();
             background.shutdown ();
+            interface_mirror.shutdown ();
             keyboard.shutdown ();
             server.input_device_added.disconnect (on_input_device_added);
             device_settings.shutdown ();

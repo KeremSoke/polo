@@ -160,3 +160,13 @@ decor_frame_test = executable('test-decor-frame',
 )
 test('decor-frame', decor_frame_test, suite: 'unit-vala', protocol: 'tap', args: ['--tap'],
   env: ['WESTON_MODULE_MAP=' + weston_module_map, 'GSETTINGS_BACKEND=memory'])
+
+interface_mirror_test = executable('test-interface-mirror',
+  'gtk-mirror.vala', meson.project_source_root() / 'src/settings/interface-mirror.vala',
+  vala_args: vala_args,
+  c_args: vala_c_args,
+  dependencies: [glib_dep, gobject_dep, gio_dep],
+)
+test('interface-mirror', interface_mirror_test, suite: 'unit-vala', protocol: 'tap', args: ['--tap'],
+  env: ['GSETTINGS_BACKEND=memory', 'GSETTINGS_SCHEMA_DIR=' + meson.project_build_root() / 'data'],
+  depends: polo_schemas)

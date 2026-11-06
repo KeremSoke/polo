@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <schemalist gettext-domain="polo">
+  <schema id="org.mate.polo.general" path="/org/mate/polo/general/">
+    <key name="mirror-gtk-settings" type="b">
+      <default>true</default>
+      <summary>Mirror MATE settings for native GTK applications</summary>
+      <description>Copy the MATE interface, font, mouse and sound settings that mate-settings-daemon publishes as XSETTINGS into org.gnome.desktop.*, which GTK and xdg-desktop-portal-gtk read on Wayland. The copy is written to your dconf database, so GNOME sessions see it too.</description>
+    </key>
+  </schema>
   <schema id="org.mate.polo.session" path="/org/mate/polo/session/">
     <key name="phase-timeout" type="i">
       <range min="1" max="300"/>
