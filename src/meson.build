@@ -70,6 +70,7 @@ polo_sources = files(
   'decor/shadow.vala',
   'core/trust.vala',
   'effects/engine.vala',
+  'effects/locate-pointer.vala',
   'effects/backend-target.vala',
   'effects/wobbly-effect.vala',
   'log.vala',

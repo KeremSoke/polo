@@ -657,6 +657,9 @@ namespace Polo.Marco {
 
         [CCode (cname = "polo_marco_theme_colors_set_custom")]
         public void set_custom (string name, RGBA? color);
+
+        [CCode (cname = "polo_marco_theme_colors_get")]
+        public bool get (int component, uint state, out RGBA color);
     }
 
     [CCode (cname = "PoloRGBA", has_type_id = false, cheader_filename = "theme-parser.h")]

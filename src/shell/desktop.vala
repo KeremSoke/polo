@@ -34,6 +34,7 @@ namespace Polo.Shell {
         private Settings.Background background;
         private Settings.InterfaceMirror interface_mirror;
         private Bell bell;
+        private Effects.LocatePointer locate_pointer;
         private Input.Keyboard keyboard;
         private Input.DeviceSettings device_settings;
 
@@ -68,6 +69,9 @@ namespace Polo.Shell {
             interface_mirror =
                 new Settings.InterfaceMirror (settings_or_null (Settings.InterfaceMirror.GENERAL_SCHEMA));
             bell = new Bell (server, model);
+            locate_pointer = new Effects.LocatePointer (server, model,
+                                                        settings_or_null (Effects.LocatePointer.SCHEMA),
+                                                        () => decorations.get_colors ());
             server.system_bell.connect (on_system_bell);
             decorations = new Decor.Decorations ();
             interface_settings = settings ("org.mate.interface");
@@ -243,6 +247,7 @@ namespace Polo.Shell {
             interface_mirror.shutdown ();
             server.system_bell.disconnect (on_system_bell);
             bell.shutdown ();
+            locate_pointer.shutdown ();
             keyboard.shutdown ();
             server.input_device_added.disconnect (on_input_device_added);
             device_settings.shutdown ();
@@ -597,6 +602,7 @@ namespace Polo.Shell {
         }
 
         private Backend.FilterResult on_key (Backend.Seat seat, Backend.KeyEvent event) {
+            locate_pointer.key (event);
             bool locked = server.get_lock_state () != Backend.LockState.UNLOCKED;
             if (media_keys != null && (!grab_active || !event.pressed) &&
                 media_keys.filter (event, locked) == Backend.FilterResult.CONSUME) {
@@ -699,6 +705,9 @@ namespace Polo.Shell {
                 event.view != null ? "a view" : "nothing");
 
             model.pointer_moved (event.x, event.y);
+            if (event.pressed) {
+                locate_pointer.button ();
+            }
             if (switcher.active) {
                 switcher.button (event);
                 return Backend.FilterResult.PASS;
