@@ -211,7 +211,7 @@ namespace Polo.Shell {
                     move ((int) request.columns);
                     break;
                 case KEY_UP:
-                    move (-(int) request.columns);
+                    move (0 - (int) request.columns);
                     break;
                 default:
                     break;
