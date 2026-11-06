@@ -66,10 +66,9 @@ if get_option('test-protocol')
     output: 'polo-test-v1-protocol.c',
     command: [wayland_scanner, 'private-code', '@INPUT@', '@OUTPUT@'],
   )
-  # test-protocol.c injects input through libweston's private notify_* API.
-  backend_deps += weston_proj.get_variable('dep_libweston_private_h').as_system()
   backend_c_args += '-DPOLO_HAVE_TEST_PROTOCOL'
 endif
+backend_deps += weston_proj.get_variable('dep_libweston_private_h').as_system()
 
 # zwlr_layer_shell_v1 v5 shim. Its get_popup request references
 # xdg_popup, so the xdg-shell protocol interface tables must be linked too

@@ -76,6 +76,26 @@ jobs:
           name: testlog-${{ matrix.name }}
           path: build/meson-logs/
 
+  # The tests need -Dtest-protocol=true; this builds what users build, with
+  # every option at its default.
+  default-build:
+    name: Build (default options)
+    runs-on: ubuntu-latest
+    container: fedora:44
+    steps:
+      - name: Install dependencies
+        run: dnf -y install $FEDORA_DEPS
+      - uses: actions/checkout@v4
+      - name: Cache Weston checkout
+        uses: actions/cache@v4
+        with:
+          path: subprojects/weston
+          key: weston-${{ hashFiles('subprojects/weston.wrap', 'subprojects/packagefiles/weston/**') }}
+      - name: Configure
+        run: meson setup build
+      - name: Build
+        run: ninja -C build
+
   lint:
     name: Lint and boundary
     runs-on: ubuntu-latest
