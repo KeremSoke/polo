@@ -1,6 +1,11 @@
 install_data('polo-wayland.sh',
   install_dir: get_option('bindir'),
   install_mode: 'rwxr-xr-x')
+configure_file(input: 'polo-screenshot.sh', output: 'polo-screenshot', copy: true)
+install_data('polo-screenshot.sh',
+  rename: 'polo-screenshot',
+  install_dir: get_option('bindir'),
+  install_mode: 'rwxr-xr-x')
 install_data('xdg/xdg-desktop-portal/mate-portals.conf',
   install_dir: get_option('datadir') / 'polo' / 'xdg' / 'xdg-desktop-portal')
 install_data('polo.desktop',

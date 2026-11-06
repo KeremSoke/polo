@@ -103,7 +103,7 @@ main(int argc, char **argv)
 	CHECK(mkdtemp(directory) != NULL, "mkdtemp: %s", strerror(errno));
 	snprintf(log_path, sizeof log_path, "%s/actions", directory);
 	make_recorder(directory, "polo-action-recorder");
-	make_recorder(directory, "mate-screenshot");
+	make_recorder(directory, "polo-screenshot");
 	make_recorder(directory, "mate-panel");
 	make_recorder(directory, "mate-terminal");
 	make_recorder(directory, "zenity");
@@ -156,9 +156,9 @@ main(int argc, char **argv)
 		      strstr(contents, ":--text:") != NULL &&
 		      strstr(contents, "<tt>") == NULL,
 	      "a blank command did not show Marco's error alone: %s", contents);
-	CHECK(strstr(contents, "mate-screenshot\n") != NULL,
+	CHECK(strstr(contents, "polo-screenshot\n") != NULL,
 	      "screenshot command was not launched: %s", contents);
-	CHECK(strstr(contents, "mate-screenshot:--window\n") != NULL,
+	CHECK(strstr(contents, "polo-screenshot:--geometry=") != NULL,
 	      "window screenshot command was not launched: %s", contents);
 	CHECK(strstr(contents, "mate-panel:--run-dialog\n") != NULL,
 	      "panel run dialog was not launched: %s", contents);
@@ -173,7 +173,7 @@ main(int argc, char **argv)
 	snprintf(contents, sizeof contents, "%s/polo-action-recorder",
 		 directory);
 	unlink(contents);
-	snprintf(contents, sizeof contents, "%s/mate-screenshot", directory);
+	snprintf(contents, sizeof contents, "%s/polo-screenshot", directory);
 	unlink(contents);
 	snprintf(contents, sizeof contents, "%s/mate-panel", directory);
 	unlink(contents);

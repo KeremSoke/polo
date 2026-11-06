@@ -120,6 +120,7 @@ weston_module_map = ';'.join([
 devenv = environment()
 devenv.set('WESTON_MODULE_MAP', weston_module_map)
 devenv.prepend('PATH', meson.project_build_root() / 'src')
+devenv.prepend('PATH', meson.project_build_root() / 'data')
 devenv.set('POLO_DATA_DIR', meson.project_source_root() / 'data')
 if get_option('shell-ui')
   devenv.set('POLO_SHELL_UI', meson.project_build_root() / 'shell-ui' / 'polo-shell-ui')

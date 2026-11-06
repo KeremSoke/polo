@@ -17,6 +17,7 @@ policy_sources = files(
   'policy/x11-props.vala',
   'policy/workspace-layout.vala',
   'policy/work-areas.vala',
+  'policy/screenshot.vala',
 )
 policy_lib = static_library('polo-policy',
   policy_sources,

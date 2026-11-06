@@ -148,7 +148,7 @@ namespace Polo.Input {
                 show_error (marco ("No command %d has been defined.\n").printf (which));
                 return;
             }
-            run (value.get_string ());
+            run (Policy.Screenshot.command_for (value.get_string (), model.focused));
         }
 
         private void handle_run_terminal (Binding binding, Backend.Seat seat, Backend.KeyEvent event) {
