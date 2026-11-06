@@ -18,4 +18,5 @@ diff_files =
   weston/0011-linux-drm-syncobj.patch,
   weston/0012-view-deformation.patch,
   weston/0013-key-prefilter.patch,
-  weston/0014-drm-no-reuse-after-dpms-off.patch
+  weston/0014-drm-no-reuse-after-dpms-off.patch,
+  weston/0015-output-gamma.patch
