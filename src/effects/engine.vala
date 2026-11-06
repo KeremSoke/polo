@@ -60,6 +60,8 @@ namespace Polo.Effects {
         public bool deformation_supported { get; set; default = false; }
         public bool animating { get; private set; default = false; }
 
+        public signal void finished (Window window, Effect effect);
+
         public Engine (GLib.Settings? interface_settings, GLib.Settings? effects_settings) {
             this.interface_settings = interface_settings;
             this.effects_settings = effects_settings;
@@ -103,7 +105,7 @@ namespace Polo.Effects {
             return schema.has_key (effect.settings_key) && effects_settings.get_boolean (effect.settings_key);
         }
 
-        public bool run (Target target, Effect effect) {
+        public bool run (Target target, Effect effect, bool apply_now = false) {
             if (!allowed (effect)) {
                 return false;
             }
@@ -120,6 +122,9 @@ namespace Polo.Effects {
             entry.gone_handler = target.gone.connect (on_target_gone);
             effect.start (target);
             running[target.window] = entry;
+            if (apply_now && (!effect.apply (target) || !target.deform ())) {
+                target.undeform ();
+            }
             update_animating ();
             return true;
         }
@@ -182,6 +187,7 @@ namespace Polo.Effects {
         private void finish (Entry entry) {
             entry.target.disconnect (entry.gone_handler);
             entry.target.undeform ();
+            finished (entry.target.window, entry.effect);
         }
 
         private void on_target_gone (Target target) {
@@ -190,6 +196,7 @@ namespace Polo.Effects {
                 entry.effect.cancel ();
                 entry.target.disconnect (entry.gone_handler);
                 update_animating ();
+                finished (entry.target.window, entry.effect);
             }
         }
 

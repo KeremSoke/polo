@@ -116,6 +116,9 @@ namespace Polo.Shell {
             server.seat_added.connect (on_seat_added);
             server.new_toplevel.connect (on_new_toplevel);
             model.stack_changed.connect (restack);
+            model.minimizing.connect (on_minimizing);
+            model.unminimized.connect (on_unminimized);
+            effects.finished.connect (on_effect_finished);
             model.focus_changed.connect (on_focus_changed);
             model.pointer_warped.connect (on_pointer_warped);
             model.window_geometry_transition.connect (on_window_geometry_transition);
@@ -232,6 +235,10 @@ namespace Polo.Shell {
             server.set_activation_activate (null);
             heads.remove_range (0, heads.length);
             model.stack_changed.disconnect (restack);
+            model.minimizing.disconnect (on_minimizing);
+            model.unminimized.disconnect (on_unminimized);
+            effects.finished.disconnect (on_effect_finished);
+            lamp_held.remove_all ();
             model.focus_changed.disconnect (on_focus_changed);
             model.pointer_warped.disconnect (on_pointer_warped);
             model.focus_policy.shutdown ();
@@ -1088,13 +1095,25 @@ namespace Polo.Shell {
         private void restack () {
             var per_layer = new GLib.HashTable<int, GLib.GenericArray<Backend.View>> (
                 GLib.direct_hash, GLib.direct_equal);
+            var order = new GLib.GenericArray<Window> ();
+            var lamping = new GLib.GenericArray<Window> ();
             foreach (var window in model.get_stack ()) {
+                if (effects.effect_of (window) is Effects.MagicLampEffect) {
+                    lamping.add (window);
+                } else {
+                    order.add (window);
+                }
+            }
+            foreach (var window in lamping) {
+                order.add (window);
+            }
+            foreach (var window in order) {
                 var xdg = window.adapter as XdgWindow;
                 if (xdg == null || !xdg.mapped) {
                     continue;
                 }
                 unowned Backend.View view = xdg.toplevel.get_view ();
-                if (!model.is_showing (window)) {
+                if (!model.is_showing (window) && !lamp_held.contains (window)) {
                     view.move_to_layer (null);
                     xdg.stack_frame (new GLib.GenericArray<Backend.View> (), null);
                     continue;
@@ -1125,6 +1144,58 @@ namespace Polo.Shell {
 
         /* Backend.TestInspector: report the model, not libweston. */
         public Effects.LampTargets? lamp_targets { get; set; default = null; }
+
+        private GLib.GenericSet<Window> lamp_held = new GLib.GenericSet<Window> (GLib.direct_hash, GLib.direct_equal);
+
+        private bool start_lamp (Window window, bool restore) {
+            var xdg = window.adapter as XdgWindow;
+            if (xdg == null || lamp_targets == null || effects.settings == null ||
+                window.has_state (WindowState.SHADED)) {
+                return false;
+            }
+            var effect = new Effects.MagicLampEffect (effects.settings);
+            if (!effects.allowed (effect)) {
+                return false;
+            }
+            var target = xdg.create_effect_target ();
+            return effect.prepare (target, lamp_targets.resolve (window), restore) &&
+                   effects.run (target, effect, restore);
+        }
+
+        private void on_minimizing (Window window, bool animate) {
+            var running = effects.effect_of (window) as Effects.MagicLampEffect;
+            if (running != null) {
+                if (!running.minimizing) {
+                    running.reverse ();
+                }
+                lamp_held.add (window);
+                return;
+            }
+            if (animate && model.is_showing (window) && start_lamp (window, false)) {
+                lamp_held.add (window);
+            }
+        }
+
+        private void on_unminimized (Window window, bool animate) {
+            lamp_held.remove (window);
+            var running = effects.effect_of (window) as Effects.MagicLampEffect;
+            if (running != null) {
+                if (running.minimizing) {
+                    running.reverse ();
+                }
+                return;
+            }
+            if (animate && model.is_showing (window)) {
+                start_lamp (window, true);
+            }
+        }
+
+        private void on_effect_finished (Window window, Effects.Effect effect) {
+            if (effect is Effects.MagicLampEffect) {
+                lamp_held.remove (window);
+                restack ();
+            }
+        }
 
         public bool inspect (Backend.Toplevel toplevel, ref Backend.TestWindowInfo info) {
             var xdg = windows.lookup (toplevel);

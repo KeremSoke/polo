@@ -75,6 +75,7 @@ polo_sources = files(
   'core/trust.vala',
   'effects/engine.vala',
   'effects/lamp-targets.vala',
+  'effects/magic-lamp-effect.vala',
   'effects/locate-pointer.vala',
   'effects/backend-target.vala',
   'effects/wobbly-effect.vala',

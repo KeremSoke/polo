@@ -1633,10 +1633,15 @@ namespace Polo.Policy {
 
         /* ---- Minimizing (Marco meta_window_minimize/unminimize) ---------- */
 
-        public void minimize (Window window) {
+        public signal void minimizing (Window window, bool animate);
+
+        public signal void unminimized (Window window, bool animate);
+
+        public void minimize (Window window, bool animate = true) {
             if (window.has_state (WindowState.MINIMIZED)) {
                 return;
             }
+            minimizing (window, animate);
             window.set_state_flags (WindowState.MINIMIZED, true);
             stack_changed ();
             if (focused == window || (focused != null && !is_showing (focused))) {
@@ -1647,11 +1652,12 @@ namespace Polo.Policy {
             }
         }
 
-        public void unminimize (Window window) {
+        public void unminimize (Window window, bool animate = true) {
             if (!window.has_state (WindowState.MINIMIZED)) {
                 return;
             }
             window.set_state_flags (WindowState.MINIMIZED, false);
+            unminimized (window, animate);
             stack_changed ();
         }
 
@@ -1847,7 +1853,7 @@ namespace Polo.Policy {
             foreach (var other in windows) {
                 if (other.has_state (WindowState.MAPPED) && other.home_workspace == current_workspace &&
                     other.has_feature (WindowFeatures.MINIMIZE) && other != window) {
-                    minimize (other);
+                    minimize (other, false);
                 }
             }
             unshow_desktop ();

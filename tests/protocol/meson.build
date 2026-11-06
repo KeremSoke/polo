@@ -229,3 +229,16 @@ if get_option('shell-ui')
     timeout: 60,
   )
 endif
+
+# Magic Lamp needs the GL renderer and Polo's own effects schema.
+magic_lamp_env = environment()
+magic_lamp_env.set('WESTON_MODULE_MAP', weston_module_map)
+magic_lamp_env.set('GSETTINGS_BACKEND', 'memory')
+magic_lamp_env.set('POLO_SHELL_UI', '')
+magic_lamp_env.set('GSETTINGS_SCHEMA_DIR', meson.project_build_root() / 'data')
+test('magic-lamp', executable('test-magic-lamp', 'test-magic-lamp.c', dependencies: harness_dep),
+  args: [polo_exe],
+  env: magic_lamp_env,
+  suite: 'protocol',
+  timeout: 60,
+)

@@ -189,7 +189,7 @@ namespace Polo.Shell {
             } else {
                 model.raise (initial);
                 initial.tab_unminimized = initial.has_state (WindowState.MINIMIZED);
-                model.unminimize (initial);
+                model.unminimize (initial, false);
             }
         }
 
@@ -354,7 +354,7 @@ namespace Polo.Shell {
 
         private void reminimize (Window? window) {
             if (window != null && window.tab_unminimized) {
-                model.minimize (window);
+                model.minimize (window, false);
                 window.tab_unminimized = false;
             }
         }
@@ -466,7 +466,7 @@ namespace Polo.Shell {
                     if (target != null) {
                         model.raise (target);
                         target.tab_unminimized = target.has_state (WindowState.MINIMIZED);
-                        model.unminimize (target);
+                        model.unminimize (target, false);
                     }
                 }
             } else {
