@@ -427,10 +427,13 @@ test_keyboard_modes(struct harness *h)
 	CHECK(h->keyboard_focus == w->surface, "kbd none took focus");
 	layer_surface_destroy(s);
 
-	/* on_demand: a click gives the surface focus, like a dock. */
+	/* on_demand: focus on map in the top layer, and a click keeps it. */
 	s = layer_surface_create(h, "kbd-on-demand", LAYER_TOP, NULL,
 				 ANCHOR_TOP | ANCHOR_LEFT, -1, -1, -1, -1, -1,
 				 -1, KBD_ON_DEMAND, 200, 50);
+	harness_roundtrip(h);
+	CHECK(h->keyboard_focus == s->surface,
+	      "on_demand surface did not take focus on map");
 	harness_click(h, 100, 25);
 	CHECK(h->keyboard_focus == s->surface, "click did not focus the panel");
 	harness_key(h, KEY_A, true);
@@ -560,6 +563,89 @@ popup_create(struct harness *h, struct layer_surface *parent, int x, int y,
 }
 
 static void
+popup_destroy(struct popup *p)
+{
+	xdg_popup_destroy(p->xdg_popup);
+	xdg_surface_destroy(p->xdg_surface);
+	wl_surface_destroy(p->surface);
+	wl_buffer_destroy(p->buffer);
+	free(p);
+}
+
+static void
+check_released(struct harness *h, struct harness_window *w, const char *what)
+{
+	harness_roundtrip(h);
+	CHECK(h->keyboard_focus == w->surface,
+	      "%s did not give focus back to the window", what);
+	CHECK(harness_window_info(w)->state & STATE_ACTIVE,
+	      "window not active again after %s", what);
+}
+
+/* An applet popup: on_demand, focused on map, closed by losing focus. */
+static void
+test_on_demand_release(struct harness *h)
+{
+	struct harness_window *w = harness_window_create(h, 300, 200, "rel");
+	const struct harness_window_info *winfo = harness_window_info(w);
+	struct layer_surface *panel, *s;
+	struct popup *menu;
+	int empty_x = HARNESS_OUTPUT_WIDTH - 5;
+	int empty_y = HARNESS_OUTPUT_HEIGHT - 5;
+
+	CHECK(empty_x < winfo->x || empty_x >= winfo->x + winfo->width ||
+		      empty_y < winfo->y || empty_y >= winfo->y + winfo->height,
+	      "the window covers the empty corner");
+	panel = layer_surface_create(h, "rel-panel", LAYER_TOP, NULL,
+				     ANCHOR_BOTTOM | ANCHOR_LEFT, -1, -1, -1,
+				     -1, -1, -1, KBD_NONE, 200, 50);
+	CHECK(h->keyboard_focus == w->surface, "a none panel took focus");
+
+	s = layer_surface_create(h, "rel-popup", LAYER_TOP, NULL,
+				 ANCHOR_TOP | ANCHOR_LEFT, -1, -1, -1, -1, -1,
+				 -1, KBD_ON_DEMAND, 200, 100);
+	harness_roundtrip(h);
+	CHECK(h->keyboard_focus == s->surface,
+	      "the popup was not focused on map");
+	CHECK(!(harness_window_info(w)->state & STATE_ACTIVE),
+	      "window still active under the focused popup");
+
+	menu = popup_create(h, s, 50, 25, 120, 60);
+	harness_click(h, 50 + 60, 25 + 30);
+	CHECK(h->keyboard_focus == s->surface,
+	      "a click in the popup's own menu released focus");
+	popup_destroy(menu);
+	harness_roundtrip(h);
+	CHECK(h->keyboard_focus == s->surface,
+	      "focus left the popup when its menu went away");
+
+	harness_click(h, 100, HARNESS_OUTPUT_HEIGHT - 25);
+	check_released(h, w, "a click on the panel");
+	layer_surface_destroy(s);
+
+	s = layer_surface_create(h, "rel-popup", LAYER_TOP, NULL,
+				 ANCHOR_TOP | ANCHOR_LEFT, -1, -1, -1, -1, -1,
+				 -1, KBD_ON_DEMAND, 200, 100);
+	harness_roundtrip(h);
+	CHECK(h->keyboard_focus == s->surface,
+	      "the popup was not focused again");
+	harness_click(h, empty_x, empty_y);
+	check_released(h, w, "a click on empty space");
+	layer_surface_destroy(s);
+
+	s = layer_surface_create(h, "rel-bottom", 1, NULL,
+				 ANCHOR_TOP | ANCHOR_LEFT, -1, -1, -1, -1, -1,
+				 -1, KBD_ON_DEMAND, 200, 100);
+	harness_roundtrip(h);
+	CHECK(h->keyboard_focus == w->surface,
+	      "a bottom on_demand surface took focus on map");
+	layer_surface_destroy(s);
+
+	layer_surface_destroy(panel);
+	harness_window_destroy(w);
+}
+
+static void
 test_popups(struct harness *h)
 {
 	struct layer_surface *s = layer_surface_create(
@@ -576,11 +662,7 @@ test_popups(struct harness *h)
 	CHECK(h->pointer_focus == p->surface,
 	      "popup not at layer surface + positioner offset");
 
-	xdg_popup_destroy(p->xdg_popup);
-	xdg_surface_destroy(p->xdg_surface);
-	wl_surface_destroy(p->surface);
-	wl_buffer_destroy(p->buffer);
-	free(p);
+	popup_destroy(p);
 	layer_surface_destroy(s);
 }
 
@@ -877,6 +959,7 @@ main(int argc, char **argv)
 	test_exclusive_zones(h);
 	test_keyboard_modes(h);
 	test_popups(h);
+	test_on_demand_release(h);
 	test_errors(h);
 	test_output_loss(h);
 

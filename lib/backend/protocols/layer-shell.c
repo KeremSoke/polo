@@ -993,6 +993,37 @@ polo_backend_layer_surface_is_mapped(PoloBackendLayerSurface *self)
 	return polo_backend_layer_surface_get_mapped(self);
 }
 
+gboolean
+polo_backend_layer_surface_owns_view(PoloBackendLayerSurface *self,
+				     PoloBackendView *view)
+{
+	struct weston_view *wv;
+	struct weston_surface *surface;
+	struct weston_desktop_surface *dsurface;
+	struct polo_layer_popup *popup;
+
+	g_return_val_if_fail(POLO_BACKEND_IS_LAYER_SURFACE(self), FALSE);
+	if (!view || !self->impl || !self->impl->surface)
+		return FALSE;
+	wv = polo_backend_view_get_weston_view(view);
+	if (!wv)
+		return FALSE;
+	surface = weston_surface_get_main_surface(wv->surface);
+	if (surface == self->impl->surface)
+		return TRUE;
+	dsurface = weston_surface_get_desktop_surface(surface);
+	while (dsurface && weston_desktop_surface_get_parent(dsurface) != NULL)
+		dsurface = weston_desktop_surface_get_parent(dsurface);
+	if (!dsurface)
+		return FALSE;
+	wl_list_for_each(popup, &self->impl->popup_list, link)
+	{
+		if (popup->desktop_surface == dsurface)
+			return TRUE;
+	}
+	return FALSE;
+}
+
 void
 polo_backend_layer_surface_get_size(PoloBackendLayerSurface *self, int *width,
 				    int *height)

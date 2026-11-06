@@ -933,6 +933,10 @@ polo_backend_layer_surface_close(PoloBackendLayerSurface *surface);
 gboolean
 polo_backend_layer_surface_is_mapped(PoloBackendLayerSurface *surface);
 
+gboolean
+polo_backend_layer_surface_owns_view(PoloBackendLayerSurface *surface,
+				     PoloBackendView *view);
+
 /* The actual surface size in surface-local coordinates. */
 void
 polo_backend_layer_surface_get_size(PoloBackendLayerSurface *surface,

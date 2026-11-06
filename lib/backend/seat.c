@@ -157,6 +157,7 @@ main_view_at(PoloBackendServer *server, struct weston_coord_global pos)
 	struct weston_view *view;
 	struct weston_surface *main_surface;
 	PoloBackendToplevel *toplevel;
+	PoloBackendView *handle;
 
 	view = weston_compositor_pick_view(server->compositor, pos);
 	if (!view)
@@ -168,7 +169,16 @@ main_view_at(PoloBackendServer *server, struct weston_coord_global pos)
 	if (toplevel)
 		return polo_backend_toplevel_get_view(toplevel);
 
-	return polo_backend_server_lookup_view(server, view);
+	handle = polo_backend_server_lookup_view(server, view);
+	if (handle)
+		return handle;
+	wl_list_for_each(view, &main_surface->views, surface_link)
+	{
+		handle = polo_backend_server_lookup_view(server, view);
+		if (handle)
+			return handle;
+	}
+	return NULL;
 }
 
 static void

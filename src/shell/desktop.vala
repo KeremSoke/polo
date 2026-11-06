@@ -676,7 +676,11 @@ namespace Polo.Shell {
                 workspace_switcher.button (event);
                 return Backend.FilterResult.PASS;
             }
-            if (!event.pressed || event.view == null) {
+            if (!event.pressed) {
+                return Backend.FilterResult.PASS;
+            }
+            if (event.view == null) {
+                layer_shell.click (null);
                 return Backend.FilterResult.PASS;
             }
             unowned Backend.Toplevel? toplevel = event.view.get_toplevel ();

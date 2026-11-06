@@ -34,6 +34,7 @@ namespace Polo.Shell {
             public Policy.Output? output;
             public bool closed;
             public bool announced;
+            public bool was_mapped;
 
             public unowned Backend.View view {
                 get { return handle.get_view (); }
@@ -65,10 +66,12 @@ namespace Polo.Shell {
             this.desktop = desktop;
             /* In the body: construct blocks run before these assignments. */
             server.new_layer_surface.connect (on_new_layer_surface);
+            model.focus_changed.connect (on_focus_changed);
         }
 
         public void shutdown () {
             server.new_layer_surface.disconnect (on_new_layer_surface);
+            model.focus_changed.disconnect (on_focus_changed);
             foreach (var entry in entries) {
                 entry.handle.committed.disconnect (entry.commit_handler);
                 entry.handle.destroyed.disconnect (entry.destroy_handler);
@@ -380,17 +383,23 @@ namespace Polo.Shell {
         /* ---- Keyboard ---------------------------------------------------- */
 
         /*
-         * An exclusive surface in the top or
-         * overlay layer takes the keyboard when it maps and keeps it while
-         * mapped (Desktop.set_keyboard_focus refuses everything else); an
-         * on-demand surface takes it when clicked and gives it back when a
-         * window is clicked. While a surface holds the keyboard no window
-         * is focused, as when Marco focuses a desktop or dock window (the
-         * window stops drawing as active and task bars show no active
-         * window). Afterwards the previously focused window gets it back.
+         * An exclusive surface in the top or overlay layer takes the
+         * keyboard when it maps and keeps it while mapped
+         * (Desktop.set_keyboard_focus refuses everything else). An
+         * on-demand surface takes it when it maps in the top or overlay
+         * layer, as Wayfire does, or when clicked, and gives it back on a
+         * press anywhere outside it and its popups: a popup cannot see
+         * clicks on other clients, so wl_keyboard.leave is how it learns
+         * to close. While a surface holds the keyboard no window is
+         * focused, as when Marco focuses a desktop or dock window.
+         * Afterwards the previously focused window gets it back.
          */
         private Entry? focus_holder = null;
         private Window? previous_focus = null;
+
+        private bool locked () {
+            return server.get_lock_state () != Backend.LockState.UNLOCKED;
+        }
 
         private void take_focus (Entry entry) {
             if (focus_holder == null) {
@@ -416,6 +425,8 @@ namespace Polo.Shell {
 
         private void update_focus (Entry entry) {
             var handle = entry.handle;
+            bool just_mapped = handle.mapped && !entry.was_mapped;
+            entry.was_mapped = handle.mapped;
             if (focus_holder == entry) {
                 bool keep = handle.mapped &&
                     (handle.keyboard_interactivity == KBD_ON_DEMAND || can_hold_exclusive (handle));
@@ -424,6 +435,9 @@ namespace Polo.Shell {
                     hand_back_focus ();
                 }
             } else if (can_hold_exclusive (handle) && exclusive_view () == null) {
+                take_focus (entry);
+            } else if (just_mapped && handle.keyboard_interactivity == KBD_ON_DEMAND && handle.layer >= 2 &&
+                       exclusive_view () == null && !locked ()) {
                 take_focus (entry);
             }
         }
@@ -446,28 +460,46 @@ namespace Polo.Shell {
             desktop.restore_focus ();
         }
 
-        /* A click on a view that is not a window. */
-        public void click (Backend.View view) {
+        private Entry? owner (Backend.View view) {
+            foreach (var entry in entries) {
+                if (entry.handle.owns_view (view)) {
+                    return entry;
+                }
+            }
+            return null;
+        }
+
+        /* A press on a view that is not a window, or on nothing. */
+        public void click (Backend.View? view) {
             if (exclusive_view () != null) {
                 return;
             }
-            foreach (var entry in entries) {
-                if (entry.view == view &&
-                    entry.handle.keyboard_interactivity == KBD_ON_DEMAND &&
-                    entry.handle.mapped) {
-                    take_focus (entry);
-                    return;
-                }
+            var entry = view != null ? owner (view) : null;
+            if (entry != null && entry == focus_holder) {
+                return;
+            }
+            if (entry != null && entry.handle.keyboard_interactivity == KBD_ON_DEMAND && entry.handle.mapped) {
+                take_focus (entry);
+            } else if (focus_holder != null) {
+                focus_holder = null;
+                hand_back_focus ();
             }
         }
 
         /* A click on a window: an on-demand surface lets go. */
         public void window_clicked () {
             if (focus_holder != null && exclusive_view () == null) {
-                /* The policy has focused the clicked window already. */
+                /* The policy focuses the clicked window next. */
                 focus_holder = null;
                 previous_focus = null;
                 desktop.restore_focus ();
+            }
+        }
+
+        private void on_focus_changed () {
+            if (model.focused != null && focus_holder != null && exclusive_view () == null) {
+                focus_holder = null;
+                previous_focus = null;
             }
         }
     }

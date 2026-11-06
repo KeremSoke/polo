@@ -821,6 +821,10 @@ namespace Polo {
             [CCode (cname = "polo_backend_layer_surface_is_mapped")]
             public bool is_mapped ();
 
+            /* This surface, one of its popups, or a popup under them. */
+            [CCode (cname = "polo_backend_layer_surface_owns_view")]
+            public bool owns_view (View view);
+
             /* Actual surface size, surface-local coordinates. */
             [CCode (cname = "polo_backend_layer_surface_get_size")]
             public void get_size (out int width, out int height);
