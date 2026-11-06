@@ -12,4 +12,7 @@ namespace Polo.Config {
 
     [CCode (cname = "POLO_LIBEXECDIR")]
     public const string LIBEXECDIR;
+
+    [CCode (cname = "POLO_PKGDATADIR")]
+    public const string PKGDATADIR;
 }

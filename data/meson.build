@@ -1,6 +1,8 @@
 install_data('polo-wayland.sh',
   install_dir: get_option('bindir'),
   install_mode: 'rwxr-xr-x')
+install_data('xdg/xdg-desktop-portal/mate-portals.conf',
+  install_dir: get_option('datadir') / 'polo' / 'xdg' / 'xdg-desktop-portal')
 install_data('polo.desktop',
   install_dir: get_option('datadir') / 'wayland-sessions')
 # dconf reads only /etc/dconf/profile, whatever the prefix.

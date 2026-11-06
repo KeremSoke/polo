@@ -17,7 +17,7 @@ namespace Polo {
             "XDG_CURRENT_DESKTOP", "XDG_SESSION_DESKTOP", "XDG_SESSION_TYPE", "DESKTOP_SESSION",
             "XDG_MENU_PREFIX", "MATE_DESKTOP_SESSION_ID", "DCONF_PROFILE", "QT_QPA_PLATFORM",
             "MOZ_ENABLE_WAYLAND", "WAYLAND_DISPLAY", "DISPLAY", "XAUTHORITY", "XCURSOR_THEME",
-            "XCURSOR_SIZE", "GTK_MODULES",
+            "XCURSOR_SIZE", "GTK_MODULES", "XDG_CONFIG_DIRS",
         };
 
 #if POLO_HAVE_SYSTEMD
@@ -35,6 +35,20 @@ namespace Polo {
             GLib.Environment.set_variable ("QT_QPA_PLATFORM", "wayland;xcb", true);
             GLib.Environment.set_variable ("MOZ_ENABLE_WAYLAND", "1", true);
             GLib.Environment.unset_variable ("GDK_BACKEND");
+            GLib.Environment.set_variable ("XDG_CONFIG_DIRS",
+                                           config_dirs (GLib.Environment.get_variable ("XDG_CONFIG_DIRS")), true);
+        }
+
+        public static string config_dirs (string? current) {
+            string? data_dir = GLib.Environment.get_variable ("POLO_DATA_DIR");
+            string own = GLib.Path.build_filename (data_dir ?? Config.PKGDATADIR, "xdg");
+            string rest = current != null && current != "" ? current : "/etc/xdg";
+            foreach (unowned string dir in rest.split (":")) {
+                if (dir == own) {
+                    return rest;
+                }
+            }
+            return own + ":" + rest;
         }
 
         public void publish (string socket_name) {

@@ -95,6 +95,7 @@ endif
 conf = configuration_data()
 conf.set_quoted('POLO_VERSION', meson.project_version())
 conf.set_quoted('POLO_LIBEXECDIR', get_option('prefix') / get_option('libexecdir'))
+conf.set_quoted('POLO_PKGDATADIR', get_option('prefix') / get_option('datadir') / 'polo')
 config_h = configure_file(output: 'polo-config.h', configuration: conf)
 config_inc = include_directories('.')
 
@@ -119,6 +120,7 @@ weston_module_map = ';'.join([
 devenv = environment()
 devenv.set('WESTON_MODULE_MAP', weston_module_map)
 devenv.prepend('PATH', meson.project_build_root() / 'src')
+devenv.set('POLO_DATA_DIR', meson.project_source_root() / 'data')
 if get_option('shell-ui')
   devenv.set('POLO_SHELL_UI', meson.project_build_root() / 'shell-ui' / 'polo-shell-ui')
 endif

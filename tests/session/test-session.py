@@ -123,6 +123,9 @@ def environment(polo):
                             ("GTK_MODULES", "first-module:gail:atk-bridge")):
             check(child.get(name) == value, f"{name} is {child.get(name)!r} in a child")
         check("GDK_BACKEND" not in child, "GDK_BACKEND stayed set")
+        config_dirs = child.get("XDG_CONFIG_DIRS", "").split(":")
+        check(len(config_dirs) == 2 and config_dirs[0].endswith("/polo/xdg") and config_dirs[1] == "/etc/xdg",
+              f"XDG_CONFIG_DIRS is {child.get('XDG_CONFIG_DIRS')!r} in a child")
         check(child.get("XCURSOR_THEME") == "default", "an empty cursor theme was exported")
         for name in ("DISPLAY", "XAUTHORITY", "XCURSOR_THEME", "XCURSOR_SIZE"):
             check(child.get(name), f"{name} is not set in a child")
@@ -198,9 +201,10 @@ def environment(polo):
 
 
 def base_env(tmp):
-    env = dict(os.environ, GSETTINGS_BACKEND="memory", POLO_SHELL_UI="", XDG_RUNTIME_DIR=tmp)
+    env = dict(os.environ, GSETTINGS_BACKEND="memory", POLO_SHELL_UI="", XDG_RUNTIME_DIR=tmp,
+               XDG_CONFIG_DIRS="/etc/xdg")
     for key in ("WAYLAND_DISPLAY", "WAYLAND_SOCKET", "DISPLAY", "XAUTHORITY", "DCONF_PROFILE",
-                "POLO_XWAYLAND", "GTK_MODULES", "GDK_BACKEND"):
+                "POLO_XWAYLAND", "GTK_MODULES", "GDK_BACKEND", "POLO_DATA_DIR", "POLO_SHARE_CHOOSER"):
         env.pop(key, None)
     return env
 
