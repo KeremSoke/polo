@@ -7,30 +7,21 @@
  * no-op device because Polo does not provide tablet cursors.
  */
 
-#include <libweston/libweston.h>
-
 #include "cursor-shape-v1-server-protocol.h"
-#include "polo-backend-private.h"
+#include "protocol-util.h"
 
 struct shape_device {
 	PoloBackendServer *server;
-	struct wl_resource *pointer;
-	struct wl_listener pointer_destroy;
+	struct polo_resource_ref pointer;
 };
-
-static void
-device_destroy(struct wl_client *client, struct wl_resource *resource)
-{
-	wl_resource_destroy(resource);
-}
 
 static void
 device_set_shape(struct wl_client *client, struct wl_resource *resource,
 		 uint32_t serial, uint32_t shape)
 {
 	struct shape_device *device = wl_resource_get_user_data(resource);
-	struct weston_pointer *pointer = device->pointer
-		? wl_resource_get_user_data(device->pointer)
+	struct weston_pointer *pointer = device->pointer.resource
+		? wl_resource_get_user_data(device->pointer.resource)
 		: NULL;
 
 	if (shape == 0 || (int)shape >= polo_backend_cursor_n_shapes() ||
@@ -50,7 +41,7 @@ device_set_shape(struct wl_client *client, struct wl_resource *resource,
 }
 
 static const struct wp_cursor_shape_device_v1_interface device_impl = {
-	.destroy = device_destroy,
+	.destroy = polo_protocol_destroy,
 	.set_shape = device_set_shape,
 };
 
@@ -59,85 +50,48 @@ device_resource_destroyed(struct wl_resource *resource)
 {
 	struct shape_device *device = wl_resource_get_user_data(resource);
 
-	if (device->pointer)
-		wl_list_remove(&device->pointer_destroy.link);
+	polo_resource_ref_clear(&device->pointer);
 	g_free(device);
 }
 
 static void
-device_pointer_destroyed(struct wl_listener *listener, void *data)
-{
-	struct shape_device *device =
-		wl_container_of(listener, device, pointer_destroy);
-
-	wl_list_remove(&device->pointer_destroy.link);
-	device->pointer = NULL;
-}
-
-static void
-create_device(struct wl_client *client, struct wl_resource *resource,
-	      uint32_t id, struct wl_resource *pointer)
+create_device(struct wl_resource *resource, uint32_t id,
+	      struct wl_resource *pointer)
 {
 	struct shape_device *device = g_new0(struct shape_device, 1);
-	struct wl_resource *object =
-		wl_resource_create(client, &wp_cursor_shape_device_v1_interface,
-				   wl_resource_get_version(resource), id);
 
-	if (!object) {
+	if (!polo_protocol_child_new(
+		    resource, &wp_cursor_shape_device_v1_interface, id,
+		    &device_impl, device, device_resource_destroyed)) {
 		g_free(device);
-		wl_client_post_no_memory(client);
 		return;
 	}
 	device->server = wl_resource_get_user_data(resource);
-	device->pointer = pointer;
-	if (pointer) {
-		device->pointer_destroy.notify = device_pointer_destroyed;
-		wl_resource_add_destroy_listener(pointer,
-						 &device->pointer_destroy);
-	}
-	wl_resource_set_implementation(object, &device_impl, device,
-				       device_resource_destroyed);
+	polo_resource_ref_set(&device->pointer, pointer, NULL);
 }
 
 static void
 manager_get_pointer(struct wl_client *client, struct wl_resource *resource,
 		    uint32_t id, struct wl_resource *pointer)
 {
-	create_device(client, resource, id, pointer);
+	create_device(resource, id, pointer);
 }
 
 static void
 manager_get_tablet_tool(struct wl_client *client, struct wl_resource *resource,
 			uint32_t id, struct wl_resource *tool)
 {
-	create_device(client, resource, id, NULL);
-}
-
-static void
-manager_destroy(struct wl_client *client, struct wl_resource *resource)
-{
-	wl_resource_destroy(resource);
+	create_device(resource, id, NULL);
 }
 
 static const struct wp_cursor_shape_manager_v1_interface manager_impl = {
-	.destroy = manager_destroy,
+	.destroy = polo_protocol_destroy,
 	.get_pointer = manager_get_pointer,
 	.get_tablet_tool_v2 = manager_get_tablet_tool,
 };
 
-static void
-manager_bind(struct wl_client *client, void *data, uint32_t version,
-	     uint32_t id)
-{
-	struct wl_resource *resource = wl_resource_create(
-		client, &wp_cursor_shape_manager_v1_interface, version, id);
-
-	if (!resource) {
-		wl_client_post_no_memory(client);
-		return;
-	}
-	wl_resource_set_implementation(resource, &manager_impl, data, NULL);
-}
+POLO_PROTOCOL_BIND(manager_bind, &wp_cursor_shape_manager_v1_interface, 2,
+		   &manager_impl)
 
 gboolean
 polo_backend_cursor_shape_init(PoloBackendServer *server, GError **error)

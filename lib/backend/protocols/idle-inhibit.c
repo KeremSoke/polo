@@ -8,36 +8,17 @@
  * counts.
  */
 
-#include <libweston/libweston.h>
-
 #include "idle-inhibit-unstable-v1-server-protocol.h"
-#include "polo-backend-private.h"
+#include "protocol-util.h"
 
 struct inhibitor {
 	struct wl_list link;
 	PoloBackendServer *server;
-	struct weston_surface *surface;
-	struct wl_listener surface_destroy;
+	struct polo_surface_ref surface;
 };
 
-static void
-inhibitor_surface_destroyed(struct wl_listener *listener, void *data)
-{
-	struct inhibitor *inhibitor =
-		wl_container_of(listener, inhibitor, surface_destroy);
-
-	wl_list_remove(&inhibitor->surface_destroy.link);
-	inhibitor->surface = NULL;
-}
-
-static void
-inhibitor_destroy(struct wl_client *client, struct wl_resource *resource)
-{
-	wl_resource_destroy(resource);
-}
-
 static const struct zwp_idle_inhibitor_v1_interface inhibitor_impl = {
-	.destroy = inhibitor_destroy,
+	.destroy = polo_protocol_destroy,
 };
 
 static void
@@ -45,8 +26,7 @@ inhibitor_resource_destroyed(struct wl_resource *resource)
 {
 	struct inhibitor *inhibitor = wl_resource_get_user_data(resource);
 
-	if (inhibitor->surface)
-		wl_list_remove(&inhibitor->surface_destroy.link);
+	polo_surface_ref_clear(&inhibitor->surface);
 	wl_list_remove(&inhibitor->link);
 	if (inhibitor->server)
 		polo_backend_idle_inhibitors_changed(inhibitor->server, FALSE);
@@ -59,50 +39,28 @@ manager_create_inhibitor(struct wl_client *client, struct wl_resource *resource,
 {
 	PoloBackendServer *server = wl_resource_get_user_data(resource);
 	struct inhibitor *inhibitor = g_new0(struct inhibitor, 1);
-	struct wl_resource *object = wl_resource_create(
-		client, &zwp_idle_inhibitor_v1_interface, 1, id);
 
-	if (!object) {
+	if (!polo_protocol_child_new(resource, &zwp_idle_inhibitor_v1_interface,
+				     id, &inhibitor_impl, inhibitor,
+				     inhibitor_resource_destroyed)) {
 		g_free(inhibitor);
-		wl_client_post_no_memory(client);
 		return;
 	}
-	inhibitor->surface = wl_resource_get_user_data(surface_resource);
-	inhibitor->surface_destroy.notify = inhibitor_surface_destroyed;
-	wl_signal_add(&inhibitor->surface->destroy_signal,
-		      &inhibitor->surface_destroy);
+	polo_surface_ref_set(&inhibitor->surface,
+			     wl_resource_get_user_data(surface_resource), NULL);
 	inhibitor->server = server;
 	wl_list_insert(&server->idle_inhibitors, &inhibitor->link);
-	wl_resource_set_implementation(object, &inhibitor_impl, inhibitor,
-				       inhibitor_resource_destroyed);
 	if (server->idle_ready)
 		polo_backend_idle_inhibitors_changed(server, TRUE);
 }
 
-static void
-manager_destroy(struct wl_client *client, struct wl_resource *resource)
-{
-	wl_resource_destroy(resource);
-}
-
 static const struct zwp_idle_inhibit_manager_v1_interface manager_impl = {
-	.destroy = manager_destroy,
+	.destroy = polo_protocol_destroy,
 	.create_inhibitor = manager_create_inhibitor,
 };
 
-static void
-manager_bind(struct wl_client *client, void *data, uint32_t version,
-	     uint32_t id)
-{
-	struct wl_resource *resource = wl_resource_create(
-		client, &zwp_idle_inhibit_manager_v1_interface, 1, id);
-
-	if (!resource) {
-		wl_client_post_no_memory(client);
-		return;
-	}
-	wl_resource_set_implementation(resource, &manager_impl, data, NULL);
-}
+POLO_PROTOCOL_BIND(manager_bind, &zwp_idle_inhibit_manager_v1_interface, 1,
+		   &manager_impl)
 
 gboolean
 polo_backend_server_get_idle_inhibited(PoloBackendServer *server)
@@ -112,7 +70,8 @@ polo_backend_server_get_idle_inhibited(PoloBackendServer *server)
 	g_return_val_if_fail(POLO_BACKEND_IS_SERVER(server), FALSE);
 	wl_list_for_each(inhibitor, &server->idle_inhibitors, link)
 	{
-		if (inhibitor->surface && inhibitor->surface->output_mask != 0)
+		if (inhibitor->surface.surface &&
+		    inhibitor->surface.surface->output_mask != 0)
 			return TRUE;
 	}
 	return FALSE;

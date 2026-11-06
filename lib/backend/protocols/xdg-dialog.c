@@ -6,10 +6,7 @@
  * Polo toplevel, so the hint waits for it. Destroying the object ends the hint.
  */
 
-#include <libweston/desktop.h>
-#include <libweston/libweston.h>
-
-#include "polo-backend-private.h"
+#include "protocol-util.h"
 #include "xdg-dialog-v1-server-protocol.h"
 
 struct dialog {
@@ -34,12 +31,6 @@ apply_modal(struct dialog *dialog)
 }
 
 static void
-dialog_destroy(struct wl_client *client, struct wl_resource *resource)
-{
-	wl_resource_destroy(resource);
-}
-
-static void
 dialog_set_modal(struct wl_client *client, struct wl_resource *resource)
 {
 	struct dialog *dialog = wl_resource_get_user_data(resource);
@@ -58,7 +49,7 @@ dialog_unset_modal(struct wl_client *client, struct wl_resource *resource)
 }
 
 static const struct xdg_dialog_v1_interface dialog_impl = {
-	.destroy = dialog_destroy,
+	.destroy = polo_protocol_destroy,
 	.set_modal = dialog_set_modal,
 	.unset_modal = dialog_unset_modal,
 };
@@ -87,12 +78,6 @@ dialog_resource_destroyed(struct wl_resource *resource)
 }
 
 static void
-manager_destroy(struct wl_client *client, struct wl_resource *resource)
-{
-	wl_resource_destroy(resource);
-}
-
-static void
 manager_get_xdg_dialog(struct wl_client *client, struct wl_resource *resource,
 		       uint32_t id, struct wl_resource *toplevel)
 {
@@ -107,41 +92,24 @@ manager_get_xdg_dialog(struct wl_client *client, struct wl_resource *resource,
 		return;
 	}
 	dialog = g_new0(struct dialog, 1);
-
-	struct wl_resource *object =
-		wl_resource_create(client, &xdg_dialog_v1_interface, 1, id);
-
-	if (!object) {
+	if (!polo_protocol_child_new(resource, &xdg_dialog_v1_interface, id,
+				     &dialog_impl, dialog,
+				     dialog_resource_destroyed)) {
 		g_free(dialog);
-		wl_client_post_no_memory(client);
 		return;
 	}
 	dialog->toplevel = toplevel;
 	dialog->toplevel_destroy.notify = dialog_toplevel_destroyed;
 	wl_resource_add_destroy_listener(toplevel, &dialog->toplevel_destroy);
 	wl_list_insert(&server->xdg_dialogs, &dialog->link);
-	wl_resource_set_implementation(object, &dialog_impl, dialog,
-				       dialog_resource_destroyed);
 }
 
 static const struct xdg_wm_dialog_v1_interface manager_impl = {
-	.destroy = manager_destroy,
+	.destroy = polo_protocol_destroy,
 	.get_xdg_dialog = manager_get_xdg_dialog,
 };
 
-static void
-manager_bind(struct wl_client *client, void *data, uint32_t version,
-	     uint32_t id)
-{
-	struct wl_resource *resource =
-		wl_resource_create(client, &xdg_wm_dialog_v1_interface, 1, id);
-
-	if (!resource) {
-		wl_client_post_no_memory(client);
-		return;
-	}
-	wl_resource_set_implementation(resource, &manager_impl, data, NULL);
-}
+POLO_PROTOCOL_BIND(manager_bind, &xdg_wm_dialog_v1_interface, 1, &manager_impl)
 
 void
 polo_backend_xdg_dialog_surface_added(PoloBackendServer *server)

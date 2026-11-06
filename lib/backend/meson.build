@@ -12,6 +12,7 @@ backend_sources = files(
   'loop-source.c',
   'output.c',
   'pixel-buffer.c',
+  'protocols/protocol-util.c',
   'protocols/layer-shell.c',
   'protocols/wlr-foreign-toplevel.c',
   'protocols/ext-foreign-toplevel-list.c',
