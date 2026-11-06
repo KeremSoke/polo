@@ -1106,6 +1106,10 @@ namespace Polo {
             public void switcher_entry (uint id, string title, string? app_id, SwitcherEntryFlags flags);
             [CCode (cname = "polo_backend_shell_ui_switcher_icon")]
             public void switcher_icon (uint id, Toplevel toplevel);
+            [CCode (cname = "polo_backend_shell_ui_switcher_heading")]
+            public void switcher_heading (string text);
+            [CCode (cname = "polo_backend_shell_ui_switcher_icon_name")]
+            public void switcher_icon_name (uint id, string name);
 
             [CCode (cname = "polo_backend_shell_ui_switcher_thumbnail")]
             public bool switcher_thumbnail (uint id, View view, double landscape_size, double portrait_size);

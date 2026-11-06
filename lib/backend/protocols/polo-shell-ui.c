@@ -17,7 +17,7 @@
 #include "polo-backend-private.h"
 #include "polo-shell-ui-v1-server-protocol.h"
 
-#define SHELL_UI_VERSION 1
+#define SHELL_UI_VERSION 2
 #define COLOR_TABLE_FLOATS (8 * 5 * 4)
 #define MAX_ICON_SIZE 1024
 
@@ -496,6 +496,16 @@ polo_backend_shell_ui_switcher_entry(PoloBackendShellUi *self, guint id,
 }
 
 void
+polo_backend_shell_ui_switcher_icon_name(PoloBackendShellUi *self, guint id,
+					 const char *name)
+{
+	g_return_if_fail(POLO_BACKEND_IS_SHELL_UI(self));
+	if (self->resource)
+		polo_shell_ui_v1_send_switcher_icon_name(self->resource, id,
+							 name);
+}
+
+void
 polo_backend_shell_ui_switcher_icon(PoloBackendShellUi *self, guint id,
 				    PoloBackendToplevel *toplevel)
 {
@@ -646,6 +656,17 @@ polo_backend_shell_ui_update_selected(PoloBackendShellUi *self, guint selected)
 	g_return_if_fail(POLO_BACKEND_IS_SHELL_UI(self));
 	if (self->resource)
 		polo_shell_ui_v1_send_update_selected(self->resource, selected);
+}
+
+void
+polo_backend_shell_ui_switcher_heading(PoloBackendShellUi *self,
+				       const char *text)
+{
+	g_return_if_fail(POLO_BACKEND_IS_SHELL_UI(self));
+	if (self->resource &&
+	    wl_resource_get_version(self->resource) >=
+		    POLO_SHELL_UI_V1_SWITCHER_HEADING_SINCE_VERSION)
+		polo_shell_ui_v1_send_switcher_heading(self->resource, text);
 }
 
 void

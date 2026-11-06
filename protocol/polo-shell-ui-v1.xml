@@ -16,7 +16,7 @@
     positions are logical coordinates relative to the given output.
   </description>
 
-  <interface name="polo_shell_ui_v1" version="1">
+  <interface name="polo_shell_ui_v1" version="2">
     <request name="destroy" type="destructor"/>
 
     <enum name="error">
@@ -329,5 +329,12 @@
     <request name="icon_theme_changed">
       <description summary="icons looked up so far may have changed"/>
     </request>
+    <event name="switcher_heading" since="2">
+      <description summary="a heading for the next show_switcher">
+        Sent before show_switcher, for that popup only: a line of text
+        above its entries.
+      </description>
+      <arg name="text" type="string"/>
+    </event>
   </interface>
 </protocol>

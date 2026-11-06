@@ -98,6 +98,7 @@ namespace Polo {
         private Input.AccessX? access_x = null;
         private Protocols.OutputManagement? output_management = null;
         private Dbus.Outputs? outputs_dbus = null;
+        private Dbus.ScreenShare? screen_share = null;
         private WindowStates? window_states = null;
 #if POLO_HAVE_XSMP
         private XsmpSession? xsmp = null;
@@ -197,6 +198,7 @@ namespace Polo {
                                          system_keyboard);
             foreign_toplevels = new Protocols.ForeignToplevels (server, model, desktop);
             desktop.switcher.set_minimize_target (foreign_toplevels.minimize_target);
+            desktop.share_chooser.set_window_lookup (foreign_toplevels.window_for_identifier);
             server.set_global_filter (trust.filter);
             server.set_test_inspector (desktop.inspect);
             if (CommandLine.test_mode) {
@@ -277,9 +279,13 @@ namespace Polo {
                     outputs_dbus = new Dbus.Outputs (GLib.Bus.get_sync (GLib.BusType.SESSION), desktop,
                                                      server.get_shell_ui ());
                     outputs_dbus.export ();
+                    screen_share = new Dbus.ScreenShare (GLib.Bus.get_sync (GLib.BusType.SESSION),
+                                                         desktop.share_chooser);
+                    screen_share.export ();
                 } catch (GLib.Error e) {
                     log.warning ("cannot provide %s: %s", Dbus.Outputs.NAME, e.message);
                     outputs_dbus = null;
+                    screen_share = null;
                 }
                 session_env = new SessionEnv ();
                 session_env.publish (server.get_socket_name ());
@@ -295,6 +301,9 @@ namespace Polo {
             rename_workspace = new Shell.RenameWorkspace (model, desktop, server.get_shell_ui (), write_preference);
             shell_ui = new Shell.ShellUi (server, spawn, trust);
             shell_ui.start ();
+            if (screen_share != null && !CommandLine.test_mode) {
+                Dbus.ScreenShare.start_portal (spawn);
+            }
             if (CommandLine.exec != null) {
                 foreach (unowned string command in CommandLine.exec) {
                     try {
@@ -371,6 +380,10 @@ namespace Polo {
             if (end_session != null) {
                 end_session.shutdown ();
                 end_session = null;
+            }
+            if (screen_share != null) {
+                screen_share.unexport ();
+                screen_share = null;
             }
             if (outputs_dbus != null) {
                 outputs_dbus.unexport ();
@@ -616,6 +629,7 @@ namespace Polo {
             }
             if (desktop != null) {
                 desktop.switcher.set_minimize_target (null);
+                desktop.share_chooser.set_window_lookup (null);
             }
             if (foreign_toplevels != null) {
                 foreign_toplevels.set_workspaces (null);

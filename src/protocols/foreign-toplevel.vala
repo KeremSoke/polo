@@ -373,6 +373,15 @@ namespace Polo.Protocols {
             model.activate (window, Policy.ActivationSource.PAGER, 0);
         }
 
+        public Window? window_for_identifier (string identifier) {
+            foreach (var entry in entries.get_values ()) {
+                if (entry.handle.get_identifier () == identifier) {
+                    return entry.window;
+                }
+            }
+            return null;
+        }
+
         /* The task-bar button of a window. */
         public bool minimize_target (Window window, out Marco.Rect rect) {
             rect = Marco.Rect ();

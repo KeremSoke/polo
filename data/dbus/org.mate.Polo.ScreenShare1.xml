@@ -1,0 +1,20 @@
+<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN"
+ "http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
+<!--
+  Copyright 2026 Kerem Soke
+  SPDX-License-Identifier: GPL-3.0-or-later
+
+  org.mate.Polo.ScreenShare1 on /org/mate/Polo: the chooser
+  xdg-desktop-portal-wlr runs (polo-share-chooser) asks Polo which of its
+  sources the user shares.
+-->
+<node>
+  <interface name="org.mate.Polo.ScreenShare1">
+    <!-- sources: the chooser's input lines, "Monitor: ..." and "Window: ...".
+         choice: the line the user picked, or "" when they declined. -->
+    <method name="Choose">
+      <arg name="sources" type="as" direction="in"/>
+      <arg name="choice" type="s" direction="out"/>
+    </method>
+  </interface>
+</node>

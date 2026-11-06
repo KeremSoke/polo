@@ -48,6 +48,7 @@ namespace Polo.Shell {
         private Input.MarcoActions actions;
         public Input.MoveResize move_resize { get; private set; }
         public Switcher switcher { get; private set; }
+        public ShareChooser share_chooser { get; private set; }
         public WindowMenu window_menu { get; private set; }
         private FrameInput frame_input;
         public WorkspaceSwitcher workspace_switcher { get; private set; }
@@ -128,6 +129,7 @@ namespace Polo.Shell {
             move_resize.tile_preview_shown.connect (tile_preview.show);
             move_resize.tile_preview_hidden.connect (tile_preview.hide);
             switcher = new Switcher (server, model, this, bindings);
+            share_chooser = new ShareChooser (server, model, this);
             window_menu = new WindowMenu (server, model, this, bindings);
             frame_input = new FrameInput (this, model);
             workspace_switcher = new WorkspaceSwitcher (server, model, this, bindings);
@@ -235,6 +237,7 @@ namespace Polo.Shell {
             model.focus_policy.shutdown ();
             model.work_areas_changed.disconnect (push_work_areas);
             switcher.shutdown ();
+            share_chooser.shutdown ();
             workspace_switcher.shutdown ();
 #if POLO_HAVE_XWAYLAND
             if (ewmh != null) {
@@ -582,9 +585,11 @@ namespace Polo.Shell {
             model.pointer_moved (x, y);
         }
 
-        /* display->grab_op: meta_display_begin_grab_op () refuses a second one. */
         public bool grab_active {
-            get { return move_resize.active || switcher.active || workspace_switcher.active || frame_input.active; }
+            get {
+                return move_resize.active || switcher.active || share_chooser.active || workspace_switcher.active ||
+                       frame_input.active;
+            }
         }
 
         private Input.MediaKeys? media_keys = null;
@@ -627,6 +632,8 @@ namespace Polo.Shell {
                     grabbed = move_resize.key (seat, event);
                 } else if (switcher.active) {
                     grabbed = switcher.key (seat, event);
+                } else if (share_chooser.active) {
+                    grabbed = share_chooser.key (seat, event);
                 } else {
                     grabbed = workspace_switcher.key (seat, event);
                 }
@@ -726,6 +733,10 @@ namespace Polo.Shell {
             }
             if (switcher.active) {
                 switcher.button (event);
+                return Backend.FilterResult.PASS;
+            }
+            if (share_chooser.active) {
+                share_chooser.button (event);
                 return Backend.FilterResult.PASS;
             }
             if (workspace_switcher.active) {

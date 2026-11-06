@@ -56,6 +56,7 @@ namespace PoloShellUi {
                                           uint icon_size);
         public signal void update_selected (uint selected);
         public signal void hide_switcher ();
+        public signal void switcher_heading (string text);
         public signal void workspace_switcher_entry (uint id, string title, bool blank);
         public signal void workspace_switcher_window (uint id, int x, int y, int width, int height, bool focused,
                                                       string? app_id);

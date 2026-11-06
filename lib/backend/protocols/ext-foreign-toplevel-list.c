@@ -96,6 +96,14 @@ handle_create(PoloBackendForeignToplevel *toplevel, struct wl_resource *list)
 	ext_foreign_toplevel_handle_v1_send_done(resource);
 }
 
+const char *
+polo_backend_foreign_toplevel_get_identifier(
+	PoloBackendForeignToplevel *toplevel)
+{
+	g_return_val_if_fail(POLO_BACKEND_IS_FOREIGN_TOPLEVEL(toplevel), NULL);
+	return ext_state(toplevel)->identifier;
+}
+
 void
 polo_backend_ext_toplevel_created(PoloBackendForeignToplevel *toplevel)
 {

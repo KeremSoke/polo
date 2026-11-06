@@ -1305,6 +1305,14 @@ void
 polo_backend_shell_ui_switcher_icon(PoloBackendShellUi *shell_ui, guint id,
 				    PoloBackendToplevel *toplevel);
 
+void
+polo_backend_shell_ui_switcher_heading(PoloBackendShellUi *shell_ui,
+				       const char *text);
+
+void
+polo_backend_shell_ui_switcher_icon_name(PoloBackendShellUi *shell_ui,
+					 guint id, const char *name);
+
 /* @output may be NULL. */
 void
 polo_backend_shell_ui_show_switcher(PoloBackendShellUi *shell_ui,

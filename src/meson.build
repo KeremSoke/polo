@@ -18,6 +18,7 @@ policy_sources = files(
   'policy/workspace-layout.vala',
   'policy/work-areas.vala',
   'policy/screenshot.vala',
+  'policy/screen-share.vala',
 )
 policy_lib = static_library('polo-policy',
   policy_sources,
@@ -63,6 +64,7 @@ polo_sources = files(
   'dbus/sm-presence.vala',
   'dbus/sm-manager.vala',
   'dbus/outputs.vala',
+  'dbus/screen-share.vala',
   'core/spawn.vala',
   'decor/decorations.vala',
   'decor/frame.vala',
@@ -105,6 +107,7 @@ polo_sources = files(
   'shell/tile-preview.vala',
   'shell/shell-ui.vala',
   'shell/switcher.vala',
+  'shell/share-chooser.vala',
   'shell/frame-input.vala',
   'shell/window-menu.vala',
   'shell/workspace-switcher.vala',
@@ -149,6 +152,14 @@ polo_dbus_resources = import('gnome').compile_resources('polo-dbus-resources',
   meson.project_source_root() / 'data' / 'dbus' / 'polo.gresource.xml',
   source_dir: meson.project_source_root() / 'data' / 'dbus',
   c_name: 'polo_dbus',
+)
+
+share_chooser_exe = executable('polo-share-chooser', 'share-chooser-main.vala',
+  vala_args: vala_args,
+  c_args: vala_c_args,
+  dependencies: [glib_dep, gobject_dep, gio_dep],
+  install: true,
+  install_dir: get_option('libexecdir'),
 )
 
 polo_exe = executable('polo',

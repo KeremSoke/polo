@@ -88,6 +88,13 @@ key_actions_test = executable('test-key-actions', 'key-actions.vala',
 )
 test('key-actions', key_actions_test, suite: 'unit-vala', protocol: 'tap', args: ['--tap'])
 
+screen_share_test = executable('test-screen-share', 'screen-share.vala',
+  vala_args: vala_args + ['--pkg', 'polo-marco'],
+  c_args: vala_c_args,
+  dependencies: [polo_policy_dep],
+)
+test('screen-share', screen_share_test, suite: 'unit-vala', protocol: 'tap', args: ['--tap'])
+
 activation_test = executable('test-activation', 'activation.vala',
   vala_args: vala_args + ['--pkg', 'polo-marco'],
   c_args: vala_c_args,

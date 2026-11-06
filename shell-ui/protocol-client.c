@@ -33,6 +33,7 @@ enum {
 	SIGNAL_SHOW_SWITCHER,
 	SIGNAL_UPDATE_SELECTED,
 	SIGNAL_HIDE_SWITCHER,
+	SIGNAL_SWITCHER_HEADING,
 	SIGNAL_WORKSPACE_SWITCHER_ENTRY,
 	SIGNAL_WORKSPACE_SWITCHER_WINDOW,
 	SIGNAL_SHOW_WORKSPACE_SWITCHER,
@@ -173,6 +174,13 @@ hide_switcher(void *data, struct polo_shell_ui_v1 *shell_ui)
 }
 
 static void
+switcher_heading(void *data, struct polo_shell_ui_v1 *shell_ui,
+		 const char *text)
+{
+	g_signal_emit(data, signals[SIGNAL_SWITCHER_HEADING], 0, text);
+}
+
+static void
 workspace_switcher_entry(void *data, struct polo_shell_ui_v1 *shell_ui,
 			 uint32_t id, const char *title, uint32_t blank)
 {
@@ -283,6 +291,7 @@ static const struct polo_shell_ui_v1_listener shell_ui_listener = {
 	.show_switcher = show_switcher,
 	.update_selected = update_selected,
 	.hide_switcher = hide_switcher,
+	.switcher_heading = switcher_heading,
 	.workspace_switcher_entry = workspace_switcher_entry,
 	.workspace_switcher_window = workspace_switcher_window,
 	.show_workspace_switcher = show_workspace_switcher,
@@ -310,8 +319,9 @@ registry_global(void *data, struct wl_registry *registry, uint32_t name,
 
 	if (strcmp(interface, polo_shell_ui_v1_interface.name) == 0 &&
 	    !scan->shell_ui)
-		scan->shell_ui = wl_registry_bind(
-			registry, name, &polo_shell_ui_v1_interface, 1);
+		scan->shell_ui = wl_registry_bind(registry, name,
+						  &polo_shell_ui_v1_interface,
+						  MIN(version, 2));
 }
 
 static void
@@ -552,6 +562,9 @@ polo_shell_ui_client_class_init(PoloShellUiClientClass *klass)
 	signals[SIGNAL_HIDE_SWITCHER] =
 		g_signal_new("hide-switcher", type, G_SIGNAL_RUN_LAST, 0, NULL,
 			     NULL, NULL, G_TYPE_NONE, 0);
+	signals[SIGNAL_SWITCHER_HEADING] =
+		g_signal_new("switcher-heading", type, G_SIGNAL_RUN_LAST, 0,
+			     NULL, NULL, NULL, G_TYPE_NONE, 1, G_TYPE_STRING);
 	signals[SIGNAL_WORKSPACE_SWITCHER_ENTRY] = g_signal_new(
 		"workspace-switcher-entry", type, G_SIGNAL_RUN_LAST, 0, NULL,
 		NULL, NULL, G_TYPE_NONE, 3, G_TYPE_UINT, G_TYPE_STRING,

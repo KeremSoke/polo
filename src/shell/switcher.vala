@@ -518,7 +518,7 @@ namespace Polo.Shell {
     }
 
     /* tabpopup.c's outline window: a black frame with white edges, drawn by Polo. */
-    private class Outline {
+    internal class Outline {
         private Backend.Server server;
         private Backend.PixelBuffer? buffer = null;
         private Marco.Rect rect;

@@ -329,7 +329,7 @@ namespace PoloShellUi {
 
         public TabPopup (Client client, GLib.GenericArray<TabEntry> entries, Gdk.Monitor? monitor,
                          uint selected, int width, bool expand_for_titles, int icon_size,
-                         WorkspacePopupInfo? workspace_info = null) {
+                         WorkspacePopupInfo? workspace_info = null, string? heading = null) {
             this.client = client;
             this.workspace_info = workspace_info;
             this.entries = entries;
@@ -369,6 +369,15 @@ namespace PoloShellUi {
             grid.border_width = 16;
             window.add (frame);
             frame.add (vbox);
+            if (heading != null) {
+                var title = new Gtk.Label (null);
+                title.set_markup ("<b>%s</b>".printf (GLib.Markup.escape_text (heading)));
+                title.margin_start = 16;
+                title.margin_end = 16;
+                title.margin_top = 16;
+                title.wrap = true;
+                vbox.pack_start (title, false, false, 0);
+            }
             vbox.pack_start (grid, true, true, 0);
 
             label = new Gtk.Label ("");
@@ -632,6 +641,7 @@ namespace PoloShellUi {
          * it is assigned. Each request advances the generation and discards stale popups. */
         private uint generation = 0;
         private uint selected_while_creating = 0;
+        private string? heading = null;
 
         public AltTab (Client client) {
             this.client = client;
@@ -642,6 +652,7 @@ namespace PoloShellUi {
             client.show_switcher.connect (on_show);
             client.update_selected.connect (on_update_selected);
             client.hide_switcher.connect (on_hide);
+            client.switcher_heading.connect ((text) => heading = text);
             client.workspace_switcher_entry.connect (on_workspace_entry);
             client.workspace_switcher_window.connect (on_workspace_window);
             client.show_workspace_switcher.connect (on_show_workspaces);
@@ -692,6 +703,7 @@ namespace PoloShellUi {
                 popup = null;
             }
             selected_while_creating = 0;
+            heading = null;
             var info = new WorkspacePopupInfo () {
                 active = active, screen_width = screen_width, screen_height = screen_height,
                 output_width = output_width, output_height = output_height, icon_size = (int) icon_size
@@ -754,8 +766,10 @@ namespace PoloShellUi {
             }
             selected_while_creating = 0;
             uint mine = ++generation;
+            string? shown_heading = heading;
+            heading = null;
             var created = new TabPopup (client, entries, monitor, selected, (int) columns, expand_to_fit,
-                                        (int) icon_size);
+                                        (int) icon_size, null, shown_heading);
             if (mine != generation) {
                 created.destroy ();
                 return;
@@ -775,6 +789,7 @@ namespace PoloShellUi {
         }
 
         private void on_hide () {
+            heading = null;
             generation++;
             if (popup != null) {
                 popup.destroy ();
