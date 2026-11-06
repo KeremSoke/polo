@@ -60,6 +60,8 @@ polo_xwindow_focus_in(struct _PoloXWindow *self);
 void
 polo_xwm_focus_lost(void);
 void
+polo_xwm_bell(struct _PoloXWindow *window);
+void
 polo_wm_clear_focus(struct weston_wm *wm);
 void
 polo_xwm_root_message(const char *type, const uint32_t *data);

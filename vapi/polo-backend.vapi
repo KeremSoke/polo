@@ -359,6 +359,10 @@ namespace Polo {
             [CCode (cname = "polo_backend_server_blank_outputs")]
             public void blank_outputs ();
 
+            /* White over every output for one frame. */
+            [CCode (cname = "polo_backend_server_flash_outputs")]
+            public void flash_outputs ();
+
             /* Blanked outputs back on, as input would. */
             [CCode (cname = "polo_backend_server_unblank_outputs")]
             public void unblank_outputs ();

@@ -75,6 +75,9 @@ namespace Polo.Decor {
             if (fullscreen) {
                 flags |= Marco.FrameFlags.FULLSCREEN;
             }
+            if (window.frame_flashing) {
+                flags |= Marco.FrameFlags.IS_FLASHING;
+            }
             if (window.has_state (WindowState.ABOVE)) {
                 flags |= Marco.FrameFlags.ABOVE;
             }

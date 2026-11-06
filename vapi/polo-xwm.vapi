@@ -113,6 +113,7 @@ namespace Polo.Xwm {
         public signal void ready (string display_name);
         public signal void started ();
         public signal void focus_lost ();
+        public signal void bell (XWindow? window);
         public signal void root_property_changed (string atom);
         public signal void root_message (string type, uint data);
         public signal void watched_property_changed (uint xid, string atom);

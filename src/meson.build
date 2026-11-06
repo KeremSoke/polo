@@ -94,6 +94,7 @@ polo_sources = files(
   'settings/interface-mirror.vala',
   'settings/marco-prefs-reader.vala',
   'shell/desktop.vala',
+  'shell/bell.vala',
   'shell/layer-shell.vala',
   'shell/media-key-actions.vala',
   'shell/not-responding.vala',

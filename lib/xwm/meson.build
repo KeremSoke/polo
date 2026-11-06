@@ -1,5 +1,5 @@
 xwm_deps = [glib_dep, gobject_dep, gio_dep, libweston_dep, dependency('wayland-server')]
-foreach name : ['xcb', 'xcb-composite', 'xcb-render', 'xcb-shape', 'xcb-xfixes', 'xcursor']
+foreach name : ['xcb', 'xcb-composite', 'xcb-render', 'xcb-shape', 'xcb-xfixes', 'xcb-xkb', 'xcursor']
   xwm_deps += dependency(name)
 endforeach
 
@@ -42,5 +42,5 @@ xwm_lib = static_library('polo-xwm',
 polo_xwm_dep = declare_dependency(
   link_with: xwm_lib,
   include_directories: include_directories('.'),
-  dependencies: [glib_dep, gobject_dep, polo_backend_dep, cc.find_library('xcb'), cc.find_library('xcb-composite'), cc.find_library('xcb-render'), cc.find_library('xcb-shape'), cc.find_library('xcb-xfixes')],
+  dependencies: [glib_dep, gobject_dep, polo_backend_dep, cc.find_library('xcb'), cc.find_library('xcb-composite'), cc.find_library('xcb-render'), cc.find_library('xcb-shape'), cc.find_library('xcb-xfixes'), cc.find_library('xcb-xkb')],
 )

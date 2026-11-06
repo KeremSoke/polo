@@ -643,6 +643,7 @@ polo_backend_server_start(PoloBackendServer *server,
 
 	if (!polo_backend_system_bell_init(server, error))
 		return FALSE;
+	polo_backend_flash_init(server);
 
 	if (!polo_backend_gtk_shell_init(server, error))
 		return FALSE;

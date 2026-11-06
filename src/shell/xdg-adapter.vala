@@ -170,6 +170,10 @@ namespace Polo.Shell {
             desktop.frames_changed ();
         }
 
+        internal bool frame_drawn () {
+            return decor != null && mapped;
+        }
+
         public void calc_borders () {
             update_borders ();
         }

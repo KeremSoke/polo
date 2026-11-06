@@ -20,6 +20,7 @@ backend_sources = files(
   'protocols/xdg-activation.c',
   'protocols/xdg-decoration.c',
   'protocols/system-bell.c',
+  'flash.c',
   'protocols/gtk-shell.c',
   'protocols/security-context.c',
   'protocols/xdg-toplevel-icon.c',

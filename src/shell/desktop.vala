@@ -33,6 +33,7 @@ namespace Polo.Shell {
         public LayerShell layer_shell { get; private set; }
         private Settings.Background background;
         private Settings.InterfaceMirror interface_mirror;
+        private Bell bell;
         private Input.Keyboard keyboard;
         private Input.DeviceSettings device_settings;
 
@@ -66,6 +67,8 @@ namespace Polo.Shell {
             background = new Settings.Background (server, model, this, layer_shell);
             interface_mirror =
                 new Settings.InterfaceMirror (settings_or_null (Settings.InterfaceMirror.GENERAL_SCHEMA));
+            bell = new Bell (server, model);
+            server.system_bell.connect (on_system_bell);
             decorations = new Decor.Decorations ();
             interface_settings = settings ("org.mate.interface");
             if (interface_settings != null) {
@@ -238,6 +241,8 @@ namespace Polo.Shell {
             frame_input.shutdown ();
             background.shutdown ();
             interface_mirror.shutdown ();
+            server.system_bell.disconnect (on_system_bell);
+            bell.shutdown ();
             keyboard.shutdown ();
             server.input_device_added.disconnect (on_input_device_added);
             device_settings.shutdown ();
@@ -579,6 +584,10 @@ namespace Polo.Shell {
 
         private Input.MediaKeys? media_keys = null;
 
+        private void on_system_bell (Backend.Toplevel? toplevel) {
+            var xdg = toplevel != null ? windows.lookup (toplevel) : null;
+            bell.ring (xdg != null && xdg.mapped ? xdg.window : null);
+        }
 
         public void set_media_keys (Input.MediaKeys? keys) {
             if (media_keys != null) {
@@ -1016,6 +1025,10 @@ namespace Polo.Shell {
                 Logging.scope (LogDomain.POLO).info ("X display %s", name);
             });
             ewmh = new Ewmh (model, xwm, decorations);
+            xwm.bell.connect ((xwindow) => {
+                var x_window = xwindow != null ? x_windows.lookup (xwindow) : null;
+                bell.ring (x_window != null && x_window.mapped ? x_window.window : null);
+            });
             xwm.watched_property_changed.connect ((xid, atom) => {
                 foreach (var x_window in x_windows.get_values ()) {
                     x_window.on_watched_property (xid, atom);

@@ -278,6 +278,9 @@ polo_backend_server_get_last_input_usec(PoloBackendServer *server);
 void
 polo_backend_server_blank_outputs(PoloBackendServer *server);
 
+void
+polo_backend_server_flash_outputs(PoloBackendServer *server);
+
 /* Turns blanked outputs back on, as input would. */
 void
 polo_backend_server_unblank_outputs(PoloBackendServer *server);

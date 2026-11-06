@@ -448,6 +448,7 @@ enum {
 	SIGNAL_ROOT_MESSAGE,
 	SIGNAL_FOCUS_LOST,
 	SIGNAL_WATCHED_PROPERTY_CHANGED,
+	SIGNAL_BELL,
 	N_SIGNALS
 };
 
@@ -537,6 +538,9 @@ polo_xwm_class_init(PoloXwmClass *klass)
 		"watched-property-changed", G_TYPE_FROM_CLASS(klass),
 		G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL, G_TYPE_NONE, 2,
 		G_TYPE_UINT, G_TYPE_STRING);
+	signals[SIGNAL_BELL] = g_signal_new(
+		"bell", G_TYPE_FROM_CLASS(klass), G_SIGNAL_RUN_LAST, 0, NULL,
+		NULL, NULL, G_TYPE_NONE, 1, POLO_TYPE_XWINDOW);
 	signals[SIGNAL_ROOT_PROPERTY_CHANGED] =
 		g_signal_new("root-property-changed", G_TYPE_FROM_CLASS(klass),
 			     G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL,
@@ -1121,6 +1125,13 @@ polo_xwm_root_property_changed(const char *atom)
 	if (current)
 		g_signal_emit(current, signals[SIGNAL_ROOT_PROPERTY_CHANGED], 0,
 			      atom);
+}
+
+void
+polo_xwm_bell(struct _PoloXWindow *window)
+{
+	if (current)
+		g_signal_emit(current, signals[SIGNAL_BELL], 0, window);
 }
 
 void

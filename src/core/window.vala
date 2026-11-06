@@ -148,6 +148,8 @@ namespace Polo {
         public bool require_on_single_xinerama = true;
         public bool require_titlebar_visible = true;
         public bool tiled = false;
+        /* Marco's frame->is_flashing: the visual bell inverts frame's focus style */
+        public bool frame_flashing = false;
         public Marco.TileMode tile_mode = Marco.TileMode.NONE;
         public Marco.TileCycle tile_cycle = Marco.TileCycle.NONE;
         public int tile_monitor_number = -1;

@@ -2506,6 +2506,40 @@ weston_wm_handle_focus_in(struct weston_wm *wm, xcb_generic_event_t *event)
 	}
 }
 
+static void
+polo_wm_select_bell(struct weston_wm *wm)
+{
+	wm->polo_xkb = xcb_get_extension_data(wm->conn, &xcb_xkb_id);
+	if (!wm->polo_xkb || !wm->polo_xkb->present) {
+		wm->polo_xkb = NULL;
+		return;
+	}
+	xcb_xkb_use_extension(wm->conn, XCB_XKB_MAJOR_VERSION,
+			      XCB_XKB_MINOR_VERSION);
+	xcb_xkb_select_events(wm->conn, XCB_XKB_ID_USE_CORE_KBD,
+			      XCB_XKB_EVENT_TYPE_BELL_NOTIFY, 0,
+			      XCB_XKB_EVENT_TYPE_BELL_NOTIFY, 0, 0, NULL);
+}
+
+static bool
+polo_wm_handle_xkb_event(struct weston_wm *wm, xcb_generic_event_t *event)
+{
+	xcb_xkb_bell_notify_event_t *bell;
+	struct weston_wm_window *window;
+
+	if (!wm->polo_xkb ||
+	    EVENT_TYPE(event) != wm->polo_xkb->first_event)
+		return false;
+	bell = (xcb_xkb_bell_notify_event_t *)event;
+	if (bell->xkbType != XCB_XKB_BELL_NOTIFY)
+		return true;
+	window = bell->window != XCB_WINDOW_NONE
+		? hash_table_lookup(wm->window_hash, bell->window)
+		: NULL;
+	polo_xwm_bell(window ? window->polo : NULL);
+	return true;
+}
+
 static int
 weston_wm_handle_event(int fd, uint32_t mask, void *data)
 {
@@ -2516,6 +2550,12 @@ weston_wm_handle_event(int fd, uint32_t mask, void *data)
 	while (event = wm->polo_held_event ? wm->polo_held_event :
 						 xcb_poll_for_event(wm->conn),
 	       wm->polo_held_event = NULL, event != NULL) {
+		if (polo_wm_handle_xkb_event(wm, event)) {
+			free(event);
+			count++;
+			continue;
+		}
+
 		if (weston_wm_handle_selection_event(wm, event)) {
 			free(event);
 			count++;
@@ -2962,6 +3002,8 @@ weston_wm_create(struct weston_xserver *wxs, int fd)
 		free(wm);
 		return NULL;
 	}
+	polo_wm_select_bell(wm);
+
 	weston_wm_get_visual_and_colormap(wm);
 
 	values[0] =
