@@ -32,6 +32,7 @@ struct head {
 
 struct client {
 	struct wl_display *display;
+	struct wl_registry *registry;
 	struct zwlr_output_manager_v1 *manager;
 	struct head heads[4];
 	int n_heads;
@@ -241,17 +242,32 @@ static struct client *
 connect_client(struct harness *h)
 {
 	struct client *c = calloc(1, sizeof *c);
-	struct wl_registry *registry;
 
 	c->display = wl_display_connect(h->socket);
 	CHECK(c->display, "cannot connect");
-	registry = wl_display_get_registry(c->display);
-	wl_registry_add_listener(registry, &registry_listener, c);
+	c->registry = wl_display_get_registry(c->display);
+	wl_registry_add_listener(c->registry, &registry_listener, c);
 	wl_display_roundtrip(c->display);
 	CHECK(c->manager, "no zwlr_output_manager_v1 version 4");
 	wl_display_roundtrip(c->display);
 	wl_display_roundtrip(c->display);
 	return c;
+}
+
+static void
+client_free(struct client *c)
+{
+	for (int i = 0; i < c->n_heads; i++) {
+		for (int j = 0; j < c->heads[i].n_modes; j++)
+			wl_proxy_destroy(
+				(struct wl_proxy *)c->heads[i].modes[j].mode);
+		wl_proxy_destroy((struct wl_proxy *)c->heads[i].head);
+	}
+	if (c->manager)
+		wl_proxy_destroy((struct wl_proxy *)c->manager);
+	wl_proxy_destroy((struct wl_proxy *)c->registry);
+	wl_display_disconnect(c->display);
+	free(c);
 }
 
 static void
@@ -284,6 +300,7 @@ run(struct harness *h, struct client *c, uint32_t serial, int test, int x2,
 {
 	struct zwlr_output_configuration_v1 *config =
 		zwlr_output_manager_v1_create_configuration(c->manager, serial);
+	struct zwlr_output_configuration_head_v1 *chs[4] = { 0 };
 	int result = PENDING;
 
 	zwlr_output_configuration_v1_add_listener(config, &config_listener,
@@ -298,6 +315,7 @@ run(struct harness *h, struct client *c, uint32_t serial, int test, int x2,
 		}
 		ch = zwlr_output_configuration_v1_enable_head(config,
 							      c->heads[i].head);
+		chs[i] = ch;
 		zwlr_output_configuration_head_v1_set_mode(
 			ch, mode_to_set(&c->heads[i]));
 		if (i == 1)
@@ -319,6 +337,10 @@ run(struct harness *h, struct client *c, uint32_t serial, int test, int x2,
 		harness_roundtrip(h);
 	}
 	zwlr_output_configuration_v1_destroy(config);
+	for (int i = 0; i < c->n_heads; i++) {
+		if (chs[i])
+			wl_proxy_destroy((struct wl_proxy *)chs[i]);
+	}
 	wl_display_roundtrip(c->display);
 	return result;
 }
@@ -378,31 +400,32 @@ main(int argc, char **argv)
 		zwlr_output_manager_v1_create_configuration(bad->manager,
 							    bad->serial);
 
-	zwlr_output_configuration_v1_enable_head(config, bad->heads[0].head);
-	zwlr_output_configuration_v1_apply(config);
-	wl_display_roundtrip(bad->display);
-	CHECK(wl_display_get_error(bad->display) != 0,
-	      "a configuration without every head was applied");
-	wl_display_disconnect(bad->display);
-	free(bad);
-
-	bad = connect_client(h);
-	config = zwlr_output_manager_v1_create_configuration(bad->manager,
-							     bad->serial);
 	struct zwlr_output_configuration_head_v1 *ch =
 		zwlr_output_configuration_v1_enable_head(config,
 							 bad->heads[0].head);
 
+	zwlr_output_configuration_v1_apply(config);
+	wl_display_roundtrip(bad->display);
+	CHECK(wl_display_get_error(bad->display) != 0,
+	      "a configuration without every head was applied");
+	wl_proxy_destroy((struct wl_proxy *)ch);
+	wl_proxy_destroy((struct wl_proxy *)config);
+	client_free(bad);
+
+	bad = connect_client(h);
+	config = zwlr_output_manager_v1_create_configuration(bad->manager,
+							     bad->serial);
+	ch = zwlr_output_configuration_v1_enable_head(config,
+						      bad->heads[0].head);
 	zwlr_output_configuration_head_v1_set_mode(ch,
 						   mode_to_set(&bad->heads[1]));
 	wl_display_roundtrip(bad->display);
 	CHECK(wl_display_get_error(bad->display) != 0,
 	      "another head's mode was accepted");
-	wl_display_disconnect(bad->display);
-	free(bad);
-
-	wl_display_disconnect(c->display);
-	free(c);
+	wl_proxy_destroy((struct wl_proxy *)ch);
+	wl_proxy_destroy((struct wl_proxy *)config);
+	client_free(bad);
+	client_free(c);
 	CHECK(harness_stop(h) == 0, "polo did not stop cleanly");
 	return 0;
 }

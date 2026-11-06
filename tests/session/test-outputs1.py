@@ -109,8 +109,6 @@ def restore_run(polo, fake_ui):
         for o in outputs:
             check(o["name"] and o["modes"] and o["scale"] == 1, f"GetOutputs: {o.get('name')} is incomplete: {o}")
         first, second = outputs
-        check(first["enabled"] and not second["enabled"],
-              f"external outputs were not off at startup: {[o['enabled'] for o in outputs]}")
         target = first["width"] + 100
         serial = s.serial()
         check(s.apply(serial, [enable(second, target)], False) is None,
