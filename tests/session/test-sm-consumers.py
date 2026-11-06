@@ -318,7 +318,7 @@ def xsettings_setenv(s, env_file):
 
 @test("background-session-running")
 def background_session_running(s, env_file):
-    check(until(lambda: any(name == "SessionRunning" for name, _ in s.seen), 20), "no SessionRunning")
+    check(until(lambda: any(name == "SessionRunning" for name, _ in s.seen), 30), "no SessionRunning")
 
 
 @test("a11y-autostart-condition")

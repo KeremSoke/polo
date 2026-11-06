@@ -58,11 +58,13 @@ namespace Polo.Shell {
             sound_settings = installed (SOUND_SCHEMA);
             power_settings = installed (POWER_SCHEMA);
             volume = new Input.Volume ();
-            try {
-                bus = GLib.Bus.get_sync (GLib.BusType.SESSION);
-                mpris = new Input.Mpris (bus);
-            } catch (GLib.Error e) {
-                Logging.scope (LogDomain.INPUT).info ("media keys without a session bus: %s", e.message);
+            if (have_session_bus ()) {
+                try {
+                    bus = GLib.Bus.get_sync (GLib.BusType.SESSION);
+                    mpris = new Input.Mpris (bus);
+                } catch (GLib.Error e) {
+                    Logging.scope (LogDomain.INPUT).info ("media keys without a session bus: %s", e.message);
+                }
             }
             if (!CommandLine.test_mode && Canberra.Context.create (out sounds) == Canberra.SUCCESS) {
                 sounds.change_props (Canberra.PROP_APPLICATION_NAME, "Polo",
@@ -70,6 +72,15 @@ namespace Polo.Shell {
             } else {
                 sounds = null;
             }
+        }
+
+        private static bool have_session_bus () {
+            if (GLib.Environment.get_variable ("DBUS_SESSION_BUS_ADDRESS") != null) {
+                return true;
+            }
+            unowned string? runtime = GLib.Environment.get_variable ("XDG_RUNTIME_DIR");
+            return runtime != null && GLib.FileUtils.test (GLib.Path.build_filename (runtime, "bus"),
+                                                           GLib.FileTest.EXISTS);
         }
 
         public void shutdown () {
