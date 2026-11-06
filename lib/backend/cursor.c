@@ -171,6 +171,37 @@ polo_backend_cursor_add_pointer(PoloBackendServer *server,
 	update_pointer(cp);
 }
 
+gboolean
+polo_backend_cursor_get_image(PoloBackendServer *server,
+			      struct weston_pointer *pointer,
+			      struct weston_surface **surface, int *hotspot_x,
+			      int *hotspot_y)
+{
+	struct cursor_pointer *cp;
+
+	if (server->cursor) {
+		wl_list_for_each(cp, &server->cursor->pointers, link)
+		{
+			if (cp->pointer != pointer || cp->visible < 0)
+				continue;
+			*surface = cp->views[cp->visible]->surface;
+			*hotspot_x = cp->cursor->images[cp->visible].hotspot_x;
+			*hotspot_y = cp->cursor->images[cp->visible].hotspot_y;
+			return TRUE;
+		}
+	}
+	if (pointer->sprite && weston_view_is_mapped(pointer->sprite)) {
+		int32_t scale =
+			pointer->sprite->surface->buffer_viewport.buffer.scale;
+
+		*surface = pointer->sprite->surface;
+		*hotspot_x = (int)(pointer->hotspot.c.x * scale);
+		*hotspot_y = (int)(pointer->hotspot.c.y * scale);
+		return TRUE;
+	}
+	return FALSE;
+}
+
 static gboolean
 cursor_dispatch(gint fd, GIOCondition condition, gpointer data)
 {

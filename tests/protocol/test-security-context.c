@@ -37,7 +37,7 @@ struct seen {
 	struct wl_shm *shm;
 	struct xdg_wm_base *wm_base;
 	bool layer_shell, foreign, test, capture, shell_ui, security, virtual_keyboard,
-		input_method;
+		input_method, image_capture;
 };
 
 static void
@@ -66,6 +66,10 @@ global(void *data, struct wl_registry *registry, uint32_t name,
 		s->test = true;
 	} else if (strcmp(interface, "weston_capture_v1") == 0) {
 		s->capture = true;
+	} else if (strcmp(interface, "ext_image_copy_capture_manager_v1") == 0 ||
+		   strcmp(interface,
+			  "ext_output_image_capture_source_manager_v1") == 0) {
+		s->image_capture = true;
 	} else if (strcmp(interface, "polo_shell_ui_v1") == 0) {
 		s->shell_ui = true;
 	} else if (strcmp(interface, "zwp_virtual_keyboard_manager_v1") == 0) {
@@ -199,7 +203,8 @@ main(int argc, char **argv)
 
 	struct wl_display *plain = fresh(h, &normal);
 
-	CHECK(normal.layer_shell && normal.foreign && normal.security,
+	CHECK(normal.layer_shell && normal.foreign && normal.security &&
+		      normal.image_capture,
 	      "an ordinary client lost its globals");
 	CHECK(strcmp(sandbox_clients(h), "") == 0, "an ordinary client was marked");
 	wl_display_disconnect(plain);
@@ -230,7 +235,8 @@ main(int argc, char **argv)
 	wait_sandbox(h, "org.flatpak org.example.App 1234;");
 
 	CHECK(!boxed.layer_shell && !boxed.foreign && !boxed.test && !boxed.capture &&
-		      !boxed.shell_ui && !boxed.virtual_keyboard && !boxed.input_method,
+		      !boxed.shell_ui && !boxed.virtual_keyboard && !boxed.input_method &&
+		      !boxed.image_capture,
 	      "a sandboxed client sees a privileged global");
 	CHECK(!boxed.security, "a sandboxed client sees the security context manager");
 	CHECK(boxed.compositor && boxed.wm_base && boxed.shm,

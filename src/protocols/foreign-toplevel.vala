@@ -191,6 +191,10 @@ namespace Polo.Protocols {
         private void add (Window window) {
             var entry = new Entry (window, new Backend.ForeignToplevel (server), this);
             entries.insert (window, entry);
+            var adapter = window.adapter as Shell.XdgWindow;
+            if (adapter != null) {
+                entry.handle.set_window (adapter.toplevel);
+            }
             window.notify["title"].connect (entry.changed);
             window.notify["workspace"].connect (entry.changed);
             window.notify["app-id"].connect (entry.changed);

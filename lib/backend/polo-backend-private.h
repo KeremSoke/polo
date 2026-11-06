@@ -106,6 +106,9 @@ struct _PoloBackendServer {
 	struct dc_global *wlr_data_control;
 	struct wl_global *gamma_control_global;
 	struct wl_list gamma_controls;
+	struct wl_global *image_copy_capture_global;
+	struct wl_global *output_capture_source_global;
+	struct wl_global *toplevel_capture_source_global;
 	struct wl_global *text_input_global;
 	struct wl_global *input_method_global;
 	struct wl_global *virtual_keyboard_global;
@@ -449,6 +452,12 @@ void
 polo_backend_gamma_control_fini(PoloBackendServer *server);
 
 gboolean
+polo_backend_image_capture_init(PoloBackendServer *server, GError **error);
+
+void
+polo_backend_image_capture_fini(PoloBackendServer *server);
+
+gboolean
 polo_backend_data_control_init(PoloBackendServer *server, GError **error);
 
 void
@@ -683,6 +692,13 @@ polo_backend_cursor_fini(PoloBackendServer *server);
 void
 polo_backend_cursor_add_pointer(PoloBackendServer *server,
 				struct weston_pointer *pointer);
+
+gboolean
+polo_backend_cursor_get_image(PoloBackendServer *server,
+			      struct weston_pointer *pointer,
+			      struct weston_surface **surface, int *hotspot_x,
+			      int *hotspot_y);
+
 struct weston_backend *
 polo_backend_drm_load(PoloBackendServer *server,
 		      const PoloBackendConfig *config);

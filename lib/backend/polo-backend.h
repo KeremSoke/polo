@@ -1119,6 +1119,14 @@ polo_backend_foreign_toplevel_set_parent(PoloBackendForeignToplevel *toplevel,
 					 PoloBackendForeignToplevel *parent);
 
 void
+polo_backend_foreign_toplevel_set_window(PoloBackendForeignToplevel *toplevel,
+					 PoloBackendToplevel *window);
+
+const char *
+polo_backend_foreign_toplevel_get_identifier(
+	PoloBackendForeignToplevel *toplevel);
+
+void
 polo_backend_foreign_toplevel_done(PoloBackendForeignToplevel *toplevel);
 
 void

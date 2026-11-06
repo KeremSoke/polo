@@ -41,6 +41,8 @@ client_protocols = {
   'xdg-activation-v1': wayland_protocols_dir / 'staging' / 'xdg-activation' / 'xdg-activation-v1.xml',
   'polo-shell-ui-v1': meson.project_source_root() / 'protocol' / 'polo-shell-ui-v1.xml',
   'weston-output-capture': meson.project_source_root() / 'protocol' / 'weston-output-capture.xml',
+  'ext-image-capture-source-v1': wayland_protocols_dir / 'staging' / 'ext-image-capture-source' / 'ext-image-capture-source-v1.xml',
+  'ext-image-copy-capture-v1': wayland_protocols_dir / 'staging' / 'ext-image-copy-capture' / 'ext-image-copy-capture-v1.xml',
 }
 client_protocol_sources = []
 foreach name, xml : client_protocols
@@ -77,7 +79,7 @@ protocol_test_env.set('POLO_SHELL_UI', '')
 foreach name : ['ssd', 'frame-input', 'shade', 'frame-scale', 'output-replug', 'decor-live', 'pixel-buffer-gl', 'cursor-no-theme', 'windows', 'interactive', 'outputs', 'managed-outputs', 'debug-kill', 'layer-shell', 'xdg-output', 'foreign-toplevel',
               'ext-foreign-toplevel-list', 'popups',
               'xfce-private', 'ext-workspace', 'focus', 'activation', 'keybindings', 'monitor-keybindings', 'edge-resistance', 'global-keybindings',
-              'window-keybindings', 'keyboard-move-resize', 'mouse-actions', 'keyboard-config', 'tiling', 'decoration', 'primary-selection', 'text-input', 'idle-inhibit', 'idle-notify', 'session-lock', 'output-management', 'shortcuts-inhibit', 'cursor-shape', 'pointer-gestures', 'xdg-foreign', 'security-context', 'system-bell', 'locate-pointer', 'accessx', 'data-control', 'gamma-control', 'explicit-sync']
+              'window-keybindings', 'keyboard-move-resize', 'mouse-actions', 'keyboard-config', 'tiling', 'decoration', 'primary-selection', 'text-input', 'idle-inhibit', 'idle-notify', 'session-lock', 'output-management', 'shortcuts-inhibit', 'cursor-shape', 'pointer-gestures', 'xdg-foreign', 'security-context', 'system-bell', 'locate-pointer', 'accessx', 'data-control', 'gamma-control', 'image-copy-capture', 'explicit-sync']
   exe = executable('test-' + name, 'test-' + name + '.c',
     dependencies: name == 'cursor-shape' ? [harness_dep, dependency('xcursor')] : harness_dep)
   test(name, exe,

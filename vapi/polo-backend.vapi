@@ -963,6 +963,10 @@ namespace Polo {
 
             [CCode (cname = "polo_backend_foreign_toplevel_set_parent")]
             public void set_parent (ForeignToplevel? parent);
+            [CCode (cname = "polo_backend_foreign_toplevel_set_window")]
+            public void set_window (Toplevel? window);
+            [CCode (cname = "polo_backend_foreign_toplevel_get_identifier")]
+            public unowned string get_identifier ();
 
             /* Sends the queued changes. */
             [CCode (cname = "polo_backend_foreign_toplevel_done")]

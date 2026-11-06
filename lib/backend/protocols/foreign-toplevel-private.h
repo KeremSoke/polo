@@ -42,6 +42,7 @@ struct _PoloBackendForeignToplevel {
 	struct ext_toplevel *ext;
 	PoloBackendForeignToplevelExtraState extra_state;
 	GPtrArray *workspaces; /* PoloBackendWorkspace, owned */
+	PoloBackendToplevel *window;
 };
 
 void

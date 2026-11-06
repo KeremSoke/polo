@@ -633,6 +633,14 @@ polo_backend_foreign_toplevel_set_parent(PoloBackendForeignToplevel *self,
 }
 
 void
+polo_backend_foreign_toplevel_set_window(PoloBackendForeignToplevel *self,
+					 PoloBackendToplevel *window)
+{
+	g_return_if_fail(POLO_BACKEND_IS_FOREIGN_TOPLEVEL(self));
+	g_set_object(&self->window, window);
+}
+
+void
 polo_backend_foreign_toplevel_done(PoloBackendForeignToplevel *self)
 {
 	struct ft_handle_resource *hr;
@@ -720,6 +728,7 @@ polo_backend_foreign_toplevel_finalize(GObject *object)
 
 	g_free(self->title);
 	g_free(self->app_id);
+	g_clear_object(&self->window);
 	g_ptr_array_unref(self->workspaces);
 	g_ptr_array_unref(self->outputs);
 	G_OBJECT_CLASS(polo_backend_foreign_toplevel_parent_class)
