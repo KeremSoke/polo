@@ -95,8 +95,12 @@ set_entry(struct harness *h, const char *entry, const char *action,
 	harness_set_setting(h, schema, "action", value);
 	snprintf(value, sizeof value, "'%s'", binding);
 	harness_set_setting(h, schema, "binding", value);
-	harness_roundtrip(h);
-	harness_roundtrip(h);
+	/* The entries are reloaded from Polo's main loop, a turn after the
+	 * requests are answered. */
+	for (int i = 0; i < 10; i++) {
+		harness_roundtrip(h);
+		usleep(20000);
+	}
 }
 
 static bool

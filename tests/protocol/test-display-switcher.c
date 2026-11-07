@@ -177,24 +177,33 @@ super_p(struct harness *h)
 	tap(h, KEY_P);
 }
 
-/* Both screens' pixels, which must be the same; the caller frees them. */
+/* Both screens' pixels, which must be the same; the caller frees them. The
+ * screens repaint on their own timers, so give them time to catch up. */
 static uint32_t *
 same_picture(struct harness *h)
 {
-	int w0, h0, w1, h1;
-	uint32_t *a, *b;
 	size_t differ = 0;
 
-	a = harness_capture_output(h, 0, &w0, &h0);
-	b = harness_capture_output(h, 1, &w1, &h1);
-	CHECK(a && b, "cannot capture both screens");
-	CHECK(w0 == w1 && h0 == h1, "the screens are %dx%d and %dx%d", w0, h0,
-	      w1, h1);
-	for (int i = 0; i < w0 * h0; i++)
-		differ += a[i] != b[i];
-	CHECK(differ == 0, "the mirrored screens differ in %zu pixels", differ);
-	free(b);
-	return a;
+	for (int attempt = 0; attempt < 100; attempt++) {
+		int w0, h0, w1, h1;
+		uint32_t *a = harness_capture_output(h, 0, &w0, &h0);
+		uint32_t *b = harness_capture_output(h, 1, &w1, &h1);
+
+		CHECK(a && b, "cannot capture both screens");
+		CHECK(w0 == w1 && h0 == h1, "the screens are %dx%d and %dx%d",
+		      w0, h0, w1, h1);
+		differ = 0;
+		for (int i = 0; i < w0 * h0; i++)
+			differ += a[i] != b[i];
+		free(b);
+		if (differ == 0)
+			return a;
+		free(a);
+		harness_roundtrip(h);
+		pause_ms(20);
+	}
+	CHECK(false, "the mirrored screens differ in %zu pixels", differ);
+	return NULL;
 }
 
 /* Expo draws once for the one logical monitor, on both screens. */

@@ -355,7 +355,7 @@ test('window-animations-squeezimize', window_animations_test,
 )
 test('display-switcher', executable('test-display-switcher', 'test-display-switcher.c', dependencies: harness_dep),
   args: [polo_exe, fake_shell_ui],
-  env: protocol_test_env,
+  env: cube_env,
   suite: 'protocol',
   timeout: 60,
 )
