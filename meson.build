@@ -96,6 +96,26 @@ conf = configuration_data()
 conf.set_quoted('POLO_VERSION', meson.project_version())
 conf.set_quoted('POLO_LIBEXECDIR', get_option('prefix') / get_option('libexecdir'))
 conf.set_quoted('POLO_PKGDATADIR', get_option('prefix') / get_option('datadir') / 'polo')
+
+portal_wlr = get_option('xdg-desktop-portal-wlr')
+if portal_wlr == ''
+  found = find_program('xdg-desktop-portal-wlr', required: false,
+    dirs: ['/usr/libexec', '/usr/lib/xdg-desktop-portal-wlr', '/usr/lib', '/usr/local/libexec',
+           get_option('prefix') / get_option('libexecdir')])
+  portal_wlr = found.found() ? found.full_path() : ''
+endif
+conf.set_quoted('POLO_PORTAL_WLR', portal_wlr)
+runtime = {'xdg-desktop-portal-wlr (screen sharing)': portal_wlr != ''}
+foreach name, purpose : {'grim': 'screenshot keys', 'Xwayland': 'X11 applications',
+                         'wl-copy': 'screenshots to the clipboard', 'slurp': 'area screenshots'}
+  runtime += {'@0@ (@1@)'.format(name, purpose): find_program(name, required: false).found()}
+endforeach
+if portal_wlr == ''
+  warning('xdg-desktop-portal-wlr not found: screen sharing will not work until it is installed')
+endif
+if not find_program('grim', required: false).found()
+  warning('grim not found: the screenshot keys will not work until it is installed')
+endif
 config_h = configure_file(output: 'polo-config.h', configuration: conf)
 config_inc = include_directories('.')
 
@@ -127,6 +147,7 @@ if get_option('shell-ui')
   devenv.set('POLO_SHELL_UI', meson.project_build_root() / 'shell-ui' / 'polo-shell-ui')
 endif
 meson.add_devenv(devenv)
+meson.add_dist_script('tools/dist-patch-subprojects.py')
 
 if get_option('tests')
   subdir('tests')
@@ -140,3 +161,4 @@ summary({
   'test-protocol': get_option('test-protocol'),
   'strict': strict,
 }, section: 'Polo')
+summary(runtime, section: 'Runtime', bool_yn: true)

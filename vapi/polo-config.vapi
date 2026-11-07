@@ -15,4 +15,7 @@ namespace Polo.Config {
 
     [CCode (cname = "POLO_PKGDATADIR")]
     public const string PKGDATADIR;
+
+    [CCode (cname = "POLO_PORTAL_WLR")]
+    public const string PORTAL_WLR;
 }

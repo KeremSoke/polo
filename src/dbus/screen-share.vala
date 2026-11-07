@@ -61,6 +61,9 @@ namespace Polo.Dbus {
         }
 
         public static string? portal_path () {
+            if (Config.PORTAL_WLR != "" && GLib.FileUtils.test (Config.PORTAL_WLR, GLib.FileTest.IS_EXECUTABLE)) {
+                return Config.PORTAL_WLR;
+            }
             foreach (unowned string path in PORTAL_PATHS) {
                 if (GLib.FileUtils.test (path, GLib.FileTest.IS_EXECUTABLE)) {
                     return path;
