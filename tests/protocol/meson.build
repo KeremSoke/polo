@@ -361,7 +361,7 @@ test('display-switcher', executable('test-display-switcher', 'test-display-switc
 )
 test('hotplug', executable('test-hotplug', 'test-hotplug.c', dependencies: harness_dep),
   args: [polo_exe, fake_shell_ui],
-  env: protocol_test_env,
+  env: cube_env,
   suite: 'protocol',
   timeout: 60,
 )

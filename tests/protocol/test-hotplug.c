@@ -217,11 +217,33 @@ saved_layout_returns(int argc, char **argv)
 	h = harness_start(argc, argv);
 	harness_add_output(h, "eDP-1", "BOE", 0x0a1b, 0, "Laptop", true, 344,
 			   194, laptop, 2);
+	harness_connect_output(h, "headless0", false);
 	harness_add_output(h, "HDMI-A-1", "DEL", 0x4321, 12345, "U2715H", false,
 			   597, 336, dell, 3);
-	harness_connect_output(h, "headless0", false);
 	expect(h, "eDP-1", 0, 0, 1920, 1080, 60000);
 	expect_off(h, "HDMI-A-1");
+
+	harness_set_setting(h, "org.mate.polo.effects", "open-animation",
+			    "'zoom'");
+	struct harness_window *window =
+		harness_window_create(h, 200, 150, "animated");
+
+	for (int i = 0; i < 30; i++) {
+		harness_roundtrip(h);
+		nanosleep(&(struct timespec){ 0, 10000000L }, NULL);
+	}
+	harness_window_destroy(window);
+
+	/* Turning it on afterwards animates there too. */
+	tap(h, KEY_SWITCHVIDEOMODE);
+	tap(h, KEY_ENTER);
+	expect(h, "HDMI-A-1", 0, 0, 1920, 1080, 60000);
+	window = harness_window_create(h, 200, 150, "animated again");
+	for (int i = 0; i < 30; i++) {
+		harness_roundtrip(h);
+		nanosleep(&(struct timespec){ 0, 10000000L }, NULL);
+	}
+	harness_window_destroy(window);
 	CHECK(harness_stop(h) == 0, "polo did not exit cleanly");
 	remove_config_home(dir);
 }

@@ -83,6 +83,8 @@ polo_backend_output_set_animating(PoloBackendOutput *self, gboolean animating)
 {
 	if (!self->output || self->animating == animating)
 		return;
+	if (animating && !self->output->enabled)
+		return;
 	self->animating = animating;
 	if (animating) {
 		wl_signal_add(&self->output->post_latch_signal,
@@ -405,7 +407,15 @@ polo_backend_output_apply(PoloBackendOutput *self, int width, int height,
 {
 	struct weston_output *output = self->output;
 	struct weston_mode *mode, *chosen = NULL;
-	if (!output || scale < 1 || scale > 8 || transform < 0 || transform > 7)
+	if (!output)
+		goto invalid;
+	if (!enabled) {
+		clear_background(self);
+		polo_backend_output_set_animating(self, FALSE);
+		weston_output_disable(output);
+		return TRUE;
+	}
+	if (scale < 1 || scale > 8 || transform < 0 || transform > 7)
 		goto invalid;
 	wl_list_for_each(mode, &output->mode_list, link)
 	{
@@ -418,13 +428,8 @@ polo_backend_output_apply(PoloBackendOutput *self, int width, int height,
 				chosen = mode;
 		}
 	}
-	if (enabled && !chosen)
+	if (!chosen)
 		goto invalid;
-	if (!enabled) {
-		clear_background(self);
-		weston_output_disable(output);
-		return TRUE;
-	}
 	if (output->enabled) {
 		if (output->current_mode != chosen &&
 		    weston_output_mode_set_native(output, chosen, scale) < 0)
@@ -462,6 +467,7 @@ polo_backend_output_apply(PoloBackendOutput *self, int width, int height,
 	weston_output_set_position(
 		output,
 		(struct weston_coord_global){ .c = weston_coord(x, y) });
+	polo_backend_output_set_animating(self, self->server->animating);
 	return TRUE;
 invalid:
 	g_set_error(error, POLO_BACKEND_ERROR, POLO_BACKEND_ERROR_FAILED,
