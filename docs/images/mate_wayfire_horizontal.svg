@@ -1,0 +1,357 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   width="1920"
+   height="740"
+   viewBox="0 0 1920 740"
+   role="img"
+   aria-label="MATE-to-Wayfire integration horizontal architecture"
+   version="1.1"
+   id="svg33"
+   sodipodi:docname="mate_wayfire_horizontal.svg"
+   inkscape:version="1.4.4 (dcaf3e7d9e, 2026-05-05)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview33"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:zoom="0.71299934"
+     inkscape:cx="793.12837"
+     inkscape:cy="394.81103"
+     inkscape:window-width="1920"
+     inkscape:window-height="996"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg33" />
+  <title
+     id="title1">MATE-to-Wayfire integration horizontal architecture</title>
+  <style
+     id="style1">text{font-family:Arial,DejaVu Sans,sans-serif;fill:#26243a;font-size:15px}.node{fill:#f0edff;stroke:#7756bf;stroke-width:1.7}.edge{stroke:#555064;stroke-width:1.8;fill:none;stroke-linecap:round;stroke-linejoin:round}.dotted{stroke-dasharray:3 6}.node-label{text-anchor:middle;font-size:13px}.edge-label{text-anchor:middle;font-size:13px}</style>
+  <defs
+     id="defs1">
+    <marker
+       id="arrow"
+       viewBox="0 0 10 10"
+       refX="9"
+       refY="5"
+       markerWidth="6"
+       markerHeight="6"
+       orient="auto-start-reverse">
+      <path
+         d="M0 0L10 5L0 10Z"
+         fill="#555064"
+         id="path1" />
+    </marker>
+  </defs>
+  <rect
+     x="536"
+     y="100"
+     width="760"
+     height="538"
+     rx="12"
+     fill="#fffdf0"
+     stroke="#b5a44c"
+     stroke-width="1.5"
+     id="rect1"
+     style="fill:#fff3f0;fill-opacity:1" />
+  <rect
+     x="807.1"
+     y="87"
+     width="217.8"
+     height="26"
+     rx="6"
+     fill="#fffdf0"
+     id="rect2"
+     style="fill:#fff3f0;fill-opacity:1" />
+  <text
+     x="916.0"
+     y="105"
+     text-anchor="middle"
+     font-weight="bold"
+     font-size="15"
+     id="text2">MATE-to-Wayfire integration</text>
+  <path
+     d="M149,194 L149,384"
+     class="edge"
+     marker-end="url(#arrow)"
+     marker-start="url(#arrow)"
+     id="path2" />
+  <path
+     d="M 140.83719,91.45018 140.78899,62.6984 1476.9853,62.231399 1476.6511,324.79056"
+     class="edge"
+     marker-end="url(#arrow)"
+     id="path3"
+     sodipodi:nodetypes="cccc" />
+  <path
+     d="M 612,205 H 490 l -88.35913,-0.12468 -0.37841,-68.72377 -150.77153,1.53433"
+     class="edge dotted"
+     marker-end="url(#arrow)"
+     id="path4"
+     sodipodi:nodetypes="ccccc" />
+  <path
+     d="M856,210 L922,210"
+     class="edge"
+     marker-end="url(#arrow)"
+     id="path5" />
+  <path
+     d="M734,260 L734,443"
+     class="edge"
+     marker-end="url(#arrow)"
+     id="path6" />
+  <path
+     d="M250,433 L502,433 L502,304 L1044,304 L1044,260"
+     class="edge dotted"
+     marker-end="url(#arrow)"
+     id="path7" />
+  <path
+     d="M1166,210 L1245,210 L1245,347 L1378,347"
+     class="edge"
+     marker-end="url(#arrow)"
+     id="path8" />
+  <path
+     d="M734,543 L734,600 L1340,600 L1340,403 L1378,403"
+     class="edge"
+     marker-end="url(#arrow)"
+     id="path9" />
+  <path
+     d="M1166,494 L1258,494 L1258,416 L1378,416"
+     class="edge"
+     marker-end="url(#arrow)"
+     id="path10" />
+  <path
+     d="M1573,375 L1628,375"
+     class="edge"
+     marker-end="url(#arrow)"
+     id="path11" />
+  <path
+     d="M1750,375 L1790,375"
+     class="edge"
+     marker-end="url(#arrow)"
+     id="path12" />
+  <rect
+     x="48"
+     y="90"
+     width="202"
+     height="104"
+     rx="8"
+     class="node"
+     id="rect12" />
+  <text
+     x="149.0"
+     y="124.0"
+     class="node-label"
+     id="text12">MATE desktop &amp; apps</text>
+  <text
+     x="149.0"
+     y="146.0"
+     class="node-label"
+     id="text13">(Panel, Caja,</text>
+  <text
+     x="149.0"
+     y="168.0"
+     class="node-label"
+     id="text14">Control Center, ...)</text>
+  <rect
+     x="48"
+     y="384"
+     width="202"
+     height="95"
+     rx="8"
+     class="node"
+     id="rect14" />
+  <text
+     x="149.0"
+     y="424.5"
+     class="node-label"
+     id="text15">GSettings / dconf</text>
+  <text
+     x="149.0"
+     y="446.5"
+     class="node-label"
+     id="text16">MATE preferences</text>
+  <rect
+     x="612"
+     y="160"
+     width="244"
+     height="100"
+     rx="8"
+     class="node"
+     id="rect16" />
+  <text
+     x="734.0"
+     y="203.0"
+     class="node-label"
+     id="text17">Session launcher scripts</text>
+  <text
+     x="734.0"
+     y="225.0"
+     class="node-label"
+     id="text18">(startup, restart loops)</text>
+  <rect
+     x="922"
+     y="160"
+     width="244"
+     height="100"
+     rx="8"
+     class="node"
+     id="rect18" />
+  <text
+     x="1044.0"
+     y="203.0"
+     class="node-label"
+     id="text19">mate-settings-daemon</text>
+  <text
+     x="1044.0"
+     y="225.0"
+     class="node-label"
+     id="text20">(Wayland-specific plugins)</text>
+  <rect
+     x="612"
+     y="443"
+     width="244"
+     height="100"
+     rx="8"
+     class="node"
+     id="rect20" />
+  <text
+     x="734.0"
+     y="486.0"
+     class="node-label"
+     id="text21">wayfire.ini</text>
+  <text
+     x="734.0"
+     y="508.0"
+     class="node-label"
+     id="text22">(MATE-specific configuration)</text>
+  <rect
+     x="922"
+     y="443"
+     width="244"
+     height="100"
+     rx="8"
+     class="node"
+     id="rect22" />
+  <text
+     x="1044.0"
+     y="486.0"
+     class="node-label"
+     id="text23">XSettings / XWayland</text>
+  <text
+     x="1044.0"
+     y="508.0"
+     class="node-label"
+     id="text24">(legacy app support)</text>
+  <rect
+     x="1378"
+     y="326"
+     width="195"
+     height="98"
+     rx="8"
+     class="node"
+     id="rect24" />
+  <text
+     x="1475.5"
+     y="368.0"
+     class="node-label"
+     id="text25">Wayfire</text>
+  <text
+     x="1475.5"
+     y="390.0"
+     class="node-label"
+     id="text26">(compositor, plugins)</text>
+  <rect
+     x="1628"
+     y="340"
+     width="122"
+     height="70"
+     rx="8"
+     class="node"
+     id="rect26" />
+  <text
+     x="1689.0"
+     y="379.0"
+     class="node-label"
+     id="text27">wlroots</text>
+  <rect
+     x="1790"
+     y="340"
+     width="122"
+     height="70"
+     rx="8"
+     class="node"
+     id="rect27" />
+  <text
+     x="1851.0"
+     y="368.0"
+     class="node-label"
+     id="text28">DRM / KMS,</text>
+  <text
+     x="1851.0"
+     y="390.0"
+     class="node-label"
+     id="text29">GPU, input</text>
+  <rect
+     x="89.24958"
+     y="267.12396"
+     width="131.60001"
+     height="25"
+     rx="4"
+     fill="#ffffff"
+     fill-opacity="0.96"
+     id="rect29" />
+  <text
+     x="155.04959"
+     y="285.12396"
+     class="edge-label"
+     id="text30">MATE preferences</text>
+  <rect
+     x="854.38531"
+     y="47.898968"
+     width="124.5"
+     height="25"
+     rx="4"
+     fill="#ffffff"
+     fill-opacity="0.96"
+     id="rect30" />
+  <text
+     x="916.58533"
+     y="65.898964"
+     class="edge-label"
+     id="text31">Wayland windows</text>
+  <rect
+     x="338.68185"
+     y="155.55714"
+     width="138.7"
+     height="25"
+     rx="4"
+     fill="#ffffff"
+     fill-opacity="0.96"
+     id="rect31" />
+  <text
+     x="408.08185"
+     y="173.55714"
+     class="edge-label"
+     id="text32">starts / restarts</text>
+  <rect
+     x="1146.8254"
+     y="277.08566"
+     width="195.5"
+     height="25"
+     rx="4"
+     fill="#ffffff"
+     fill-opacity="0.96"
+     id="rect32" />
+  <text
+     x="1244.6255"
+     y="295.08566"
+     class="edge-label"
+     id="text33">Wayland display protocols</text>
+</svg>
