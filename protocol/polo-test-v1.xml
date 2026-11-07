@@ -14,7 +14,7 @@
     tests check policy decisions rather than libweston internals.
   </description>
 
-  <interface name="polo_test_v1" version="10">
+  <interface name="polo_test_v1" version="11">
     <request name="destroy" type="destructor"/>
 
     <request name="get_window_info">
@@ -259,5 +259,49 @@
       <arg name="x" type="int"/>
       <arg name="y" type="int"/>
     </event>
+
+    <request name="add_output" since="11">
+      <description summary="plug in a fake monitor">
+        A connected headless head named name, with the EDID (may be empty)
+        for its identity, internal set for a laptop panel, and modes as
+        int32 triples of width, height and refresh in mHz, the first
+        preferred. Only with the headless backend.
+      </description>
+      <arg name="name" type="string"/>
+      <arg name="edid" type="array"/>
+      <arg name="internal" type="uint"/>
+      <arg name="modes" type="array"/>
+    </request>
+
+    <request name="connect_output" since="11">
+      <description summary="plug or unplug a monitor by name"/>
+      <arg name="name" type="string"/>
+      <arg name="connected" type="uint"/>
+    </request>
+
+    <request name="remove_output" since="11">
+      <description summary="take away a monitor added with add_output, connector and all"/>
+      <arg name="name" type="string"/>
+    </request>
+
+    <request name="get_outputs" since="11">
+      <description summary="ask for every output as Polo has set it">
+        Polo answers with one output_state per output, then outputs_done.
+      </description>
+    </request>
+
+    <event name="output_state" since="11">
+      <arg name="name" type="string"/>
+      <arg name="enabled" type="uint"/>
+      <arg name="x" type="int"/>
+      <arg name="y" type="int"/>
+      <arg name="width" type="int"/>
+      <arg name="height" type="int"/>
+      <arg name="scale" type="int"/>
+      <arg name="primary" type="uint"/>
+      <arg name="refresh" type="uint"/>
+    </event>
+
+    <event name="outputs_done" since="11"/>
   </interface>
 </protocol>

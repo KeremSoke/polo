@@ -12,10 +12,13 @@
 
 #ifdef POLO_HAVE_TEST_PROTOCOL
 
+#include <string.h>
+
 #include <wayland-server-core.h>
 #include <libweston/libweston.h>
 
 #include "backend.h"
+#include <libweston/backend-headless.h>
 #include "polo-test-v1-server-protocol.h"
 
 static struct weston_seat *
@@ -312,6 +315,100 @@ test_output_connected(struct wl_client *client, struct wl_resource *resource,
 			return;
 		}
 	}
+}
+
+static void
+test_add_output(struct wl_client *client, struct wl_resource *resource,
+		const char *name, struct wl_array *edid, uint32_t internal,
+		struct wl_array *modes)
+{
+	PoloBackendServer *server = wl_resource_get_user_data(resource);
+	const struct weston_headless_head_api *api =
+		weston_headless_head_get_api(server->compositor);
+	const int32_t *values = modes->data;
+	size_t n = modes->size / (3 * sizeof(int32_t));
+	g_autofree struct weston_headless_mode *list = NULL;
+
+	if (!api || n == 0 || modes->size % (3 * sizeof(int32_t)) != 0) {
+		wl_resource_post_error(resource, 0, "cannot add output %s",
+				       name);
+		return;
+	}
+	list = g_new0(struct weston_headless_mode, n);
+	for (size_t i = 0; i < n; i++)
+		list[i] = (struct weston_headless_mode){
+			values[i * 3], values[i * 3 + 1],
+			(uint32_t)values[i * 3 + 2]
+		};
+	g_hash_table_add(server->fake_heads, g_strdup(name));
+	if (api->create_head(server->backend, name, edid->data, edid->size,
+			     internal != 0, list, (int)n) < 0) {
+		wl_resource_post_error(resource, 0, "cannot add output %s",
+				       name);
+		return;
+	}
+	weston_compositor_flush_heads_changed(server->compositor);
+}
+
+static void
+test_connect_output(struct wl_client *client, struct wl_resource *resource,
+		    const char *name, uint32_t connected)
+{
+	PoloBackendServer *server = wl_resource_get_user_data(resource);
+	struct weston_head *head = NULL;
+
+	while ((head = weston_compositor_iterate_heads(server->compositor,
+						       head))) {
+		if (strcmp(weston_head_get_name(head), name) == 0) {
+			weston_head_set_connection_status(head, connected != 0);
+			weston_compositor_flush_heads_changed(
+				server->compositor);
+			return;
+		}
+	}
+}
+
+static void
+test_remove_output(struct wl_client *client, struct wl_resource *resource,
+		   const char *name)
+{
+	PoloBackendServer *server = wl_resource_get_user_data(resource);
+	const struct weston_headless_head_api *api =
+		weston_headless_head_get_api(server->compositor);
+
+	if (!api || !g_hash_table_contains(server->fake_heads, name) ||
+	    api->destroy_head(server->backend, name) < 0) {
+		wl_resource_post_error(resource, 0, "cannot remove output %s",
+				       name);
+		return;
+	}
+	g_hash_table_remove(server->fake_heads, name);
+	weston_compositor_flush_heads_changed(server->compositor);
+}
+
+static void
+test_get_outputs(struct wl_client *client, struct wl_resource *resource)
+{
+	PoloBackendServer *server = wl_resource_get_user_data(resource);
+
+	for (guint i = 0; i < server->outputs->len; i++) {
+		PoloBackendOutput *output = server->outputs->pdata[i];
+		struct weston_output *wo =
+			polo_backend_output_get_weston_output(output);
+		int x, y, width, height;
+
+		polo_backend_output_get_geometry(output, &x, &y, &width,
+						 &height);
+		polo_test_v1_send_output_state(
+			resource, polo_backend_output_get_name(output),
+			wo->enabled, x, y, width, height,
+			polo_backend_output_get_scale(output),
+			polo_backend_output_get_primary(output),
+			wo->enabled && wo->current_mode
+				? wo->current_mode->refresh
+				: 0);
+	}
+	polo_test_v1_send_outputs_done(resource);
 }
 
 static void
@@ -637,6 +734,10 @@ static const struct polo_test_v1_interface test_implementation = {
 	.get_lamp_target = test_get_lamp_target,
 	.bend_mirror = test_bend_mirror,
 	.move_pointer_absolute = test_move_pointer_absolute,
+	.add_output = test_add_output,
+	.connect_output = test_connect_output,
+	.remove_output = test_remove_output,
+	.get_outputs = test_get_outputs,
 	.pointer_axis = test_pointer_axis,
 	.get_pointer_position = test_get_pointer_position,
 };
@@ -696,7 +797,7 @@ polo_backend_test_protocol_init(PoloBackendServer *server, GError **error)
 		server->compositor, &server->screenshot_authority,
 		authorize_screenshot);
 	server->test_global =
-		wl_global_create(server->display, &polo_test_v1_interface, 10,
+		wl_global_create(server->display, &polo_test_v1_interface, 11,
 				 server, test_bind);
 	if (!server->test_global) {
 		g_set_error(error, POLO_BACKEND_ERROR,

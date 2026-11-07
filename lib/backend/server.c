@@ -131,8 +131,10 @@ configure_output(PoloBackendServer *server, struct weston_output *output)
 			return 0;
 
 		weston_output_set_scale(output, windowed_scale(server, output));
-		if (api->output_set_size(output, server->output_width,
-					 server->output_height) < 0)
+		if (g_hash_table_contains(server->fake_heads, output->name)
+			    ? api->output_set_size(output, 0, 0) < 0
+			    : api->output_set_size(output, server->output_width,
+						   server->output_height) < 0)
 			return -1;
 		weston_output_set_transform(output, WL_OUTPUT_TRANSFORM_NORMAL);
 	}
@@ -1039,6 +1041,7 @@ polo_backend_server_finalize(GObject *object)
 	g_hash_table_unref(server->clients);
 	g_hash_table_unref(server->views);
 	g_hash_table_unref(server->early_server_decorations);
+	g_hash_table_unref(server->fake_heads);
 	g_free(server->socket_name);
 	g_free(server->test_color_table);
 	g_free(server->cursor_theme);
@@ -1111,6 +1114,8 @@ polo_backend_server_init(PoloBackendServer *server)
 	server->views = g_hash_table_new(g_direct_hash, g_direct_equal);
 	server->early_server_decorations =
 		g_hash_table_new(g_direct_hash, g_direct_equal);
+	server->fake_heads =
+		g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
 	wl_list_init(&server->test_resources);
 	wl_list_init(&server->foreign_toplevels);
 	wl_list_init(&server->foreign_toplevel_managers);

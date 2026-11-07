@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
@@ -382,6 +383,36 @@ test_pointer_position(void *data, struct polo_test_v1 *test, int32_t x,
 	h->pointer_y = y;
 }
 
+static void
+test_output_state(void *data, struct polo_test_v1 *test, const char *name,
+		  uint32_t enabled, int32_t x, int32_t y, int32_t width,
+		  int32_t height, int32_t scale, uint32_t primary,
+		  uint32_t refresh)
+{
+	struct harness *h = data;
+	struct harness_output_state *o;
+
+	CHECK(h->n_output_states < 16, "too many outputs");
+	o = &h->output_states[h->n_output_states++];
+	snprintf(o->name, sizeof o->name, "%s", name);
+	o->enabled = enabled != 0;
+	o->x = x;
+	o->y = y;
+	o->width = width;
+	o->height = height;
+	o->scale = scale;
+	o->primary = primary != 0;
+	o->refresh = refresh;
+}
+
+static void
+test_outputs_done(void *data, struct polo_test_v1 *test)
+{
+	struct harness *h = data;
+
+	h->outputs_done = true;
+}
+
 static const struct polo_test_v1_listener test_listener = {
 	test_window_info,
 	test_window_unknown,
@@ -393,6 +424,8 @@ static const struct polo_test_v1_listener test_listener = {
 	test_shell_ui_request,
 	test_lamp_target,
 	test_pointer_position,
+	test_output_state,
+	test_outputs_done,
 };
 
 static void
@@ -425,7 +458,7 @@ registry_global(void *data, struct wl_registry *registry, uint32_t name,
 		wl_seat_add_listener(h->seat, &seat_listener, h);
 	} else if (strcmp(interface, polo_test_v1_interface.name) == 0) {
 		h->test = wl_registry_bind(registry, name,
-					   &polo_test_v1_interface, 10);
+					   &polo_test_v1_interface, 11);
 		polo_test_v1_add_listener(h->test, &test_listener, h);
 	} else if (strcmp(interface, zwlr_layer_shell_v1_interface.name) == 0) {
 		h->layer_shell = wl_registry_bind(
@@ -436,6 +469,7 @@ registry_global(void *data, struct wl_registry *registry, uint32_t name,
 					      &weston_capture_v1_interface, 1);
 	} else if (strcmp(interface, wl_output_interface.name) == 0) {
 		if (h->n_outputs < 8) {
+			h->output_globals[h->n_outputs] = name;
 			h->outputs[h->n_outputs++] = wl_registry_bind(
 				registry, name, &wl_output_interface,
 				version < 4 ? version : 4);
@@ -449,6 +483,18 @@ registry_global_remove(void *data, struct wl_registry *registry, uint32_t name)
 	struct harness *h = data;
 
 	h->globals_removed++;
+	for (int i = 0; i < h->n_outputs; i++) {
+		if (h->output_globals[i] != name)
+			continue;
+		wl_output_release(h->outputs[i]);
+		h->n_outputs--;
+		memmove(&h->outputs[i], &h->outputs[i + 1],
+			(size_t)(h->n_outputs - i) * sizeof h->outputs[0]);
+		memmove(&h->output_globals[i], &h->output_globals[i + 1],
+			(size_t)(h->n_outputs - i) *
+				sizeof h->output_globals[0]);
+		break;
+	}
 }
 
 static const struct wl_registry_listener registry_listener = {
@@ -477,6 +523,15 @@ harness_start(int argc, char **argv)
 	unsetenv("WAYLAND_DISPLAY");
 	unsetenv("WAYLAND_SOCKET");
 
+	/* Polo saves monitors.xml and reads other files from there: never
+	 * the user's own. A test that restarts Polo can name one directory. */
+	snprintf(h->config_dir, sizeof h->config_dir, "%s/config",
+		 h->runtime_dir);
+	if (getenv("POLO_TEST_CONFIG_HOME"))
+		snprintf(h->config_dir, sizeof h->config_dir, "%s",
+			 getenv("POLO_TEST_CONFIG_HOME"));
+	mkdir(h->config_dir, 0700);
+
 	h->pid = fork();
 	CHECK(h->pid >= 0, "fork: %s", strerror(errno));
 	if (h->pid == 0) {
@@ -484,6 +539,7 @@ harness_start(int argc, char **argv)
 
 		snprintf(socket_arg, sizeof socket_arg, "--socket=%s",
 			 h->socket);
+		setenv("XDG_CONFIG_HOME", h->config_dir, 1);
 		/* POLO_TEST_DEBUG=scope,scope turns on Polo's debug output. */
 		const char *debug = getenv("POLO_TEST_DEBUG");
 		char debug_arg[256];
@@ -1191,4 +1247,152 @@ harness_capture_output(struct harness *h, int index, int *width, int *height)
 		munmap(pixels, size);
 	close(fd);
 	return copy;
+}
+
+/* ---- Fake monitors ---------------------------------------------------- */
+
+static void
+edid_detailed_timing(uint8_t *d, int width, int height, int width_mm,
+		     int height_mm)
+{
+	int hblank = 160, vblank = 30;
+	long clock = (long)(width + hblank) * (height + vblank) * 60 / 10000;
+
+	d[0] = clock & 0xff;
+	d[1] = clock >> 8 & 0xff;
+	d[2] = width & 0xff;
+	d[3] = hblank & 0xff;
+	d[4] = (width >> 8 & 0xf) << 4 | (hblank >> 8 & 0xf);
+	d[5] = height & 0xff;
+	d[6] = vblank & 0xff;
+	d[7] = (height >> 8 & 0xf) << 4 | (vblank >> 8 & 0xf);
+	d[8] = 48;
+	d[9] = 32;
+	d[10] = 3 << 4 | 5;
+	d[11] = 0;
+	d[12] = width_mm & 0xff;
+	d[13] = height_mm & 0xff;
+	d[14] = (width_mm >> 8 & 0xf) << 4 | (height_mm >> 8 & 0xf);
+	d[17] = 0x18;
+}
+
+static void
+edid_text(uint8_t *d, uint8_t tag, const char *text)
+{
+	size_t n = strlen(text);
+
+	d[3] = tag;
+	for (int i = 0; i < 13; i++)
+		d[5 + i] = i < (int)n ? (uint8_t)text[i]
+			: i == (int)n ? 0x0a
+				      : 0x20;
+}
+
+void
+harness_make_edid(uint8_t edid[128], const char *vendor, uint16_t product,
+		  uint32_t serial, const char *model, int width_mm,
+		  int height_mm, int width, int height)
+{
+	uint16_t id = (uint16_t)((vendor[0] - '@') << 10 |
+				 (vendor[1] - '@') << 5 | (vendor[2] - '@'));
+	uint8_t sum = 0;
+
+	memset(edid, 0, 128);
+	memcpy(edid, "\x00\xff\xff\xff\xff\xff\xff\x00", 8);
+	edid[8] = id >> 8;
+	edid[9] = id & 0xff;
+	edid[10] = product & 0xff;
+	edid[11] = product >> 8;
+	edid[12] = serial & 0xff;
+	edid[13] = serial >> 8 & 0xff;
+	edid[14] = serial >> 16 & 0xff;
+	edid[15] = serial >> 24 & 0xff;
+	edid[16] = 1;
+	edid[17] = 30;
+	edid[18] = 1;
+	edid[19] = 4;
+	edid[20] = 0xa5;
+	edid[21] = (uint8_t)((width_mm + 5) / 10);
+	edid[22] = (uint8_t)((height_mm + 5) / 10);
+	edid[23] = 120;
+	edid[24] = 0x06;
+	for (int i = 38; i < 54; i++)
+		edid[i] = 0x01;
+	edid_detailed_timing(edid + 54, width, height, width_mm, height_mm);
+	edid_text(edid + 72, 0xfc, model);
+	edid_text(edid + 90, 0xfe, "polo test");
+	edid_text(edid + 108, 0x10, "");
+	edid[108 + 3] = 0x10;
+	for (int i = 0; i < 127; i++)
+		sum += edid[i];
+	edid[127] = (uint8_t)(256 - sum);
+}
+
+void
+harness_add_output(struct harness *h, const char *name, const char *vendor,
+		   uint16_t product, uint32_t serial, const char *model,
+		   bool internal, int width_mm, int height_mm,
+		   const int modes[][3], int n_modes)
+{
+	struct wl_array edid, list;
+	uint8_t *bytes;
+	int32_t *values;
+
+	CHECK(n_modes > 0, "a monitor needs a mode");
+	wl_array_init(&edid);
+	wl_array_init(&list);
+	if (vendor) {
+		bytes = wl_array_add(&edid, 128);
+		harness_make_edid(bytes, vendor, product, serial, model,
+				  width_mm, height_mm, modes[0][0],
+				  modes[0][1]);
+	}
+	values = wl_array_add(&list, (size_t)n_modes * 3 * sizeof(int32_t));
+	for (int i = 0; i < n_modes; i++) {
+		values[i * 3] = modes[i][0];
+		values[i * 3 + 1] = modes[i][1];
+		values[i * 3 + 2] = modes[i][2];
+	}
+	polo_test_v1_add_output(h->test, name, &edid, internal, &list);
+	wl_array_release(&edid);
+	wl_array_release(&list);
+	harness_roundtrip(h);
+	harness_roundtrip(h);
+}
+
+void
+harness_connect_output(struct harness *h, const char *name, bool connected)
+{
+	polo_test_v1_connect_output(h->test, name, connected);
+	harness_roundtrip(h);
+	harness_roundtrip(h);
+}
+
+void
+harness_remove_output(struct harness *h, const char *name)
+{
+	polo_test_v1_remove_output(h->test, name);
+	harness_roundtrip(h);
+	harness_roundtrip(h);
+}
+
+const struct harness_output_state *
+harness_output_state(struct harness *h, const char *name)
+{
+	h->n_output_states = 0;
+	h->outputs_done = false;
+	polo_test_v1_get_outputs(h->test);
+	while (!h->outputs_done)
+		harness_roundtrip(h);
+	for (int i = 0; i < h->n_output_states; i++)
+		if (strcmp(h->output_states[i].name, name) == 0)
+			return &h->output_states[i];
+	return NULL;
+}
+
+int
+harness_output_count(struct harness *h)
+{
+	harness_output_state(h, "");
+	return h->n_output_states;
 }

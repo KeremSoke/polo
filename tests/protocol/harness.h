@@ -68,6 +68,13 @@ struct harness_window {
 	struct zxdg_toplevel_decoration_v1 *decoration;
 };
 
+struct harness_output_state {
+	char name[32];
+	bool enabled, primary;
+	int x, y, width, height, scale;
+	uint32_t refresh;
+};
+
 struct harness {
 	pid_t pid;
 	char runtime_dir[256];
@@ -89,6 +96,7 @@ struct harness {
 
 	/* wl_outputs, in registry order. */
 	struct wl_output *outputs[8];
+	uint32_t output_globals[8];
 	int n_outputs;
 	/* wl_registry.global_remove events seen. */
 	int globals_removed;
@@ -124,6 +132,11 @@ struct harness {
 	int shell_ui_unbinds;
 	char shell_ui_requests[16][256];
 	int n_shell_ui_requests;
+	/* polo_test_v1 v11: outputs as Polo has set them. */
+	struct harness_output_state output_states[16];
+	int n_output_states;
+	bool outputs_done;
+	char config_dir[300];
 	/* Leave xdg_wm_base pings unanswered. */
 	bool ignore_pings;
 	/* Interfaces this (untrusted) client was offered. */
@@ -258,5 +271,35 @@ harness_key(struct harness *h, uint32_t key, bool pressed);
 /* CPU time (user + system) Polo has used, in clock ticks. */
 long
 harness_cpu_ticks(struct harness *h);
+
+/* A 128-byte EDID 1.4 with a vendor's three letters, product, serial, a
+ * monitor name and the physical size, its preferred timing width x height. */
+void
+harness_make_edid(uint8_t edid[128], const char *vendor, uint16_t product,
+		  uint32_t serial, const char *model, int width_mm,
+		  int height_mm, int width, int height);
+
+/* Plugs in a fake monitor (polo_test_v1 add_output); modes are width,
+ * height and refresh in mHz, the first preferred. A NULL vendor gives no
+ * EDID. */
+void
+harness_add_output(struct harness *h, const char *name, const char *vendor,
+		   uint16_t product, uint32_t serial, const char *model,
+		   bool internal, int width_mm, int height_mm,
+		   const int modes[][3], int n_modes);
+
+void
+harness_connect_output(struct harness *h, const char *name, bool connected);
+
+/* The monitor and its connector go, as a dock or an MST hub unplugged. */
+void
+harness_remove_output(struct harness *h, const char *name);
+
+/* Every output as Polo has set it; the one named, or NULL. */
+const struct harness_output_state *
+harness_output_state(struct harness *h, const char *name);
+
+int
+harness_output_count(struct harness *h);
 
 #endif /* POLO_TEST_HARNESS_H */

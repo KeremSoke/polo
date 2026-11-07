@@ -56,7 +56,8 @@ struct _PoloBackendServer {
 	GHashTable *views;      /* weston_view -> PoloBackendView */
 	/* Server-decoration decisions received before their toplevel exists. */
 	GHashTable *early_server_decorations;
-	int output_width; /* windowed/headless outputs */
+	GHashTable *fake_heads; /* names of polo_test_v1 add_output heads */
+	int output_width;       /* windowed/headless outputs */
 	int output_height;
 	int output_scale;
 	int output_scales[8];

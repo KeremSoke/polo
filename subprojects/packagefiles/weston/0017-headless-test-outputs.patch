@@ -1,0 +1,382 @@
+--- a/include/libweston/backend-headless.h
++++ b/include/libweston/backend-headless.h
+@@ -33,6 +33,7 @@
+ #include <stdint.h>
+ 
+ #include <libweston/libweston.h>
++#include <libweston/plugin-registry.h>
+ 
+ #define WESTON_HEADLESS_BACKEND_CONFIG_VERSION 3
+ 
+@@ -61,6 +62,50 @@
+ 	enum weston_output_fb_alpha_encoding output_fb_alpha_encoding;
+ };
+ 
++#define WESTON_HEADLESS_HEAD_API_NAME "weston_headless_head_api_v1"
++
++/** A mode of a headless head created with weston_headless_head_api. */
++struct weston_headless_mode {
++	int32_t width;
++	int32_t height;
++	/** In mHz. */
++	uint32_t refresh;
++};
++
++/** Headless heads that look like real monitors, for testing compositors'
++ * output handling: identity from an EDID, an internal panel flag, several
++ * modes, and mode switching on the output made from the head.
++ */
++struct weston_headless_head_api {
++	/** Creates a connected head. The EDID gives its make, model, serial
++	 * and physical size, and may be NULL. The first of the n_modes modes
++	 * is preferred; output_set_size () picks the mode of that size, or
++	 * the preferred one, and switch_mode () moves between them.
++	 *
++	 * Returns 0 on success, -1 on failure.
++	 */
++	int (*create_head)(struct weston_backend *backend, const char *name,
++			   const uint8_t *edid, size_t edid_size,
++			   bool internal,
++			   const struct weston_headless_mode *modes,
++			   int n_modes);
++
++	/** Destroys the head called name, as a connector that goes away.
++	 *
++	 * Returns 0 on success, -1 if there is no such headless head.
++	 */
++	int (*destroy_head)(struct weston_backend *backend, const char *name);
++};
++
++static inline const struct weston_headless_head_api *
++weston_headless_head_get_api(struct weston_compositor *compositor)
++{
++	return (const struct weston_headless_head_api *)
++		weston_plugin_api_get(compositor,
++				      WESTON_HEADLESS_HEAD_API_NAME,
++				      sizeof(struct weston_headless_head_api));
++}
++
+ #ifdef  __cplusplus
+ }
+ #endif
+--- a/libweston/backend-headless/headless.c
++++ b/libweston/backend-headless/headless.c
+@@ -53,6 +53,8 @@
+ #include "output-capture.h"
+ #include "presentation-time-server-protocol.h"
+ #include <libweston/windowed-output-api.h>
++#include <libdisplay-info/edid.h>
++#include <libdisplay-info/info.h>
+ 
+ #define DEFAULT_OUTPUT_REPAINT_REFRESH 60000 /* In mHz. */
+ 
+@@ -77,6 +79,10 @@
+ 
+ struct headless_head {
+ 	struct weston_head base;
++
++	/* From weston_headless_head_api; none for a plain head. */
++	struct weston_headless_mode *modes;
++	int n_modes;
+ };
+ 
+ struct headless_output {
+@@ -84,6 +90,9 @@
+ 	struct headless_backend *backend;
+ 
+ 	struct weston_mode mode;
++	/* The modes of a head from weston_headless_head_api. */
++	struct weston_mode *modes;
++	int n_modes;
+ 	struct wl_event_source *finish_frame_timer;
+ 	weston_renderbuffer_t renderbuffer;
+ 
+@@ -243,6 +252,11 @@
+ 
+ 	b = output->backend;
+ 
++	/* No frame will finish once the timer is gone, and a repaint left
++	 * scheduled stops the output from repainting when it is enabled
++	 * again. */
++	if (output->base.repaint_status != REPAINT_NOT_SCHEDULED)
++		weston_output_schedule_repaint_reset(&output->base);
+ 	wl_event_source_remove(output->finish_frame_timer);
+ 
+ 	switch (b->compositor->renderer->type) {
+@@ -275,6 +289,7 @@
+ 	weston_output_release(&output->base);
+ 
+ 	assert(!output->frame);
++	free(output->modes);
+ 	free(output);
+ }
+ 
+@@ -487,6 +502,74 @@
+ 	}
+ }
+ 
++static void
++headless_output_disable_renderer(struct headless_output *output)
++{
++	switch (output->backend->compositor->renderer->type) {
++	case WESTON_RENDERER_GL:
++		headless_output_disable_gl(output);
++		break;
++	case WESTON_RENDERER_VULKAN:
++		headless_output_disable_vulkan(output);
++		break;
++	case WESTON_RENDERER_PIXMAN:
++		headless_output_disable_pixman(output);
++		break;
++	default:
++		break;
++	}
++}
++
++static int
++headless_output_enable_renderer(struct headless_output *output)
++{
++	switch (output->backend->compositor->renderer->type) {
++	case WESTON_RENDERER_GL:
++		return headless_output_enable_gl(output);
++	case WESTON_RENDERER_VULKAN:
++		return headless_output_enable_vulkan(output);
++	case WESTON_RENDERER_PIXMAN:
++		return headless_output_enable_pixman(output);
++	default:
++		return 0;
++	}
++}
++
++/* Only for the modes of a head from weston_headless_head_api: the render
++ * target is made again at the new size. */
++static int
++headless_output_switch_mode(struct weston_output *base,
++			    struct weston_mode *mode)
++{
++	struct headless_output *output = to_headless_output(base);
++	struct weston_mode *previous;
++	bool known = false;
++
++	if (!output || !output->modes)
++		return -1;
++	for (int i = 0; i < output->n_modes; i++)
++		known |= mode == &output->modes[i];
++	if (!known)
++		return -1;
++	if (mode == base->current_mode)
++		return 0;
++
++	previous = base->current_mode;
++	if (base->enabled)
++		headless_output_disable_renderer(output);
++	previous->flags &= ~WL_OUTPUT_MODE_CURRENT;
++	mode->flags |= WL_OUTPUT_MODE_CURRENT;
++	base->current_mode = mode;
++	if (base->enabled && headless_output_enable_renderer(output) < 0) {
++		mode->flags &= ~WL_OUTPUT_MODE_CURRENT;
++		previous->flags |= WL_OUTPUT_MODE_CURRENT;
++		base->current_mode = previous;
++		headless_output_enable_renderer(output);
++		return -1;
++	}
++	return 0;
++}
++
+ static int
+ headless_output_set_size(struct weston_output *base,
+ 			 int width, int height)
+@@ -504,7 +587,27 @@
+ 	/* Make sure we have scale set. */
+ 	assert(output->base.current_scale);
+ 
++	output_width = width * output->base.current_scale;
++	output_height = height * output->base.current_scale;
++
+ 	wl_list_for_each(head, &output->base.head_list, output_link) {
++		struct headless_head *h = to_headless_head(head);
++
++		if (h && h->n_modes > 0 && !output->modes) {
++			output->modes = xcalloc(h->n_modes, sizeof *output->modes);
++			output->n_modes = h->n_modes;
++			for (int i = 0; i < h->n_modes; i++) {
++				struct weston_mode *m = &output->modes[i];
++
++				m->width = h->modes[i].width;
++				m->height = h->modes[i].height;
++				m->refresh = h->modes[i].refresh;
++				m->flags = i == 0 ? WL_OUTPUT_MODE_PREFERRED : 0;
++				wl_list_insert(output->base.mode_list.prev,
++					       &m->link);
++			}
++			continue;
++		}
+ 		weston_head_set_monitor_strings(head, "weston", "headless",
+ 						NULL);
+ 
+@@ -512,17 +615,28 @@
+ 		weston_head_set_physical_size(head, width, height);
+ 	}
+ 
+-	output_width = width * output->base.current_scale;
+-	output_height = height * output->base.current_scale;
++	if (output->modes) {
++		struct weston_mode *chosen = &output->modes[0];
+ 
+-	output->mode.flags =
+-		WL_OUTPUT_MODE_CURRENT | WL_OUTPUT_MODE_PREFERRED;
+-	output->mode.width = output_width;
+-	output->mode.height = output_height;
+-	output->mode.refresh = output->backend->refresh;
+-	wl_list_insert(&output->base.mode_list, &output->mode.link);
++		for (int i = 0; i < output->n_modes; i++) {
++			if (output->modes[i].width == output_width &&
++			    output->modes[i].height == output_height) {
++				chosen = &output->modes[i];
++				break;
++			}
++		}
++		chosen->flags |= WL_OUTPUT_MODE_CURRENT;
++		output->base.current_mode = chosen;
++	} else {
++		output->mode.flags =
++			WL_OUTPUT_MODE_CURRENT | WL_OUTPUT_MODE_PREFERRED;
++		output->mode.width = output_width;
++		output->mode.height = output_height;
++		output->mode.refresh = output->backend->refresh;
++		wl_list_insert(&output->base.mode_list, &output->mode.link);
+ 
+-	output->base.current_mode = &output->mode;
++		output->base.current_mode = &output->mode;
++	}
+ 
+ 	output->base.start_repaint_loop = headless_output_start_repaint_loop;
+ 	output->base.repaint = headless_output_repaint;
+@@ -531,7 +645,8 @@
+ 	output->base.set_dpms = headless_set_dpms;
+ 	output->base.gamma_size = 256;
+ 	output->base.set_gamma = headless_set_gamma;
+-	output->base.switch_mode = NULL;
++	output->base.switch_mode =
++		output->modes ? headless_output_switch_mode : NULL;
+ 
+ 	return 0;
+ }
+@@ -607,6 +722,11 @@
+ 
+ 	assert(head);
+ 
++	if (head->base.display_info) {
++		di_info_destroy(head->base.display_info);
++		head->base.display_info = NULL;
++	}
++	free(head->modes);
+ 	weston_head_release(&head->base);
+ 	free(head);
+ }
+@@ -664,6 +784,80 @@
+ 	headless_head_create,
+ };
+ 
++static int
++headless_head_create_full(struct weston_backend *base, const char *name,
++			  const uint8_t *edid, size_t edid_size, bool internal,
++			  const struct weston_headless_mode *modes, int n_modes)
++{
++	struct weston_head *found = NULL, *iter;
++	struct headless_head *head;
++	struct di_info *info = NULL;
++
++	if (n_modes < 1 || !modes)
++		return -1;
++	if (edid && edid_size > 0) {
++		info = di_info_parse_edid(edid, edid_size);
++		if (!info)
++			return -1;
++	}
++	if (headless_head_create(base, name) < 0) {
++		di_info_destroy(info);
++		return -1;
++	}
++	wl_list_for_each(iter, &to_headless_backend(base)->compositor->head_list,
++			 compositor_link) {
++		if (strcmp(iter->name, name) == 0 && to_headless_head(iter))
++			found = iter;
++	}
++	assert(found);
++	head = to_headless_head(found);
++	head->modes = xcalloc(n_modes, sizeof *head->modes);
++	memcpy(head->modes, modes, n_modes * sizeof *modes);
++	head->n_modes = n_modes;
++	if (info) {
++		const struct di_edid *parsed = di_info_get_edid(info);
++		const struct di_edid_screen_size *screen =
++			parsed ? di_edid_get_screen_size(parsed) : NULL;
++		char *make = di_info_get_make(info);
++		char *model = di_info_get_model(info);
++		char *serial = di_info_get_serial(info);
++
++		weston_head_set_monitor_strings(&head->base, make, model,
++						serial);
++		free(make);
++		free(model);
++		free(serial);
++		if (screen && screen->width_cm > 0)
++			weston_head_set_physical_size(&head->base,
++						      screen->width_cm * 10,
++						      screen->height_cm * 10);
++		head->base.display_info = info;
++	}
++	if (internal)
++		weston_head_set_internal(&head->base);
++	return 0;
++}
++
++static int
++headless_head_destroy_by_name(struct weston_backend *base, const char *name)
++{
++	struct weston_head *iter = NULL;
++
++	while ((iter = weston_compositor_iterate_heads(
++			to_headless_backend(base)->compositor, iter))) {
++		if (strcmp(iter->name, name) == 0 && to_headless_head(iter)) {
++			headless_head_destroy(iter);
++			return 0;
++		}
++	}
++	return -1;
++}
++
++static const struct weston_headless_head_api head_api = {
++	headless_head_create_full,
++	headless_head_destroy_by_name,
++};
++
+ static struct headless_backend *
+ headless_backend_create(struct weston_compositor *compositor,
+ 			struct weston_headless_backend_config *config)
+@@ -780,6 +974,14 @@
+ 		goto err_input;
+ 	}
+ 
++	ret = weston_plugin_api_register(compositor,
++					 WESTON_HEADLESS_HEAD_API_NAME,
++					 &head_api, sizeof(head_api));
++	if (ret < 0) {
++		weston_log("Failed to register head API.\n");
++		goto err_input;
++	}
++
+ 	return b;
+ 
+ err_input:
+--- a/libweston/backend-headless/meson.build
++++ b/libweston/backend-headless/meson.build
+@@ -18,6 +18,7 @@
+ 		dep_libdrm_headers,
+ 		dep_lib_cairo_shared,
+ 		dep_lib_renderer_borders,
++		dep_libdisplay_info,
+ 	],
+ 	name_prefix: '',
+ 	install: true,

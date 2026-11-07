@@ -26,7 +26,6 @@ struct xdg_output_state {
 	char name[64];
 	char wl_name[64]; /* wl_output.name, for comparison */
 	int dones;
-	bool gone; /* its wl_output global was removed */
 };
 
 static struct zxdg_output_manager_v1 *manager;
@@ -149,7 +148,7 @@ bind_outputs(struct harness *h)
 	for (i = 0; i < h->n_outputs; i++) {
 		struct xdg_output_state *o = &outputs[i];
 
-		if (o->xdg_output || o->gone)
+		if (o->xdg_output)
 			continue;
 		memset(o, 0, sizeof *o);
 		o->xdg_output = zxdg_output_manager_v1_get_xdg_output(
@@ -248,18 +247,19 @@ main(int argc, char **argv)
 	 * for it reports the same geometry and name. */
 	polo_test_v1_output_connected(h->test, 1, 0);
 	harness_roundtrip(h);
+	CHECK(h->n_outputs == 1, "disconnected output still listed (%d)",
+	      h->n_outputs);
 	zxdg_output_v1_destroy(outputs[1].xdg_output);
-	outputs[1].xdg_output = NULL;
-	outputs[1].gone = true;
+	memset(&outputs[1], 0, sizeof outputs[1]);
 	polo_test_v1_output_connected(h->test, 1, 1);
 	harness_roundtrip(h);
 	harness_roundtrip(h);
-	CHECK(h->n_outputs == 3, "reconnected output not announced (%d)",
+	CHECK(h->n_outputs == 2, "reconnected output not announced (%d)",
 	      h->n_outputs);
 	bind_outputs(h);
-	check_output(2, w, 0, w, hgt, "headless1");
+	check_output(1, w, 0, w, hgt, "headless1");
 
-	for (int i = 0; i < 3; i++)
+	for (int i = 0; i < 2; i++)
 		if (outputs[i].xdg_output)
 			zxdg_output_v1_destroy(outputs[i].xdg_output);
 	zxdg_output_manager_v1_destroy(manager);
