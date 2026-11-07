@@ -46,10 +46,14 @@ apply_child(struct child *child)
 		? child->imported->exported->surface
 		: NULL;
 
-	if (!parent ||
-	    !polo_backend_toplevel_foreign_parent(
-		    weston_surface_get_desktop_surface(child->surface),
-		    weston_surface_get_desktop_surface(parent)))
+	struct weston_desktop_surface *parent_surface =
+		parent ? weston_surface_get_desktop_surface(parent) : NULL;
+	struct weston_desktop_surface *child_surface =
+		weston_surface_get_desktop_surface(child->surface);
+
+	if (!parent_surface || !child_surface ||
+	    !polo_backend_toplevel_foreign_parent(child_surface,
+						  parent_surface))
 		return;
 	child->applied = TRUE;
 }
@@ -57,10 +61,12 @@ apply_child(struct child *child)
 static void
 child_free(struct child *child, gboolean unset)
 {
-	if (unset && child->applied && child->surface)
-		polo_backend_toplevel_foreign_parent(
-			weston_surface_get_desktop_surface(child->surface),
-			NULL);
+	struct weston_desktop_surface *surface = child->surface
+		? weston_surface_get_desktop_surface(child->surface)
+		: NULL;
+
+	if (unset && child->applied && surface)
+		polo_backend_toplevel_foreign_parent(surface, NULL);
 	wl_list_remove(&child->surface_destroy.link);
 	wl_list_remove(&child->link);
 	g_free(child);

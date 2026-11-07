@@ -316,7 +316,7 @@ gboolean
 polo_backend_toplevel_foreign_parent(struct weston_desktop_surface *child,
 				     struct weston_desktop_surface *parent)
 {
-	PoloBackendToplevel *self = from_desktop_surface(child);
+	PoloBackendToplevel *self = child ? from_desktop_surface(child) : NULL;
 	PoloBackendToplevel *other =
 		parent ? from_desktop_surface(parent) : NULL;
 

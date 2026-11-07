@@ -299,6 +299,35 @@ main(int argc, char **argv)
 	wl_surface_destroy(late.surface);
 	sync_all(h, &owner);
 
+	struct peer_window host, leaving;
+
+	peer_window_new(&owner, &host);
+	peer_window_map(&owner, &host, 300, 200);
+	handle[0] = '\0';
+	exported =
+		zxdg_exporter_v2_export_toplevel(owner.exporter, host.surface);
+	zxdg_exported_v2_add_listener(exported, &exported_listener, NULL);
+	wl_display_roundtrip(owner.display);
+	CHECK(handle[0], "no handle for the dialog's parent");
+	imported = zxdg_importer_v2_import_toplevel(owner.importer, handle);
+	zxdg_imported_v2_add_listener(imported, &imported_listener, NULL);
+	peer_window_new(&owner, &leaving);
+	peer_window_map(&owner, &leaving, 100, 100);
+	zxdg_imported_v2_set_parent_of(imported, leaving.surface);
+	sync_all(h, &owner);
+	xdg_toplevel_destroy(leaving.toplevel);
+	xdg_surface_destroy(leaving.xdg);
+	sync_all(h, &owner);
+	zxdg_imported_v2_destroy(imported);
+	sync_all(h, &owner);
+	harness_roundtrip(h);
+	wl_surface_destroy(leaving.surface);
+	zxdg_exported_v2_destroy(exported);
+	xdg_toplevel_destroy(host.toplevel);
+	xdg_surface_destroy(host.xdg);
+	wl_surface_destroy(host.surface);
+	sync_all(h, &owner);
+
 	/* The surface going ends the export too. */
 	struct peer_window short_lived;
 
