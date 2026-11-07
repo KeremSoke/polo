@@ -285,3 +285,51 @@ test('cube-interactive', executable('test-cube-interactive', 'test-cube-interact
   suite: 'protocol',
   timeout: 90,
 )
+cube_env = environment()
+cube_env.set('WESTON_MODULE_MAP', weston_module_map)
+cube_env.set('GSETTINGS_BACKEND', 'memory')
+cube_env.set('POLO_SHELL_UI', '')
+cube_env.set('GSETTINGS_SCHEMA_DIR', meson.project_build_root() / 'data')
+cube_env.set('LIBGL_ALWAYS_SOFTWARE', '1')
+cube_env.set('GALLIUM_DRIVER', 'llvmpipe')
+cube_test = executable('test-cube', 'test-cube.c',
+  dependencies: [harness_dep, polo_fx_dep, cc.find_library('m')])
+test('cube', cube_test,
+  args: [polo_exe],
+  env: cube_env,
+  suite: 'protocol',
+  timeout: 180,
+)
+test('cube-pixman', cube_test,
+  args: [polo_exe, 'pixman'],
+  env: cube_env,
+  suite: 'protocol',
+  timeout: 60,
+)
+test('cube-animations-off', cube_test,
+  args: [polo_exe, 'animations-off'],
+  env: cube_env,
+  suite: 'protocol',
+  timeout: 60,
+)
+test('cube-outputs', cube_test,
+  args: [polo_exe, 'outputs'],
+  env: cube_env,
+  suite: 'protocol',
+  timeout: 90,
+)
+test('cube-deform', cube_test,
+  args: [polo_exe, 'deform'],
+  env: cube_env,
+  suite: 'protocol',
+  timeout: 60,
+)
+if get_option('xwayland')
+  test('cube-layout', executable('test-cube-layout', 'test-cube-layout.c',
+      dependencies: [harness_dep, dependency('x11')]),
+    args: [polo_exe, fake_shell_ui],
+    env: cube_env,
+    suite: 'protocol',
+    timeout: 60,
+  )
+endif
