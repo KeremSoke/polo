@@ -213,3 +213,10 @@ expo_test = executable('test-expo', 'expo.vala',
   dependencies: [polo_policy_dep, cc.find_library('m')],
 )
 test('expo', expo_test, suite: 'unit-vala', protocol: 'tap', args: ['--tap'])
+
+cube_test = executable('test-cube', 'cube.vala',
+  vala_args: vala_args + ['--pkg', 'polo-marco', '--pkg', 'polo-fx'],
+  c_args: vala_c_args,
+  dependencies: [polo_policy_dep, polo_fx_dep, cc.find_library('m')],
+)
+test('cube', cube_test, suite: 'unit-vala', protocol: 'tap', args: ['--tap'])

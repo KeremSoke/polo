@@ -21,6 +21,7 @@ policy_sources = files(
   'policy/screen-share.vala',
   'policy/lamp-target.vala',
   'policy/expo.vala',
+  'policy/cube.vala',
 )
 policy_lib = static_library('polo-policy',
   policy_sources,
