@@ -17,7 +17,6 @@ namespace Polo.Shell {
         private const int DRAG_THRESHOLD = 6;
         private const int LABEL_GAP = 6;
         private const int LABEL_PADDING = 8;
-        private const int BLUR_FACTOR = 4;
         private const uint BTN_LEFT = 0x110;
         private const uint KEY_ESC = 1;
         private const uint KEY_ENTER = 28;
@@ -215,60 +214,9 @@ namespace Polo.Shell {
         }
 
         private Backend.PixelBuffer make_backdrop (Policy.Output output, out double zoom) {
-            zoom = 1.0;
-            string mode = effects_string ("expo-background", "blurred-wallpaper");
-            if (mode != "solid") {
-                var blurred = wallpaper_backdrop (output, mode == "blurred-wallpaper", out zoom);
-                if (blurred != null) {
-                    return blurred;
-                }
-            }
-            var head = desktop.backend_output (output);
-            int scale = head != null ? int.max (head.get_scale (), 1) : 1;
-            var buffer = new Backend.PixelBuffer (server, output.rect.width * scale, output.rect.height * scale, scale);
-            int stride;
-            unowned uint8[] pixels = buffer.begin (out stride);
-            for (int i = 0; i + 3 < pixels.length; i += 4) {
-                pixels[i] = 0x1a;
-                pixels[i + 1] = 0x1a;
-                pixels[i + 2] = 0x1a;
-                pixels[i + 3] = 0xff;
-            }
-            buffer.commit ();
-            return buffer;
-        }
-
-        private Backend.PixelBuffer? wallpaper_backdrop (Policy.Output output, bool blur, out double zoom) {
-            zoom = 1.0;
-            var source = desktop.background.wallpaper_buffer (output);
-            if (source == null) {
-                return null;
-            }
-            int width, height, scale, stride;
-            source.get_size (out width, out height, out scale);
-            unowned uint8[] wallpaper = source.peek (out stride);
-            if (wallpaper.length < stride * height || width <= 0 || height <= 0) {
-                return null;
-            }
-            int factor = int.min (blur ? BLUR_FACTOR : 1, int.min (width, height));
-            int small_width = width / factor, small_height = height / factor;
-            var buffer = new Backend.PixelBuffer (server, small_width, small_height, 1);
-            int small_stride;
-            unowned uint8[] pixels = buffer.begin (out small_stride);
-            if (pixels.length == 0) {
-                return null;
-            }
-            Fx.downscale (wallpaper, width, height, stride, factor, pixels, small_stride);
-            if (blur) {
-                uint radius = effects_uint ("expo-background-blur", 40);
-                Fx.blur (pixels, small_width, small_height, small_stride,
-                         int.max ((int) (radius * scale / factor), 1));
-            }
-            Fx.dim (pixels, small_width, small_height, small_stride, effects_double ("expo-background-dim", 0.3));
-            buffer.set_accepts_input (false);
-            buffer.commit ();
-            zoom = (double) output.rect.width / small_width;
-            return buffer;
+            return Backdrop.make (server, desktop, output, effects_string ("expo-background", "blurred-wallpaper"),
+                                  Backdrop.DEFAULT_COLOUR, effects_uint ("expo-background-blur", 40),
+                                  effects_double ("expo-background-dim", 0.3), out zoom);
         }
 
         private string effects_string (string key, string fallback) {

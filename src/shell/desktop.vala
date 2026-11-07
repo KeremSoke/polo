@@ -50,6 +50,7 @@ namespace Polo.Shell {
         public Switcher switcher { get; private set; }
         public ShareChooser share_chooser { get; private set; }
         public Expo expo { get; private set; }
+        public Cube cube { get; private set; }
         public WindowMenu window_menu { get; private set; }
         private FrameInput frame_input;
         public WorkspaceSwitcher workspace_switcher { get; private set; }
@@ -135,6 +136,7 @@ namespace Polo.Shell {
             switcher = new Switcher (server, model, this, bindings);
             share_chooser = new ShareChooser (server, model, this);
             expo = new Expo (server, model, this, bindings);
+            cube = new Cube (server, model, this, bindings);
             window_menu = new WindowMenu (server, model, this, bindings);
             frame_input = new FrameInput (this, model);
             workspace_switcher = new WorkspaceSwitcher (server, model, this, bindings);
@@ -248,6 +250,7 @@ namespace Polo.Shell {
             switcher.shutdown ();
             share_chooser.shutdown ();
             expo.shutdown ();
+            cube.shutdown ();
             workspace_switcher.shutdown ();
 #if POLO_HAVE_XWAYLAND
             if (ewmh != null) {
@@ -598,7 +601,7 @@ namespace Polo.Shell {
         public bool grab_active {
             get {
                 return move_resize.active || switcher.active || share_chooser.active || expo.active ||
-                       workspace_switcher.active || frame_input.active;
+                       cube.active || workspace_switcher.active || frame_input.active;
             }
         }
 
@@ -646,6 +649,8 @@ namespace Polo.Shell {
                     grabbed = share_chooser.key (seat, event);
                 } else if (expo.active) {
                     grabbed = expo.key (seat, event);
+                } else if (cube.active) {
+                    grabbed = cube.key (seat, event);
                 } else {
                     grabbed = workspace_switcher.key (seat, event);
                 }

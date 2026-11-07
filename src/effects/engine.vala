@@ -92,7 +92,11 @@ namespace Polo.Effects {
         }
 
         public bool allowed (Effect effect) {
-            if (reduced_resources || (effect.deforms && !deformation_supported)) {
+            return permits (effect.settings_key, effect.deforms);
+        }
+
+        public bool permits (string settings_key, bool deforms) {
+            if (reduced_resources || (deforms && !deformation_supported)) {
                 return false;
             }
             if (interface_settings != null && !interface_settings.get_boolean ("enable-animations")) {
@@ -102,7 +106,7 @@ namespace Polo.Effects {
                 return false;
             }
             var schema = effects_settings.settings_schema;
-            return schema.has_key (effect.settings_key) && effects_settings.get_boolean (effect.settings_key);
+            return schema.has_key (settings_key) && effects_settings.get_boolean (settings_key);
         }
 
         public bool run (Target target, Effect effect, bool apply_now = false) {

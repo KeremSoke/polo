@@ -182,9 +182,6 @@ namespace Polo {
             model.notify["prefs"].connect (() => {
                 effects_engine.set_reduced_resources (model.prefs.reduced_resources);
             });
-            effects_engine.notify["animating"].connect (() => {
-                server.set_animating (effects_engine.animating);
-            });
             server.frame.connect ((output, usec) => effects_engine.tick (usec));
             if (!CommandLine.test_mode) {
                 marco_prefs = new Settings.MarcoPrefsReader (model);
@@ -198,6 +195,13 @@ namespace Polo {
                                          config.kind == Backend.Kind.DRM || config.manage_outputs,
                                          effects_engine,
                                          system_keyboard);
+            effects_engine.notify["animating"].connect (() => update_animating ());
+            desktop.cube.notify["animating"].connect (() => update_animating ());
+            server.frame.connect ((output, usec) => {
+                if (desktop != null) {
+                    desktop.cube.frame ();
+                }
+            });
             foreign_toplevels = new Protocols.ForeignToplevels (server, model, desktop);
             desktop.switcher.set_minimize_target (foreign_toplevels.minimize_target);
             desktop.share_chooser.set_window_lookup (foreign_toplevels.window_for_identifier);
@@ -621,6 +625,12 @@ namespace Polo {
         }
 
         /* Reverse order of construction. */
+        private void update_animating () {
+            bool effects = effects_engine != null && effects_engine.animating;
+            bool cube = desktop != null && desktop.cube.animating;
+            server.set_animating (effects || cube);
+        }
+
         private void teardown () {
             if (custom_shortcuts != null) {
                 custom_shortcuts.shutdown ();

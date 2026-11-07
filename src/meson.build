@@ -114,6 +114,8 @@ polo_sources = files(
   'shell/shell-ui.vala',
   'shell/switcher.vala',
   'shell/share-chooser.vala',
+  'shell/backdrop.vala',
+  'shell/cube.vala',
   'shell/expo.vala',
   'shell/frame-input.vala',
   'shell/window-menu.vala',
