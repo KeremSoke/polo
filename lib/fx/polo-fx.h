@@ -78,6 +78,24 @@ typedef struct {
 	PoloFxVec2 target_size;
 } PoloFxMagicLamp;
 
+typedef enum {
+	POLO_FX_CUBE_DEFORM_NONE,
+	POLO_FX_CUBE_DEFORM_CYLINDER,
+	POLO_FX_CUBE_DEFORM_STAR,
+} PoloFxCubeDeform;
+
+typedef struct {
+	int sides;
+	double rotation;
+	double offset_y;
+	double offset_z;
+	double zoom;
+	double ease;
+	PoloFxCubeDeform deform;
+	PoloFxVec2 origin;
+	PoloFxVec2 size;
+} PoloFxCube;
+
 /* NULL unless 2 <= cols, 2 <= rows and cols * rows <= the limit. */
 PoloFxGrid *
 polo_fx_grid_new(guint cols, guint rows);
@@ -150,6 +168,38 @@ polo_fx_dim(guint8 *pixels, int width, int height, int stride, double amount);
 void
 polo_fx_downscale(const guint8 *src, int width, int height, int stride,
 		  int factor, guint8 *dst, int dst_stride);
+
+double
+polo_fx_cube_side_angle(int sides);
+
+double
+polo_fx_cube_rest_offset_z(int sides);
+
+gboolean
+polo_fx_cube_point(const PoloFxCube *cube, int side, PoloFxVec2 local,
+		   PoloFxVec2 *screen);
+
+gboolean
+polo_fx_cube_side_facing(const PoloFxCube *cube, int side);
+
+double
+polo_fx_cube_side_depth(const PoloFxCube *cube, int side);
+
+void
+polo_fx_cube_side_order(const PoloFxCube *cube, int *order);
+
+double
+polo_fx_cube_shade(const PoloFxCube *cube, int side, PoloFxVec2 local);
+
+void
+polo_fx_cube_grid_size(const PoloFxCube *cube, double width, double height,
+		       double spacing, guint *cols, guint *rows);
+
+gboolean
+polo_fx_cube_fill_grid(const PoloFxCube *cube, int side, double view_x,
+		       double view_y, double view_width, double view_height,
+		       double clip_x, double clip_y, double clip_width,
+		       double clip_height, PoloFxGrid *grid);
 
 G_END_DECLS
 

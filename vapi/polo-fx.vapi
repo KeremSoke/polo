@@ -135,6 +135,54 @@ namespace Polo.Fx {
         public static double advance (double progress, bool restoring, double elapsed_ms, double duration_ms);
     }
 
+    [CCode (cname = "PoloFxCubeDeform", cprefix = "POLO_FX_CUBE_DEFORM_", has_type_id = false)]
+    public enum CubeDeform {
+        NONE,
+        CYLINDER,
+        STAR
+    }
+
+    [CCode (cname = "PoloFxCube", has_type_id = false)]
+    public struct Cube {
+        public int sides;
+        public double rotation;
+        public double offset_y;
+        public double offset_z;
+        public double zoom;
+        public double ease;
+        public CubeDeform deform;
+        public Vec2 origin;
+        public Vec2 size;
+
+        [CCode (cname = "polo_fx_cube_side_angle")]
+        public static double side_angle (int sides);
+
+        [CCode (cname = "polo_fx_cube_rest_offset_z")]
+        public static double rest_offset_z (int sides);
+
+        [CCode (cname = "polo_fx_cube_point")]
+        public bool point (int side, Vec2 local, out Vec2 screen);
+
+        [CCode (cname = "polo_fx_cube_side_facing")]
+        public bool side_facing (int side);
+
+        [CCode (cname = "polo_fx_cube_side_depth")]
+        public double side_depth (int side);
+
+        [CCode (cname = "polo_fx_cube_side_order")]
+        public void side_order ([CCode (array_length = false)] int[] order);
+
+        [CCode (cname = "polo_fx_cube_shade")]
+        public double shade (int side, Vec2 local);
+
+        [CCode (cname = "polo_fx_cube_grid_size")]
+        public void grid_size (double width, double height, double spacing, out uint cols, out uint rows);
+
+        [CCode (cname = "polo_fx_cube_fill_grid")]
+        public bool fill_grid (int side, double view_x, double view_y, double view_width, double view_height,
+                               double clip_x, double clip_y, double clip_width, double clip_height, Grid grid);
+    }
+
     [CCode (cname = "polo_fx_blur")]
     public static void blur ([CCode (array_length = false)] uint8[] pixels, int width, int height, int stride,
                              int radius);

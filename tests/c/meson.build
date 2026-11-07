@@ -26,3 +26,8 @@ test('magic-lamp', test_magic_lamp, suite: 'unit-c', protocol: 'tap', args: ['--
 
 test_blur = executable('test-blur', 'blur.c', dependencies: [polo_fx_dep])
 test('blur', test_blur, suite: 'unit-c', protocol: 'tap', args: ['--tap'])
+
+test_cube = executable('test-cube', 'cube.c',
+  dependencies: [polo_fx_dep, cc.find_library('m')],
+)
+test('cube', test_cube, suite: 'unit-c', protocol: 'tap', args: ['--tap'])

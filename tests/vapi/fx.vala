@@ -34,5 +34,27 @@ int main () {
     var small = new uint8[4 * 4 * 4];
     Polo.Fx.downscale (pixels, 8, 8, 32, 2, small, 16);
     assert (small[0] == 0x40 && small[3] == 0x80);
+
+    var cube = Polo.Fx.Cube () {
+        sides = 4, offset_z = Polo.Fx.Cube.rest_offset_z (4), zoom = 1, ease = 0,
+        deform = Polo.Fx.CubeDeform.CYLINDER,
+        origin = Polo.Fx.Vec2 () { x = 0, y = 0 }, size = Polo.Fx.Vec2 () { x = 800, y = 600 }
+    };
+    cube.rotation = -Polo.Fx.Cube.side_angle (4);
+    Polo.Fx.Vec2 corner;
+    assert (cube.point (1, Polo.Fx.Vec2 () { x = 800, y = 600 }, out corner));
+    assert ((corner.x - 800).abs () < 0.01 && (corner.y - 600).abs () < 0.01);
+    assert (cube.side_facing (1) && !cube.side_facing (3));
+    assert (cube.side_depth (1) < cube.side_depth (3));
+    var order = new int[4];
+    cube.side_order (order);
+    assert (order[0] == 3 && order[3] == 1);
+    assert ((cube.shade (1, Polo.Fx.Vec2 () { x = 400, y = 300 }) - 1.0).abs () < 1e-6);
+    uint cube_cols, cube_rows;
+    cube.grid_size (800, 600, 40, out cube_cols, out cube_rows);
+    assert (cube_cols == 31 && cube_rows == 31);
+    var cube_grid = Polo.Fx.Grid.create (cube_cols, cube_rows);
+    assert (cube.fill_grid (1, 0, 0, 800, 600, 0, 0, 800, 600, cube_grid));
+    assert (cube_grid.vertices[2] == 0 && cube_grid.vertices[3] == 0);
     return 0;
 }

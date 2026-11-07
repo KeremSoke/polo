@@ -1,5 +1,6 @@
 fx_lib = static_library('polo-fx',
   'blur.c',
+  'cube.c',
   'fx.c',
   'grid.c',
   'magic-lamp.c',
