@@ -313,7 +313,7 @@ test_skydome(void)
 	cube.offset_y = 0.5;
 	uv = polo_fx_cube_sky_uv(&cube, centre, FALSE);
 	g_assert_cmpfloat(uv.y, >, 0.5);
-	polo_fx_cube_fill_sky_grid(&cube, FALSE, grid);
+	polo_fx_cube_fill_sky_grid(&cube, FALSE, TRUE, grid);
 	g_assert_cmpfloat_with_epsilon(grid->vertices[0], 100, 1e-6);
 	g_assert_cmpfloat_with_epsilon(grid->vertices[1], 50, 1e-6);
 	for (int i = 0; i < grid->n_floats; i++)
@@ -346,19 +346,61 @@ test_cubemap(void)
 	/* Looking along +Z samples the front cell; -Z samples the back. */
 	g_assert_cmphex(result[32 * 128 + 32], ==, source[5]);
 	g_assert_cmphex(result[32 * 128 + 96], ==, source[7]);
-	g_assert_true(polo_fx_cube_cubemap_face((const guint8 *)source, 4, 3,
-						16, (guint8 *)result, 128, 64,
-						128 * 4, 4));
-	g_assert_cmphex(result[32 * 128 + 32], ==, source[5]);
-	g_assert_cmphex(result[32 * 128 + 96], ==, 0);
-	g_assert_true(polo_fx_cube_cubemap_face((const guint8 *)source, 4, 3,
-						16, (guint8 *)result, 128, 64,
-						128 * 4, 5));
-	g_assert_cmphex(result[32 * 128 + 32], ==, 0);
-	g_assert_cmphex(result[32 * 128 + 96], ==, source[7]);
+	g_assert_cmphex(result[0 * 128 + 32], ==, source[1]);
+	g_assert_cmphex(result[63 * 128 + 32], ==, source[9]);
 	g_assert_false(polo_fx_cube_cubemap_equirect((const guint8 *)source, 4,
 						     4, 16, (guint8 *)result,
 						     128, 64, 128 * 4));
+}
+
+static void
+test_sky_seam(void)
+{
+	for (int mirror = 0; mirror < 2; mirror++) {
+		for (int step = 0; step < 32; step++) {
+			PoloFxCube cube = rest(4, 1024, 768);
+			PoloFxGrid *grid = polo_fx_grid_new(33, 33);
+
+			cube.rotation = step * 2 * G_PI / 32;
+			cube.offset_y = (step % 3 - 1) * 1.5;
+			polo_fx_cube_fill_sky_grid(&cube, mirror, FALSE, grid);
+			for (guint row = 0; row < grid->rows; row++) {
+				for (guint col = 0; col < grid->cols; col++) {
+					float *v = grid->vertices +
+						(row * grid->cols + col) * 4;
+					PoloFxVec2 uv = polo_fx_cube_sky_uv(
+						&cube,
+						(PoloFxVec2){ v[0], v[1] },
+						mirror);
+					double twice = 2.0 * v[2];
+
+					g_assert_cmpfloat(v[2], >=, 0.0);
+					g_assert_cmpfloat(v[2], <=, 1.0);
+					g_assert_cmpfloat_with_epsilon(
+						twice - floor(twice),
+						uv.x - floor(uv.x), 1e-4);
+					if (col > 0)
+						g_assert_cmpfloat(
+							fabs(v[2] - v[-2]), <,
+							0.05);
+				}
+			}
+			polo_fx_grid_free(grid);
+		}
+	}
+}
+
+static void
+test_sky_texture(void)
+{
+	guint32 source[3 * 2] = { 1, 2, 3, 4, 5, 6 }, texture[6 * 2];
+
+	polo_fx_cube_sky_texture((const guint8 *)source, 3, 2, 12,
+				 (guint8 *)texture, 24);
+	for (int row = 0; row < 2; row++)
+		for (int col = 0; col < 6; col++)
+			g_assert_cmphex(texture[row * 6 + col], ==,
+					source[row * 3 + col % 3]);
 }
 
 int
@@ -377,5 +419,7 @@ main(int argc, char **argv)
 	g_test_add_func("/cube/behind-camera", test_behind_camera);
 	g_test_add_func("/cube/skydome", test_skydome);
 	g_test_add_func("/cube/cubemap", test_cubemap);
+	g_test_add_func("/cube/sky-seam", test_sky_seam);
+	g_test_add_func("/cube/sky-texture", test_sky_texture);
 	return g_test_run();
 }

@@ -209,23 +209,29 @@ PoloFxVec2
 polo_fx_cube_sky_uv(const PoloFxCube *cube, PoloFxVec2 screen,
 		    gboolean mirror);
 
+/* The sky behind the cube as screen positions over the output, sampling a
+ * texture that holds the panorama twice side by side (sky_texture ()), so
+ * that no grid cell spans the panorama's wrap. dome: Wayfire's skydome rows;
+ * otherwise the whole sphere, as cubemap_equirect () lays it out. */
 void
 polo_fx_cube_fill_sky_grid(const PoloFxCube *cube, gboolean mirror,
-			   PoloFxGrid *grid);
+			   gboolean dome, PoloFxGrid *grid);
+
+/* width x height pixels into a 2 * width wide texture, twice. */
+void
+polo_fx_cube_sky_texture(const guint8 *src, int width, int height,
+			 int stride, guint8 *dst, int dst_stride);
 
 /* Wayfire's 4x3 cubemap cross, in +X,-X,+Y,-Y,+Z,-Z order. */
 PoloFxVec2
 polo_fx_cube_cubemap_uv(double x, double y, double z);
 
+/* The cross as one equirectangular panorama: u the angle around the
+ * vertical axis, v from the top pole down. */
 gboolean
 polo_fx_cube_cubemap_equirect(const guint8 *src, int width, int height,
 			      int stride, guint8 *dst, int dst_width,
 			      int dst_height, int dst_stride);
-
-gboolean
-polo_fx_cube_cubemap_face(const guint8 *src, int width, int height,
-			  int stride, guint8 *dst, int dst_width,
-			  int dst_height, int dst_stride, int face);
 
 G_END_DECLS
 

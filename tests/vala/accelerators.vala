@@ -111,6 +111,7 @@ void test_schema_defaults () {
     assert (effects.get_key ("cube-speed-zoom").get_default_value ().get_double () == 0.07);
     assert (effects.get_key ("cube-speed-spin-horizontal").get_default_value ().get_double () == 0.02);
     assert (effects.get_key ("cube-speed-spin-vertical").get_default_value ().get_double () == 0.02);
+    assert (!effects.get_key ("cube-natural-drag").get_default_value ().get_boolean ());
     assert (effects.get_key ("cube-deform").get_default_value ().get_string () == "none");
     assert (effects.get_key ("cube-deform").range_check (new GLib.Variant.string ("star")));
     assert (!effects.get_key ("cube-deform").range_check (new GLib.Variant.string ("sphere")));

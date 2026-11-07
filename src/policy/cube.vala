@@ -182,9 +182,14 @@ namespace Polo.Policy {
             start ();
         }
 
-        public void rotate (double dx, double dy, double speed_horizontal, double speed_vertical) {
+        public void rotate (double dx, double dy, double speed_horizontal, double speed_vertical,
+                            bool natural = false) {
             if (!active || in_exit) {
                 return;
+            }
+            if (natural) {
+                dx = -dx;
+                dy = -dy;
             }
             zoom.restart_with_end (zoom.end);
             double now_offset_y = offset_y.value;

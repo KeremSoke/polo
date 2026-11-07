@@ -207,6 +207,11 @@
       <summary>Desktop cube vertical spin speed</summary>
       <description>How far the cube tilts per pixel of pointer motion up and down.</description>
     </key>
+    <key name="cube-natural-drag" type="b">
+      <default>false</default>
+      <summary>Natural turning of the desktop cube</summary>
+      <description>Reverses turning the cube with the pointer, across and up and down alike, as natural scrolling reverses the wheel: the cube follows the pointer like a surface being pushed, instead of the view moving with it.</description>
+    </key>
     <key name="cube-deform" type="s">
       <choices>
         <choice value="none"/>

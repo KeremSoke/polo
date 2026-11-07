@@ -75,6 +75,40 @@ main(int argc, char **argv)
 	harness_wait_frame(h, window->surface);
 	CHECK(window_pixels(h) == 60000, "initial window is incomplete");
 
+	harness_set_setting(h, "org.mate.polo.effects", "cube-duration-ms",
+			    "3000");
+	int click_x = harness_window_info(window)->x + 60;
+	int click_y = harness_window_info(window)->y + 100;
+	uint32_t serial = h->last_button_serial;
+
+	hold(h, true, false);
+	tap(h, KEY_RIGHT);
+	hold(h, false, false);
+	pause_ms(h, 60);
+	polo_test_v1_move_pointer(h->test, click_x, click_y);
+	harness_roundtrip(h);
+	polo_test_v1_button(h->test, BTN_LEFT, WL_POINTER_BUTTON_STATE_PRESSED);
+	harness_roundtrip(h);
+	polo_test_v1_button(h->test, BTN_LEFT,
+			    WL_POINTER_BUTTON_STATE_RELEASED);
+	harness_roundtrip(h);
+	CHECK(h->last_button_serial == serial &&
+		      h->pointer_focus != window->surface,
+	      "a click during the turn reached the window on the old "
+	      "workspace");
+	polo_test_v1_move_pointer(h->test, 5, 5);
+	harness_roundtrip(h);
+	pause_ms(h, 3300);
+	CHECK(window_pixels(h) == 0, "the clicked turn did not land");
+	hold(h, true, false);
+	tap(h, KEY_LEFT);
+	hold(h, false, false);
+	pause_ms(h, 3300);
+	CHECK(window_pixels(h) == 60000,
+	      "turning back did not show the window");
+	harness_set_setting(h, "org.mate.polo.effects", "cube-duration-ms",
+			    "1000");
+
 	hold(h, true, false);
 	tap(h, KEY_RIGHT);
 	CHECK(!harness_window_info(window)->focused,

@@ -12,6 +12,7 @@
 #include "polo-fx.h"
 
 #include <math.h>
+#include <string.h>
 
 #define FOVY 45.0
 #define DEFORM_RADIUS 0.5
@@ -292,8 +293,8 @@ polo_fx_cube_fill_shade(const PoloFxCube *cube, int side, guint8 *pixels,
 	}
 }
 
-PoloFxVec2
-polo_fx_cube_sky_uv(const PoloFxCube *cube, PoloFxVec2 screen, gboolean mirror)
+static void
+sky_direction(const PoloFxCube *cube, PoloFxVec2 screen, double *u, double *phi)
 {
 	double nx = 2.0 * (screen.x - cube->origin.x) / cube->size.x - 1.0;
 	double ny = 1.0 - 2.0 * (screen.y - cube->origin.y) / cube->size.y;
@@ -304,26 +305,46 @@ polo_fx_cube_sky_uv(const PoloFxCube *cube, PoloFxVec2 screen, gboolean mirror)
 	double cr = cos(cube->rotation), sr = sin(cube->rotation);
 	double x = cr * wx - sr * wz, z = sr * wx + cr * wz;
 	double length = sqrt(x * x + wy * wy + z * z);
-	double u = atan2(z, x) / (2.0 * G_PI);
-	double phi = acos(CLAMP(wy / length, -1.0, 1.0));
-	double v = CLAMP((phi / G_PI * 128.0 - 1.0) / 126.0, 0.0, 1.0);
 
-	if (u < 0.0)
-		u += 1.0;
-	if (u > 1.0 - 1e-12)
-		u = 0.0;
+	*u = atan2(z, x) / (2.0 * G_PI);
+	if (*u < 0.0)
+		*u += 1.0;
+	if (*u > 1.0 - 1e-12)
+		*u = 0.0;
+	*phi = acos(CLAMP(wy / length, -1.0, 1.0));
+}
+
+static double
+dome_v(double phi)
+{
+	return CLAMP((phi / G_PI * 128.0 - 1.0) / 126.0, 0.0, 1.0);
+}
+
+PoloFxVec2
+polo_fx_cube_sky_uv(const PoloFxCube *cube, PoloFxVec2 screen, gboolean mirror)
+{
+	double u, phi;
+
+	sky_direction(cube, screen, &u, &phi);
 	if (mirror)
 		u = 1.0 - fabs(2.0 * u - 1.0);
-	return (PoloFxVec2){ u, v };
+	return (PoloFxVec2){ u, dome_v(phi) };
 }
 
 void
 polo_fx_cube_fill_sky_grid(const PoloFxCube *cube, gboolean mirror,
-			   PoloFxGrid *grid)
+			   gboolean dome, PoloFxGrid *grid)
 {
+	PoloFxVec2 centre;
+	double centre_u, phi;
 	float *vertex;
 
 	g_return_if_fail(cube != NULL && grid != NULL);
+	centre = (PoloFxVec2){ cube->origin.x + cube->size.x / 2,
+			       cube->origin.y + cube->size.y / 2 };
+	sky_direction(cube, centre, &centre_u, &phi);
+	if (centre_u < 0.5)
+		centre_u += 1.0;
 	vertex = grid->vertices;
 	for (guint row = 0; row < grid->rows; row++) {
 		for (guint col = 0; col < grid->cols; col++) {
@@ -333,14 +354,32 @@ polo_fx_cube_fill_sky_grid(const PoloFxCube *cube, gboolean mirror,
 				cube->origin.y +
 					cube->size.y * row / (grid->rows - 1)
 			};
-			PoloFxVec2 uv =
-				polo_fx_cube_sky_uv(cube, screen, mirror);
+			double u;
 
+			sky_direction(cube, screen, &u, &phi);
+			if (mirror)
+				u = 1.0 - fabs(2.0 * u - 1.0);
+			else
+				u += round(centre_u - u);
 			*vertex++ = screen.x;
 			*vertex++ = screen.y;
-			*vertex++ = uv.x;
-			*vertex++ = uv.y;
+			*vertex++ = (float)CLAMP(u / 2.0, 0.0, 1.0);
+			*vertex++ = (float)(dome ? dome_v(phi) : phi / G_PI);
 		}
+	}
+}
+
+void
+polo_fx_cube_sky_texture(const guint8 *src, int width, int height, int stride,
+			 guint8 *dst, int dst_stride)
+{
+	g_return_if_fail(src != NULL && dst != NULL);
+	for (int row = 0; row < height; row++) {
+		const guint8 *in = src + (gsize)row * stride;
+		guint8 *out = dst + (gsize)row * dst_stride;
+
+		memcpy(out, in, (gsize)width * 4);
+		memcpy(out + (gsize)width * 4, in, (gsize)width * 4);
 	}
 }
 
@@ -393,40 +432,29 @@ polo_fx_cube_cubemap_uv(double x, double y, double z)
 }
 
 gboolean
-polo_fx_cube_cubemap_face(const guint8 *src, int width, int height, int stride,
-			  guint8 *dst, int dst_width, int dst_height,
-			  int dst_stride, int face)
+polo_fx_cube_cubemap_equirect(const guint8 *src, int width, int height,
+			      int stride, guint8 *dst, int dst_width,
+			      int dst_height, int dst_stride)
 {
 	if (!src || !dst || width < 4 || height < 3 || width % 4 ||
 	    height % 3 || width / 4 != height / 3 || dst_width < 1 ||
-	    dst_height < 1 || stride < width * 4 ||
-	    dst_stride < dst_width * 4 || face < -1 || face >= 6)
+	    dst_height < 1 || stride < width * 4 || dst_stride < dst_width * 4)
 		return FALSE;
 	for (int row = 0; row < dst_height; row++) {
 		double phi = G_PI * (row + 0.5) / dst_height;
 		for (int col = 0; col < dst_width; col++) {
 			double theta = 2.0 * G_PI * (col + 0.5) / dst_width;
-			int selected;
 			PoloFxVec2 uv =
 				cubemap_uv(cos(theta) * sin(phi), cos(phi),
-					   sin(theta) * sin(phi), &selected);
+					   sin(theta) * sin(phi), NULL);
 			int sx = CLAMP((int)(uv.x * width), 0, width - 1);
 			int sy = CLAMP((int)(uv.y * height), 0, height - 1);
 			const guint32 *in =
 				(const guint32 *)(src + sy * stride);
 			guint32 *out = (guint32 *)(dst + row * dst_stride);
 
-			out[col] = face == -1 || face == selected ? in[sx] : 0;
+			out[col] = in[sx];
 		}
 	}
 	return TRUE;
-}
-
-gboolean
-polo_fx_cube_cubemap_equirect(const guint8 *src, int width, int height,
-			      int stride, guint8 *dst, int dst_width,
-			      int dst_height, int dst_stride)
-{
-	return polo_fx_cube_cubemap_face(src, width, height, stride, dst,
-					 dst_width, dst_height, dst_stride, -1);
 }

@@ -169,6 +169,19 @@ void test_clamps () {
     assert (near (cube.zoom.value, 0.1 + Math.pow (0.1, 1.5) * 0.07));
 }
 
+void test_natural () {
+    var plain = new CubeAnimation (DURATION);
+    var natural = new CubeAnimation (DURATION);
+    plain.grab (4, 0.1);
+    natural.grab (4, 0.1);
+    plain.rotate (30, 20, SPEED, SPEED);
+    natural.rotate (30, 20, SPEED, SPEED, true);
+    plain.tick (DURATION);
+    natural.tick (DURATION);
+    assert (near (plain.rotation.value, 30 * SPEED) && near (natural.rotation.value, -30 * SPEED));
+    assert (near (plain.offset_y.value, -20 * SPEED) && near (natural.offset_y.value, 20 * SPEED));
+}
+
 void test_shortest_turn () {
     for (int sides = 3; sides <= 4; sides++) {
         for (int from = 0; from < sides; from++) {
@@ -206,6 +219,7 @@ int main (string[] args) {
     Test.add_func ("/cube/release-snaps-back", test_release_snaps_back);
     Test.add_func ("/cube/interactive-keys-and-cancel", test_interactive_keys_and_cancel);
     Test.add_func ("/cube/clamps", test_clamps);
+    Test.add_func ("/cube/natural", test_natural);
     Test.add_func ("/cube/shortest-turn", test_shortest_turn);
     Test.add_func ("/cube/one-side", test_one_side);
     return Test.run ();

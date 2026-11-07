@@ -59,5 +59,22 @@ int main () {
     var cube_grid = Polo.Fx.Grid.create (cube_cols, cube_rows);
     assert (cube.fill_grid (1, 0, 0, 800, 600, 0, 0, 800, 600, cube_grid));
     assert (cube_grid.vertices[2] == 0 && cube_grid.vertices[3] == 0);
+
+    var sky_cube = Polo.Fx.Cube () {
+        sides = 4, offset_z = Polo.Fx.Cube.rest_offset_z (4), zoom = 1,
+        origin = Polo.Fx.Vec2 () { x = 0, y = 0 }, size = Polo.Fx.Vec2 () { x = 800, y = 600 }
+    };
+    var ahead = sky_cube.sky_uv (Polo.Fx.Vec2 () { x = 400, y = 300 }, false);
+    assert ((ahead.x - 0.75).abs () < 1e-6 && (ahead.y - 0.5).abs () < 1e-6);
+    var sky_grid = Polo.Fx.Grid.create (9, 9);
+    sky_cube.fill_sky_grid (false, true, sky_grid);
+    assert ((sky_grid.vertices[40 * 4 + 2] - 0.375).abs () < 1e-6);
+    var cross = new uint8[4 * 3 * 4];
+    GLib.Memory.set (cross, 0x7f, cross.length);
+    var panorama = new uint8[8 * 4 * 4];
+    assert (Polo.Fx.cubemap_equirect (cross, 4, 3, 16, panorama, 8, 4, 32));
+    var doubled = new uint8[16 * 4 * 4];
+    Polo.Fx.sky_texture (panorama, 8, 4, 32, doubled, 64);
+    assert (doubled[0] == 0x7f && doubled[doubled.length - 1] == 0x7f);
     return 0;
 }

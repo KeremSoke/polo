@@ -66,6 +66,20 @@ write_cubemap(const char *path)
 }
 
 static void
+write_magenta_cubemap(const char *path)
+{
+	cairo_surface_t *surface =
+		cairo_image_surface_create(CAIRO_FORMAT_RGB24, 256, 192);
+	cairo_t *cr = cairo_create(surface);
+	cairo_set_source_rgb(cr, 1, 0, 1);
+	cairo_paint(cr);
+	cairo_destroy(cr);
+	CHECK(cairo_surface_write_to_png(surface, path) == CAIRO_STATUS_SUCCESS,
+	      "cannot write cubemap image");
+	cairo_surface_destroy(surface);
+}
+
+static void
 count_colours(struct harness *h, int *red, int *blue)
 {
 	int width, height;
@@ -125,6 +139,33 @@ main(int argc, char **argv)
 	count_colours(h, &red, &blue);
 	CHECK(blue > 1000, "cubemap did not turn to another face: blue=%d",
 	      blue);
+	tap(h, KEY_LEFT);
+	tap(h, KEY_LEFT);
+	pause_ms(h, 700);
+	count_colours(h, &red, &blue);
+	CHECK(red == 0 && blue > 1000,
+	      "the cubemap smears its seam facing +X: red=%d blue=%d", red,
+	      blue);
+	tap(h, KEY_ESC);
+	pause_ms(h, 700);
+
+	write_magenta_cubemap(path);
+	harness_key(h, KEY_LEFTMETA, true);
+	tap(h, KEY_C);
+	harness_key(h, KEY_LEFTMETA, false);
+	pause_ms(h, 700);
+	int width, height, magenta = 0;
+	uint32_t *pixels = harness_capture(h, &width, &height);
+	CHECK(pixels, "cannot capture the rewritten cubemap");
+	red = 0;
+	for (int i = 0; i < width * height; i++) {
+		magenta += (pixels[i] & 0xffffff) == 0xff00ff;
+		red += (pixels[i] & 0xffffff) == 0xff0000;
+	}
+	free(pixels);
+	CHECK(magenta > 1000 && red == 0,
+	      "the rewritten cubemap image was not reloaded: magenta=%d red=%d",
+	      magenta, red);
 	tap(h, KEY_ESC);
 	pause_ms(h, 700);
 
@@ -138,8 +179,8 @@ main(int argc, char **argv)
 	tap(h, KEY_C);
 	harness_key(h, KEY_LEFTMETA, false);
 	pause_ms(h, 700);
-	int width, height, green = 0;
-	uint32_t *pixels = harness_capture(h, &width, &height);
+	int green = 0;
+	pixels = harness_capture(h, &width, &height);
 	CHECK(pixels, "cannot capture missing-image fallback");
 	for (int i = 0; i < width * height; i++)
 		green += (pixels[i] & 0xffffff) == 0x00ff00;

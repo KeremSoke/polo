@@ -60,6 +60,17 @@ switch_left(struct harness *h)
 	pause_ms(h, 700);
 }
 
+static void
+switch_right(struct harness *h)
+{
+	harness_key(h, KEY_LEFTCTRL, true);
+	harness_key(h, KEY_LEFTALT, true);
+	tap(h, KEY_RIGHT);
+	harness_key(h, KEY_LEFTALT, false);
+	harness_key(h, KEY_LEFTCTRL, false);
+	pause_ms(h, 700);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -177,6 +188,24 @@ main(int argc, char **argv)
 	pause_ms(h, 100);
 	CHECK(window_pixels(h) == 60000,
 	      "Escape during cube-drag did not return to the first side");
+
+	/* Natural turning: the same leftward drag lands one side to the left,
+	 * the last workspace, from which Right wraps back. */
+	harness_set_setting(h, "org.mate.polo.effects", "cube-natural-drag",
+			    "true");
+	open_cube(h);
+	harness_pointer_position(h, &before_x, &before_y);
+	harness_move_pointer(h, before_x - 80, before_y);
+	pause_ms(h, 600);
+	tap(h, KEY_SPACE);
+	pause_ms(h, 700);
+	CHECK(window_pixels(h) == 0,
+	      "a natural drag did not leave the first workspace");
+	switch_right(h);
+	CHECK(window_pixels(h) == 60000,
+	      "a natural leftward drag did not land on the last workspace");
+	harness_set_setting(h, "org.mate.polo.effects", "cube-natural-drag",
+			    "false");
 
 	harness_window_destroy(window);
 	CHECK(harness_stop(h) == 0, "polo did not stop cleanly");

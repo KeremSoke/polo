@@ -30,6 +30,9 @@ namespace Polo.Shell {
         private const uint KEY_KPENTER = 96;
         private const uint KEY_LEFT = 105;
         private const uint KEY_RIGHT = 106;
+        private const uint SKY_GRID = 129;
+        private const int SKY_WIDTH = 2048;
+        private const int MAX_IMAGE = 8192;
 
         private class Piece {
             public Backend.View view;
@@ -60,9 +63,11 @@ namespace Polo.Shell {
             public bool shown = false;
         }
 
-        private class BackgroundFace {
-            public Backend.PixelBuffer buffer;
-            public ulong ready = 0;
+        private class SkyImage {
+            public string key;
+            public uint8[] pixels;
+            public int width;
+            public int height;
         }
 
         private class Screen {
@@ -73,8 +78,8 @@ namespace Polo.Shell {
             public double backdrop_zoom = 1.0;
             public bool sky = false;
             public bool sky_mirror = false;
+            public bool sky_dome = false;
             public Fx.Grid? sky_grid = null;
-            public GLib.GenericArray<BackgroundFace> faces = new GLib.GenericArray<BackgroundFace> ();
             public int[] order = {};
             public bool stacked = false;
             public GLib.GenericArray<Backend.View> carried = new GLib.GenericArray<Backend.View> ();
@@ -105,9 +110,10 @@ namespace Polo.Shell {
         private State? state = null;
         private GLib.HashTable<string, string> failed_images =
             new GLib.HashTable<string, string> (str_hash, str_equal);
+        private SkyImage? sky_cache = null;
 
         public bool active { get { return state != null; } }
-        public bool grabbing { get { return state != null && state.grab != null; } }
+        public bool grabbing { get { return state != null && state.grab != null && !state.model_switch; } }
         public bool animating { get; private set; default = false; }
 
         public Cube (Backend.Server server, Policy.Model model, Desktop desktop, Input.Bindings bindings) {
@@ -316,7 +322,7 @@ namespace Polo.Shell {
                 }
                 return;
             }
-            if (state == null && !begin (null, false)) {
+            if (state == null && !begin (null, true)) {
                 return;
             }
             if (!state.model_switch && animation.active) {
@@ -339,8 +345,8 @@ namespace Polo.Shell {
             return GLib.get_monotonic_time () / 1000.0;
         }
 
-        private bool begin (Backend.Seat? seat, bool pointer_grab = true) {
-            if (!available () || (desktop.grab_active && (pointer_grab || !desktop.workspace_switcher.active)) ||
+        private bool begin (Backend.Seat? seat, bool model_switch = false) {
+            if (!available () || (desktop.grab_active && (!model_switch || !desktop.workspace_switcher.active)) ||
                 model.get_outputs ().length == 0) {
                 return false;
             }
@@ -360,26 +366,24 @@ namespace Polo.Shell {
             if (row.length < 2 || start < 0) {
                 return false;
             }
+            var grab_seat = seat ?? desktop.default_seat ();
+            var grab = grab_seat != null ? grab_seat.begin_pointer_grab () : null;
+            if (grab == null) {
+                return false;
+            }
             state = new State ();
-            state.seat = seat;
+            state.seat = grab_seat;
             state.row = row;
             state.start = start;
-            if (!pointer_grab) {
+            state.model_switch = model_switch;
+            state.grab = grab;
+            if (model_switch) {
                 desktop.workspace_switcher.hide_popup ();
             }
-            if (pointer_grab && seat != null) {
-                state.grab = seat.begin_pointer_grab ();
-                if (state.grab == null) {
-                    state = null;
-                    return false;
-                }
-            }
-            if (state.grab != null) {
-                state.grab.ended.connect (on_grab_ended);
-                state.grab.motion_delta.connect (on_motion_delta);
-                state.grab.button.connect (on_button);
-                state.grab.axis.connect (on_axis);
-            }
+            grab.ended.connect (on_grab_ended);
+            grab.motion_delta.connect (on_motion_delta);
+            grab.button.connect (on_button);
+            grab.axis.connect (on_axis);
             animation.duration_ms = number ("cube-duration-ms", 350);
             animation.tick (now_ms ());
             model.stack_changed.connect (rebuild);
@@ -455,7 +459,7 @@ namespace Polo.Shell {
             }
             animation.tick (now_ms ());
             animation.rotate (dx, dy, real ("cube-speed-spin-horizontal", 0.02),
-                              real ("cube-speed-spin-vertical", 0.02));
+                              real ("cube-speed-spin-vertical", 0.02), flag ("cube-natural-drag", false));
             draw ();
         }
 
@@ -489,7 +493,22 @@ namespace Polo.Shell {
             draw ();
         }
 
+        private void disconnect_grab (Backend.PointerGrab grab) {
+            grab.motion_delta.disconnect (on_motion_delta);
+            grab.button.disconnect (on_button);
+            grab.axis.disconnect (on_axis);
+            grab.ended.disconnect (on_grab_ended);
+        }
+
         private void on_grab_ended (bool cancelled) {
+            if (state != null && state.grab != null) {
+                disconnect_grab (state.grab);
+            }
+            if (state != null && state.model_switch) {
+                state.grab = null;
+                end ();
+                return;
+            }
             if (state != null) {
                 state.grab = null;
                 state.held_button = 0;
@@ -516,10 +535,7 @@ namespace Polo.Shell {
             model.stack_changed.disconnect (rebuild);
             clear (done);
             if (done.grab != null) {
-                done.grab.motion_delta.disconnect (on_motion_delta);
-                done.grab.button.disconnect (on_button);
-                done.grab.axis.disconnect (on_axis);
-                done.grab.ended.disconnect (on_grab_ended);
+                disconnect_grab (done.grab);
                 done.grab.end ();
             }
             if (done.seat != null && done.interactive) {
@@ -556,26 +572,23 @@ namespace Polo.Shell {
             string mode = text ("cube-background", "solid");
             if (mode == "skydome" || mode == "cubemap") {
                 string path = text (mode == "skydome" ? "cube-skydome-image" : "cube-cubemap-image", "");
-                bool loaded = mode == "skydome" ? (screen.backdrop = image_backdrop (path)) != null :
-                                                    load_faces (screen, path);
-                if (loaded) {
+                var sky = sky_image (mode, path);
+                screen.backdrop = sky != null ? sky_buffer (sky) : null;
+                if (screen.backdrop != null) {
                     screen.sky = true;
-                    screen.sky_mirror = mode == "skydome" && flag ("cube-skydome-mirror", false);
-                    screen.sky_grid = Fx.Grid.create (129, 129);
+                    screen.sky_dome = mode == "skydome";
+                    screen.sky_mirror = screen.sky_dome && flag ("cube-skydome-mirror", true);
+                    screen.sky_grid = Fx.Grid.create (SKY_GRID, SKY_GRID);
                     if (screen.sky_grid == null) {
                         screen.backdrop = null;
                         screen.sky = false;
-                        screen.faces.remove_range (0, screen.faces.length);
-                        loaded = false;
                     }
                 }
-                if (!loaded && failed_images.lookup (mode + path) == null) {
+                if (screen.backdrop == null && failed_images.lookup (mode + path) == null) {
                     warning ("Cannot load cube %s image '%s'; using solid background", mode, path);
                     failed_images.insert (mode + path, mode + path);
                 }
-                if (!loaded || mode == "cubemap") {
-                    mode = "solid";
-                }
+                mode = "solid";
             }
             if (screen.backdrop == null) {
                 screen.backdrop = Backdrop.make (server, desktop, screen.output, mode,
@@ -592,63 +605,89 @@ namespace Polo.Shell {
             }
         }
 
-        private Backend.PixelBuffer? image_backdrop (string path) {
-            var image = Bg.Image.load (path);
-            if (image == null) {
+        private static string? file_key (string mode, string path) {
+            if (path == "") {
                 return null;
             }
-            int width = image.width (), height = image.height ();
-            if (width <= 0 || height <= 0 || width > 4096 || height > 4096) {
+            try {
+                var info = GLib.File.new_for_path (path).query_info (
+                    GLib.FileAttribute.TIME_MODIFIED + "," + GLib.FileAttribute.STANDARD_SIZE,
+                    GLib.FileQueryInfoFlags.NONE);
+                var modified = info.get_modification_date_time ();
+                int64 usec = modified != null ? modified.to_unix () * 1000000 + modified.get_microsecond () : 0;
+                return "%s:%s:%lld:%lld".printf (mode, path, usec, info.get_size ());
+            } catch (GLib.Error e) {
                 return null;
             }
-            var buffer = new Backend.PixelBuffer (server, width, height, 1);
-            int stride;
-            unowned uint8[] pixels = buffer.begin (out stride);
-            if (pixels.length < stride * height) {
-                return null;
-            }
-            image.copy_argb (pixels, stride);
-            buffer.set_accepts_input (false);
-            buffer.commit ();
-            return buffer;
         }
 
-        private bool load_faces (Screen screen, string path) {
+        private SkyImage? sky_image (string mode, string path) {
+            string? key = file_key (mode, path);
+            if (key == null) {
+                return null;
+            }
+            if (sky_cache != null && sky_cache.key == key) {
+                return sky_cache;
+            }
+            sky_cache = null;
             var image = Bg.Image.load (path);
             if (image == null) {
-                return false;
+                return null;
             }
             int width = image.width (), height = image.height ();
-            if (width < 4 || height < 3 || width > 4096 || height > 4096 ||
-                width % 4 != 0 || height % 3 != 0 || width / 4 != height / 3) {
-                return false;
+            if (width <= 0 || height <= 0 || width > MAX_IMAGE || height > MAX_IMAGE) {
+                return null;
             }
             uint8[] source = new uint8[width * height * 4];
             image.copy_argb (source, width * 4);
-            int out_width = int.min (width, 1024), out_height = out_width / 2;
-            for (int i = 0; i < 6; i++) {
-                var face = new BackgroundFace ();
-                face.buffer = new Backend.PixelBuffer (server, out_width, out_height, 1);
-                int stride;
-                unowned uint8[] pixels = face.buffer.begin (out stride);
-                if (pixels.length < stride * out_height ||
-                    !Fx.cubemap_face (source, width, height, width * 4, pixels,
-                                      out_width, out_height, stride, i)) {
-                    screen.faces.remove_range (0, screen.faces.length);
-                    return false;
+            uint8[] panorama;
+            int panorama_width, panorama_height;
+            if (mode == "cubemap") {
+                if (width < 4 || height < 3 || width % 4 != 0 || height % 3 != 0 || width / 4 != height / 3) {
+                    return null;
                 }
-                face.buffer.set_accepts_input (false);
-                face.buffer.commit ();
-                if (!face.buffer.is_ready ()) {
-                    unowned Screen placed = screen;
-                    face.ready = face.buffer.ready.connect (() => {
-                        placed.stacked = false;
-                        draw ();
-                    });
+                panorama_width = int.min (width, SKY_WIDTH);
+                panorama_height = panorama_width / 2;
+                panorama = new uint8[panorama_width * panorama_height * 4];
+                if (!Fx.cubemap_equirect (source, width, height, width * 4, panorama, panorama_width,
+                                          panorama_height, panorama_width * 4)) {
+                    return null;
                 }
-                screen.faces.add (face);
+            } else {
+                int factor = int.max ((width + SKY_WIDTH - 1) / SKY_WIDTH, (height + SKY_WIDTH - 1) / SKY_WIDTH);
+                if (factor > 1) {
+                    panorama_width = width / factor;
+                    panorama_height = height / factor;
+                    panorama = new uint8[panorama_width * panorama_height * 4];
+                    Fx.downscale (source, width, height, width * 4, factor, panorama, panorama_width * 4);
+                } else {
+                    panorama_width = width;
+                    panorama_height = height;
+                    panorama = (owned) source;
+                }
             }
-            return true;
+            var sky = new SkyImage () {
+                key = key, width = panorama_width * 2, height = panorama_height
+            };
+            sky.pixels = new uint8[sky.width * sky.height * 4];
+            Fx.sky_texture (panorama, panorama_width, panorama_height, panorama_width * 4, sky.pixels, sky.width * 4);
+            sky_cache = sky;
+            return sky;
+        }
+
+        private Backend.PixelBuffer? sky_buffer (SkyImage sky) {
+            var buffer = new Backend.PixelBuffer (server, sky.width, sky.height, 1);
+            int stride;
+            unowned uint8[] pixels = buffer.begin (out stride);
+            if (pixels.length < stride * sky.height) {
+                return null;
+            }
+            for (int row = 0; row < sky.height; row++) {
+                GLib.Memory.copy (&pixels[row * stride], &sky.pixels[row * sky.width * 4], sky.width * 4);
+            }
+            buffer.set_accepts_input (false);
+            buffer.commit ();
+            return buffer;
         }
 
         private static bool on_workspace (Policy.Model model, Window window, int workspace) {
@@ -765,16 +804,6 @@ namespace Polo.Shell {
                 if (screen.backdrop != null && screen.backdrop_ready != 0) {
                     screen.backdrop.disconnect (screen.backdrop_ready);
                 }
-                foreach (var face in screen.faces) {
-                    if (face.ready != 0) {
-                        face.buffer.disconnect (face.ready);
-                    }
-                    unowned Backend.View? face_view = face.buffer.get_view ();
-                    if (face_view != null) {
-                        face_view.move_to_layer (null);
-                    }
-                }
-                screen.faces.remove_range (0, screen.faces.length);
                 unowned Backend.View? view = screen.backdrop != null ? screen.backdrop.get_view () : null;
                 if (view != null) {
                     view.move_to_layer (null);
@@ -863,21 +892,10 @@ namespace Polo.Shell {
                 if (changed) {
                     restack (screen, order);
                 }
-                if (screen.sky && screen.sky_grid != null) {
-                    geometry.fill_sky_grid (screen.sky_mirror, screen.sky_grid);
-                    if (screen.faces.length == 0) {
-                        unowned Backend.View? view = screen.backdrop.get_view ();
-                        if (view != null) {
-                            view.set_deformation (screen.sky_grid.vertices, 129, 129);
-                        }
-                    }
-                    foreach (var face in screen.faces) {
-                        unowned Backend.View? view = face.buffer.get_view ();
-                        if (view == null) {
-                            continue;
-                        }
-                        view.set_deformation (screen.sky_grid.vertices, 129, 129);
-                    }
+                unowned Backend.View? sky = screen.sky ? screen.backdrop.get_view () : null;
+                if (sky != null && screen.sky_grid != null) {
+                    geometry.fill_sky_grid (screen.sky_mirror, screen.sky_dome, screen.sky_grid);
+                    sky.set_deformation (screen.sky_grid.vertices, SKY_GRID, SKY_GRID);
                 }
             }
         }
@@ -920,13 +938,6 @@ namespace Polo.Shell {
                 backdrop.place (screen.output.rect.x, screen.output.rect.y, screen.backdrop_zoom);
                 backdrop.move_to_layer (overlay);
             }
-            foreach (var face in screen.faces) {
-                unowned Backend.View? view = face.buffer.get_view ();
-                if (view != null) {
-                    view.place (screen.output.rect.x, screen.output.rect.y, 1.0);
-                    view.move_to_layer (overlay);
-                }
-            }
             foreach (int index in order) {
                 var side = screen.sides[index];
                 unowned Backend.View? shade = side.shade != null ? side.shade.get_view () : null;
@@ -942,11 +953,6 @@ namespace Polo.Shell {
             }
             screen.order = order;
             screen.stacked = backdrop != null;
-            foreach (var face in screen.faces) {
-                if (face.buffer.get_view () == null) {
-                    screen.stacked = false;
-                }
-            }
             foreach (var side in screen.sides) {
                 if (side.shown && side.shade != null && side.shade.get_view () == null) {
                     screen.stacked = false;
