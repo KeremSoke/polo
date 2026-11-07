@@ -220,3 +220,15 @@ cube_test = executable('test-cube', 'cube.vala',
   dependencies: [polo_policy_dep, polo_fx_dep, cc.find_library('m')],
 )
 test('cube', cube_test, suite: 'unit-vala', protocol: 'tap', args: ['--tap'])
+
+accelerators_test = executable('test-accelerators',
+  'accelerators.vala',
+  meson.project_source_root() / 'src/input/accelerator.vala',
+  vala_args: vala_args + ['--pkg', 'polo-backend', '--pkg', 'polo-marco'],
+  c_args: vala_c_args,
+  dependencies: [polo_backend_dep, polo_marco_dep, gio_dep],
+)
+test('accelerators', accelerators_test, suite: 'unit-vala', protocol: 'tap', args: ['--tap'],
+  env: ['POLO_SCHEMA_DIR=' + meson.project_build_root() / 'data',
+        'WESTON_MODULE_MAP=' + weston_module_map],
+  depends: polo_schemas)

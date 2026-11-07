@@ -19,6 +19,16 @@ namespace Polo.Input {
         }
     }
 
+    public struct ButtonAccelerator {
+        /* An evdev button code (BTN_LEFT ...), 0 when disabled. */
+        public uint32 button;
+        public Marco.VirtualModifier mask;
+
+        public bool is_disabled () {
+            return button == 0;
+        }
+    }
+
     namespace Accelerators {
         /*
          * meta_ui_parse_accelerator () and gtk_accelerator_parse (): the key
@@ -43,6 +53,62 @@ namespace Polo.Input {
             accelerator.keycode = keycode;
             accelerator.mask = canonical (mask);
             return true;
+        }
+
+        public const uint32 BTN_LEFT = 0x110;
+        public const uint32 BTN_RIGHT = 0x111;
+        public const uint32 BTN_MIDDLE = 0x112;
+        public const uint32 BTN_SIDE = 0x113;
+        public const uint32 BTN_EXTRA = 0x114;
+
+        public uint32 evdev_button (int number) {
+            switch (number) {
+                case 1:
+                    return BTN_LEFT;
+                case 2:
+                    return BTN_MIDDLE;
+                case 3:
+                    return BTN_RIGHT;
+                case 8:
+                    return BTN_SIDE;
+                case 9:
+                    return BTN_EXTRA;
+                default:
+                    return 0;
+            }
+        }
+
+        public bool parse_button (string? text, out ButtonAccelerator accelerator) {
+            accelerator = ButtonAccelerator ();
+            if (text == null || text == "" || text == "disabled") {
+                return true;
+            }
+            int end = text.last_index_of_char ('>') + 1;
+            string name = text.substring (end);
+            if (!name.down ().has_prefix ("button")) {
+                return false;
+            }
+            int number;
+            if (!int.try_parse (name.substring ("button".length), out number)) {
+                return false;
+            }
+            uint32 button = evdev_button (number);
+            if (button == 0) {
+                return false;
+            }
+            Marco.VirtualModifier mask;
+            bool parsed = Marco.parse_modifier (text.substring (0, end), out mask);
+            if (!parsed || mask == 0) {
+                return false;
+            }
+            accelerator.button = button;
+            accelerator.mask = canonical (mask);
+            return true;
+        }
+
+        public bool matches_button (ButtonAccelerator accelerator, uint32 button, Backend.Modifiers mods) {
+            return !accelerator.is_disabled () && button == accelerator.button &&
+                   from_real (mods) == accelerator.mask;
         }
 
         /*

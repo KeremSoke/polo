@@ -172,12 +172,120 @@
       <summary>Expo background dimming</summary>
       <description>How much darker the wallpaper behind Expo is drawn, from 0 (as is) to 1 (black).</description>
     </key>
+    <key name="cube" type="b">
+      <default>false</default>
+      <summary>Enable the desktop cube</summary>
+      <description>Shows workspace switches within a row of workspaces as a turning cube, and enables the cube keys of org.mate.polo.keybindings. Needs the GL renderer; otherwise workspaces switch as without it.</description>
+    </key>
+    <key name="cube-duration-ms" type="u">
+      <range min="50" max="5000"/>
+      <default>350</default>
+      <summary>Desktop cube duration</summary>
+      <description>Duration in milliseconds of a turn of the cube, and of zooming it in and out.</description>
+    </key>
+    <key name="cube-zoom" type="d">
+      <range min="0.0" max="5.0"/>
+      <default>0.1</default>
+      <summary>Desktop cube zoom out</summary>
+      <description>How far the camera moves back while the cube is turned by hand; 0 does not zoom out.</description>
+    </key>
+    <key name="cube-speed-zoom" type="d">
+      <range min="0.0" max="1.0"/>
+      <default>0.07</default>
+      <summary>Desktop cube zoom speed</summary>
+      <description>How much one scroll step zooms the cube.</description>
+    </key>
+    <key name="cube-speed-spin-horizontal" type="d">
+      <range min="0.0" max="1.0"/>
+      <default>0.02</default>
+      <summary>Desktop cube horizontal spin speed</summary>
+      <description>Radians the cube turns per pixel of pointer motion across.</description>
+    </key>
+    <key name="cube-speed-spin-vertical" type="d">
+      <range min="0.0" max="1.0"/>
+      <default>0.02</default>
+      <summary>Desktop cube vertical spin speed</summary>
+      <description>How far the cube tilts per pixel of pointer motion up and down.</description>
+    </key>
+    <key name="cube-deform" type="s">
+      <choices>
+        <choice value="none"/>
+        <choice value="cylinder"/>
+        <choice value="star"/>
+      </choices>
+      <default>'none'</default>
+      <summary>Desktop cube deformation</summary>
+      <description>Bends the cube's sides while it is turned by hand: not at all ("none"), into a cylinder ("cylinder"), or pulling the corners out ("star").</description>
+    </key>
+    <key name="cube-light" type="b">
+      <default>true</default>
+      <summary>Desktop cube lighting</summary>
+      <description>Shades the cube's sides by how they face the light in front of the screen.</description>
+    </key>
+    <key name="cube-background" type="s">
+      <choices>
+        <choice value="solid"/>
+        <choice value="wallpaper"/>
+        <choice value="blurred-wallpaper"/>
+        <choice value="skydome"/>
+        <choice value="cubemap"/>
+      </choices>
+      <default>'solid'</default>
+      <summary>Desktop cube background</summary>
+      <description>What shows behind the cube: cube-background-color ("solid"), the desktop background ("wallpaper"), the desktop background blurred as Expo's ("blurred-wallpaper"), cube-skydome-image on a sphere around the cube ("skydome"), or cube-cubemap-image on a box around it ("cubemap"). A missing image falls back to "solid".</description>
+    </key>
+    <key name="cube-background-color" type="s">
+      <default>'#1a1a1a'</default>
+      <summary>Desktop cube background colour</summary>
+      <description>The colour behind the cube with the "solid" background, as #rrggbb.</description>
+    </key>
+    <key name="cube-skydome-image" type="s">
+      <default>''</default>
+      <summary>Desktop cube skydome image</summary>
+      <description>The image file shown around the cube with the "skydome" background.</description>
+    </key>
+    <key name="cube-skydome-mirror" type="b">
+      <default>true</default>
+      <summary>Mirror the desktop cube skydome</summary>
+      <description>Shows the skydome image twice round the sphere, the second time mirrored, so its ends meet without a seam.</description>
+    </key>
+    <key name="cube-cubemap-image" type="s">
+      <default>''</default>
+      <summary>Desktop cube cubemap image</summary>
+      <description>The image file shown on the six faces of a box around the cube with the "cubemap" background.</description>
+    </key>
+    <key name="cube-mesh-spacing" type="u">
+      <range min="8" max="256"/>
+      <default>32</default>
+      <summary>Desktop cube mesh spacing</summary>
+      <description>Pixels between the points at which the cube's sides are computed; smaller is smoother and slower. Deformed sides use at least 30 points across.</description>
+    </key>
   </schema>
   <schema id="org.mate.polo.keybindings" path="/org/mate/polo/keybindings/">
     <key name="expo" type="s">
       <default>'&lt;Mod4&gt;e'</default>
       <summary>Show Expo</summary>
       <description>Shows every workspace side by side, in Marco's accelerator syntax ("disabled" for none).</description>
+    </key>
+    <key name="cube" type="s">
+      <default>'&lt;Mod4&gt;c'</default>
+      <summary>Show the desktop cube</summary>
+      <description>Opens the desktop cube zoomed out, to turn it by hand and pick the workspace in front, in Marco's accelerator syntax ("disabled" for none). Needs the cube key of org.mate.polo.effects.</description>
+    </key>
+    <key name="cube-rotate-left" type="s">
+      <default>'disabled'</default>
+      <summary>Turn the desktop cube left</summary>
+      <description>Turns the cube one workspace to the left and ends on it, in Marco's accelerator syntax ("disabled" for none). Marco's switch-to-workspace-left also turns the cube.</description>
+    </key>
+    <key name="cube-rotate-right" type="s">
+      <default>'disabled'</default>
+      <summary>Turn the desktop cube right</summary>
+      <description>Turns the cube one workspace to the right and ends on it, in Marco's accelerator syntax ("disabled" for none). Marco's switch-to-workspace-right also turns the cube.</description>
+    </key>
+    <key name="cube-drag" type="s">
+      <default>'&lt;Control&gt;&lt;Alt&gt;Button1'</default>
+      <summary>Turn the desktop cube with the pointer</summary>
+      <description>Modifiers and a pointer button (Button1 left, Button2 middle, Button3 right, Button8 back, Button9 forward) that turn the cube while held; letting go lands on the workspace in front. At least one modifier is needed; "disabled" for none. Applications do not get that click.</description>
     </key>
   </schema>
 </schemalist>
