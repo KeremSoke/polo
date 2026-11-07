@@ -169,6 +169,38 @@ test_open_close(struct harness *h)
 }
 
 static void
+test_surface_first(struct harness *h)
+{
+	harness_set_setting(h, "org.mate.polo.effects", "close-animation",
+			    "'fade'");
+	struct harness_window *window = open_window(h, "surface first", false);
+	struct harness *owner = window->harness;
+
+	pause_ms(h, 2300);
+	for (int i = 0; i < owner->n_windows; i++) {
+		if (owner->windows[i] == window) {
+			owner->windows[i] = owner->windows[--owner->n_windows];
+			break;
+		}
+	}
+	if (owner->keyboard_focus == window->surface)
+		owner->keyboard_focus = NULL;
+	if (owner->pointer_focus == window->surface)
+		owner->pointer_focus = NULL;
+	wl_surface_destroy(window->surface);
+	harness_roundtrip(h);
+	xdg_toplevel_destroy(window->xdg_toplevel);
+	xdg_surface_destroy(window->xdg_surface);
+	if (window->buffer)
+		wl_buffer_destroy(window->buffer);
+	free(window);
+	harness_roundtrip(h);
+	settle(h, "a window whose surface went first");
+	harness_set_setting(h, "org.mate.polo.effects", "close-animation",
+			    "'none'");
+}
+
+static void
 test_zap_spin(struct harness *h)
 {
 	harness_set_setting(h, "org.mate.polo.effects", "open-animation",
@@ -307,6 +339,7 @@ main(int argc, char **argv)
 		test_pixman(h);
 	} else {
 		test_open_close(h);
+		test_surface_first(h);
 		test_zap_spin(h);
 		test_animations_off(h);
 	}

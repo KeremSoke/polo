@@ -200,6 +200,8 @@ polo_backend_view_ghost(PoloBackendView *source)
 	if (!source->view || source->view->geometry.parent)
 		return NULL;
 	surface = source->view->surface;
+	if (surface->ref_count <= 0)
+		return NULL;
 	view = weston_view_create(surface);
 	if (!view)
 		return NULL;
