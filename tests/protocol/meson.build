@@ -333,3 +333,23 @@ if get_option('xwayland')
     timeout: 60,
   )
 endif
+window_animations_test = executable('test-window-animations', 'test-window-animations.c',
+  dependencies: harness_dep)
+test('window-animations', window_animations_test,
+  args: [polo_exe],
+  env: magic_lamp_env,
+  suite: 'protocol',
+  timeout: 120,
+)
+test('window-animations-pixman', window_animations_test,
+  args: [polo_exe, 'pixman'],
+  env: magic_lamp_env,
+  suite: 'protocol',
+  timeout: 60,
+)
+test('window-animations-squeezimize', window_animations_test,
+  args: [polo_exe, 'squeezimize'],
+  env: magic_lamp_env,
+  suite: 'protocol',
+  timeout: 60,
+)

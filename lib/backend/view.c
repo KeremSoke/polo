@@ -9,6 +9,8 @@
  * libweston made for its subsurfaces.
  */
 
+#include <math.h>
+
 #include <libweston/libweston.h>
 
 #include "polo-backend-private.h"
@@ -23,7 +25,10 @@ struct _PoloBackendView {
 	gboolean owned;
 	gboolean scaled;
 	gboolean deformed;
+	gboolean effect_transformed;
 	struct weston_transform scale;
+	struct weston_transform effect;
+	struct weston_surface *ghost_surface;
 	GPtrArray *children;
 };
 
@@ -77,6 +82,7 @@ polo_backend_view_destroy(PoloBackendView *self)
 	self->view = NULL;
 	self->scaled = FALSE;
 	self->deformed = FALSE;
+	self->effect_transformed = FALSE;
 	self->toplevel = NULL;
 	g_signal_emit(self, signals[SIGNAL_DESTROYED], 0);
 }
@@ -181,6 +187,91 @@ polo_backend_view_place(PoloBackendView *view, double x, double y, double scale)
 	}
 	weston_view_update_transform(v);
 	weston_view_schedule_repaint(v);
+}
+
+PoloBackendView *
+polo_backend_view_ghost(PoloBackendView *source)
+{
+	struct weston_view *view;
+	struct weston_surface *surface;
+	PoloBackendView *ghost;
+
+	g_return_val_if_fail(POLO_BACKEND_IS_VIEW(source), NULL);
+	if (!source->view || source->view->geometry.parent)
+		return NULL;
+	surface = source->view->surface;
+	view = weston_view_create(surface);
+	if (!view)
+		return NULL;
+	weston_view_set_position(
+		view, weston_view_get_pos_offset_global(source->view));
+	weston_view_set_alpha(view, source->view->alpha);
+	pixman_region32_clear(&surface->pending.input);
+	pixman_region32_clear(&surface->input);
+	if (!weston_surface_is_mapped(surface) &&
+	    weston_surface_has_content(surface))
+		weston_surface_map(surface);
+	if (source->view->layer_link.layer)
+		weston_view_move_to_layer(view, &source->view->layer_link);
+	ghost = polo_backend_view_new(source->server, view, NULL);
+	ghost->owned = TRUE;
+	ghost->ghost_surface = weston_surface_ref(surface);
+	weston_view_schedule_repaint(view);
+	return ghost;
+}
+
+static void
+drop_effect_transform(PoloBackendView *view)
+{
+	if (view->effect_transformed) {
+		weston_view_remove_transform(view->view, &view->effect);
+		view->effect_transformed = FALSE;
+	}
+}
+
+void
+polo_backend_view_set_effect_transform(PoloBackendView *view, double cx,
+				       double cy, double scale_x,
+				       double scale_y, double angle, double dx,
+				       double dy)
+{
+	struct weston_view *v;
+	struct weston_coord_global pos;
+	double c = cos(angle), s = sin(angle);
+	double a11 = c * scale_x, a12 = -s * scale_y;
+	double a21 = s * scale_x, a22 = c * scale_y;
+	double px, py;
+
+	g_return_if_fail(POLO_BACKEND_IS_VIEW(view));
+	v = view->view;
+	if (!v || v->geometry.parent)
+		return;
+	pos = weston_view_get_pos_offset_global(v);
+	px = pos.c.x - cx;
+	py = pos.c.y - cy;
+	drop_effect_transform(view);
+	weston_matrix_init(&view->effect.matrix);
+	weston_matrix_scale(&view->effect.matrix, scale_x, scale_y, 1);
+	weston_matrix_rotate_xy(&view->effect.matrix, c, s);
+	weston_matrix_translate(&view->effect.matrix,
+				cx + dx + a11 * px + a12 * py - pos.c.x,
+				cy + dy + a21 * px + a22 * py - pos.c.y, 0);
+	weston_view_add_transform(v, &v->geometry.transformation_list,
+				  &view->effect);
+	view->effect_transformed = TRUE;
+	weston_view_update_transform(v);
+	weston_view_schedule_repaint(v);
+}
+
+void
+polo_backend_view_clear_effect_transform(PoloBackendView *view)
+{
+	g_return_if_fail(POLO_BACKEND_IS_VIEW(view));
+	if (!view->view || !view->effect_transformed)
+		return;
+	drop_effect_transform(view);
+	weston_view_update_transform(view->view);
+	weston_view_schedule_repaint(view->view);
 }
 
 void
@@ -314,8 +405,17 @@ polo_backend_view_dispose(GObject *object)
 	if (self->owned && view) {
 		if (self->scaled)
 			weston_view_remove_transform(view, &self->scale);
+		if (self->effect_transformed)
+			weston_view_remove_transform(view, &self->effect);
 		polo_backend_view_destroy(self);
 		weston_view_destroy(view);
+	} else if (view && self->effect_transformed) {
+		drop_effect_transform(self);
+		weston_view_update_transform(view);
+	}
+	if (self->ghost_surface) {
+		weston_surface_unref(self->ghost_surface);
+		self->ghost_surface = NULL;
 	}
 	g_clear_pointer(&self->children, g_ptr_array_unref);
 	G_OBJECT_CLASS(polo_backend_view_parent_class)->dispose(object);
@@ -334,4 +434,5 @@ static void
 polo_backend_view_init(PoloBackendView *self)
 {
 	wl_list_init(&self->scale.link);
+	wl_list_init(&self->effect.link);
 }

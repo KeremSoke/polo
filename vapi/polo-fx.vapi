@@ -135,6 +135,31 @@ namespace Polo.Fx {
         public static double advance (double progress, bool restoring, double elapsed_ms, double duration_ms);
     }
 
+    [CCode (cname = "PoloFxSqueezimize", has_type_id = false)]
+    public struct Squeezimize {
+        public double progress;
+        public MagicLampDirection direction;
+        public Vec2 origin;
+        public Vec2 size;
+        public Vec2 target;
+        public Vec2 target_size;
+
+        [CCode (cname = "polo_fx_squeezimize_point")]
+        public Vec2 point (Vec2 window);
+
+        [CCode (cname = "polo_fx_squeezimize_texture_at")]
+        public bool texture_at (Vec2 screen, out Vec2 window);
+
+        [CCode (cname = "polo_fx_squeezimize_grid_size")]
+        public void grid_size (out uint cols, out uint rows);
+
+        [CCode (cname = "polo_fx_squeezimize_fill_grid")]
+        public void fill_grid (Grid grid);
+
+        [CCode (cname = "polo_fx_squeezimize_advance")]
+        public static double advance (double progress, bool restoring, double elapsed_ms, double duration_ms);
+    }
+
     [CCode (cname = "PoloFxCubeDeform", cprefix = "POLO_FX_CUBE_DEFORM_", has_type_id = false)]
     public enum CubeDeform {
         NONE,

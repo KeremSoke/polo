@@ -105,6 +105,9 @@ namespace Polo.Effects {
             if (effects_settings == null) {
                 return false;
             }
+            if (settings_key == "") {
+                return true;
+            }
             var schema = effects_settings.settings_schema;
             return schema.has_key (settings_key) && effects_settings.get_boolean (settings_key);
         }

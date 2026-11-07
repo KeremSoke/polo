@@ -153,7 +153,12 @@ void check_pixel_buffer (Polo.Backend.Server server, GLib.MainContext context) {
     mirror.set_deformation (grid, 2, 2);
     mirror.clear_deformation ();
     mirror.place (0, 0, 1);
+    mirror.set_effect_transform (2, 1, 0.5, 0.5, 0.3, 4, -4);
+    mirror.clear_effect_transform ();
     mirror = null;
+    var ghost = buffer.get_view ().ghost ();
+    assert (ghost != null && ghost.mirror_views ().length == 1);
+    ghost = null;
     for (int round = 0; round < 4; round++) {
         pixels = buffer.begin (out stride);
         for (int i = 0; i < pixels.length; i++) {

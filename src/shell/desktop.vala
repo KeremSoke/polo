@@ -243,6 +243,7 @@ namespace Polo.Shell {
             model.unminimized.disconnect (on_unminimized);
             effects.finished.disconnect (on_effect_finished);
             lamp_held.remove_all ();
+            closing.remove_all ();
             model.focus_changed.disconnect (on_focus_changed);
             model.pointer_warped.disconnect (on_pointer_warped);
             model.focus_policy.shutdown ();
@@ -1150,6 +1151,17 @@ namespace Polo.Shell {
                     views.add (view);
                 }
             }
+            foreach (var ghosts in closing.get_values ()) {
+                int kind = (int) ghosts.layer;
+                var views = per_layer.lookup (kind);
+                if (views == null) {
+                    views = new GLib.GenericArray<Backend.View> ();
+                    per_layer.insert (kind, views);
+                }
+                foreach (var ghost in ghosts.views) {
+                    views.add (ghost);
+                }
+            }
             foreach (var kind in per_layer.get_keys ()) {
                 server.get_layer ((Backend.LayerKind) kind).restack (per_layer[kind].data);
             }
@@ -1160,20 +1172,117 @@ namespace Polo.Shell {
 
         private GLib.GenericSet<Window> lamp_held = new GLib.GenericSet<Window> (GLib.direct_hash, GLib.direct_equal);
 
+        private GLib.HashTable<Window, Effects.GhostTarget> closing =
+            new GLib.HashTable<Window, Effects.GhostTarget> (GLib.direct_hash, GLib.direct_equal);
+
+        private bool has_effect_key (string key) {
+            return effects.settings != null && effects.settings.settings_schema.has_key (key);
+        }
+
+        private string minimize_choice () {
+            string choice = has_effect_key ("minimize-animation")
+                            ? effects.settings.get_string ("minimize-animation") : "none";
+            if (choice == "none" && has_effect_key ("magic-lamp") && effects.settings.get_boolean ("magic-lamp")) {
+                choice = "magic-lamp";
+            }
+            return choice;
+        }
+
+        private double animation_duration (Policy.WindowAnimationKind kind) {
+            string key = kind == Policy.WindowAnimationKind.ZAP ? "zap-duration-ms"
+                         : kind == Policy.WindowAnimationKind.SPIN ? "spin-duration-ms" : "animation-duration-ms";
+            return has_effect_key (key) ? effects.settings.get_uint (key) : 400;
+        }
+
+        private Policy.WindowAnimation? window_animation (string key, bool showing) {
+            if (!has_effect_key (key)) {
+                return null;
+            }
+            var kind = Policy.WindowAnimationKind.parse (effects.settings.get_string (key));
+            if (kind == Policy.WindowAnimationKind.NONE) {
+                return null;
+            }
+            var animation = new Policy.WindowAnimation (kind, animation_duration (kind), showing);
+            if (has_effect_key ("spin-rotations")) {
+                animation.rotations = effects.settings.get_int ("spin-rotations");
+            }
+            return animation;
+        }
+
         private bool start_lamp (Window window, bool restore) {
             var xdg = window.adapter as XdgWindow;
             if (xdg == null || lamp_targets == null || effects.settings == null ||
                 window.has_state (WindowState.SHADED)) {
                 return false;
             }
+            string choice = minimize_choice ();
+            if (choice == "none") {
+                return false;
+            }
             var target = xdg.create_effect_target ();
-            var lamp = new Effects.MagicLampEffect (effects.settings);
-            if (effects.allowed (lamp)) {
-                return lamp.prepare (target, lamp_targets.resolve (window), restore) &&
-                       effects.run (target, lamp, restore);
+            if (choice == "zoom") {
+                var animation = new Policy.WindowAnimation (Policy.WindowAnimationKind.ZOOM,
+                                                            animation_duration (Policy.WindowAnimationKind.ZOOM),
+                                                            restore);
+                animation.zoom_into (window.frame, lamp_targets.resolve (window).rect);
+                var zoom = new Effects.ZoomMinimize (animation);
+                return effects.allowed (zoom) && effects.run (target, zoom, restore);
+            }
+            if (choice == "squeezimize") {
+                var squeeze = new Effects.SqueezimizeEffect (
+                    has_effect_key ("squeezimize-duration-ms") ? effects.settings.get_uint ("squeezimize-duration-ms")
+                                                               : 150);
+                if (effects.allowed (squeeze)) {
+                    return squeeze.prepare (target, lamp_targets.resolve (window), restore) &&
+                           effects.run (target, squeeze, restore);
+                }
+            } else if (choice == "magic-lamp") {
+                var lamp = new Effects.MagicLampEffect (effects.settings);
+                if (effects.allowed (lamp)) {
+                    return lamp.prepare (target, lamp_targets.resolve (window), restore) &&
+                           effects.run (target, lamp, restore);
+                }
             }
             var fade = new Effects.MagicLampFade (restore);
             return effects.allowed (fade) && effects.run (target, fade, restore);
+        }
+
+        internal void animate_open (XdgWindow xdg) {
+            var window = xdg.window;
+            var animation = window_animation ("open-animation", true);
+            if (animation == null || !model.is_showing (window)) {
+                return;
+            }
+            var effect = new Effects.WindowAnimationEffect (animation);
+            if (effects.allowed (effect)) {
+                effects.run (xdg.create_effect_target (), effect, true);
+            }
+        }
+
+        internal void animate_close (XdgWindow xdg) {
+            var window = xdg.window;
+            var animation = window_animation ("close-animation", false);
+            if (animation == null || !xdg.mapped || !model.is_showing (window) || closing.contains (window) ||
+                !effects.deformation_supported) {
+                return;
+            }
+            var effect = new Effects.WindowAnimationEffect (animation);
+            if (!effects.allowed (effect)) {
+                return;
+            }
+            var running = effects.effect_of (window) as Effects.WindowAnimationEffect;
+            if (running != null && !(running is Effects.MinimizeEffect)) {
+                animation.start_from (running.shown);
+            }
+            var ghosts = new Effects.GhostTarget (window, window.frame, backend_layer (window));
+            xdg.close_into (ghosts);
+            if (ghosts.empty) {
+                return;
+            }
+            closing.insert (window, ghosts);
+            if (!effects.run (ghosts, effect, true)) {
+                closing.remove (window);
+            }
         }
 
         private void on_minimizing (Window window, bool animate) {
@@ -1205,6 +1314,9 @@ namespace Polo.Shell {
         }
 
         private void on_effect_finished (Window window, Effects.Effect effect) {
+            if (effect is Effects.WindowAnimationEffect && !(effect is Effects.MinimizeEffect)) {
+                closing.remove (window);
+            }
             if (effect is Effects.MinimizeEffect) {
                 lamp_held.remove (window);
                 restack ();

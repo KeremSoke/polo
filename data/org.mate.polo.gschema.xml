@@ -109,8 +109,74 @@
     </key>
     <key name="magic-lamp" type="b">
       <default>false</default>
-      <summary>Enable Magic Lamp</summary>
-      <description>Animate windows with the Magic Lamp effect when minimizing or restoring.</description>
+      <summary>Magic Lamp (old switch)</summary>
+      <description>Kept for settings made before minimize-animation: when true and minimize-animation is "none", minimising uses Magic Lamp.</description>
+    </key>
+    <key name="open-animation" type="s">
+      <choices>
+        <choice value="none"/>
+        <choice value="fade"/>
+        <choice value="zoom"/>
+        <choice value="zap"/>
+        <choice value="spin"/>
+      </choices>
+      <default>'none'</default>
+      <summary>Window open animation</summary>
+      <description>How a window appears when it opens: at once ("none"), fading in ("fade"), growing from a third of its size while fading in ("zoom"), fading in then stretching across and then down ("zap"), or spinning in from a point ("spin").</description>
+    </key>
+    <key name="close-animation" type="s">
+      <choices>
+        <choice value="none"/>
+        <choice value="fade"/>
+        <choice value="zoom"/>
+        <choice value="zap"/>
+        <choice value="spin"/>
+      </choices>
+      <default>'none'</default>
+      <summary>Window close animation</summary>
+      <description>How a window disappears when it closes, the open animations run backwards: "none", "fade", "zoom", "zap" or "spin".</description>
+    </key>
+    <key name="minimize-animation" type="s">
+      <choices>
+        <choice value="none"/>
+        <choice value="fade"/>
+        <choice value="zoom"/>
+        <choice value="squeezimize"/>
+        <choice value="magic-lamp"/>
+      </choices>
+      <default>'none'</default>
+      <summary>Window minimise animation</summary>
+      <description>How a window goes into its task bar button when minimised, and comes back out when restored: at once ("none"), fading ("fade"), shrinking into the button ("zoom"), squeezing into it ("squeezimize") or funnelling into it ("magic-lamp"). Squeezimize and Magic Lamp need the GL renderer and fade instead without it.</description>
+    </key>
+    <key name="animation-duration-ms" type="u">
+      <range min="50" max="5000"/>
+      <default>400</default>
+      <summary>Fade and zoom duration</summary>
+      <description>Duration in milliseconds of the fade and zoom animations.</description>
+    </key>
+    <key name="zap-duration-ms" type="u">
+      <range min="50" max="5000"/>
+      <default>250</default>
+      <summary>Zap duration</summary>
+      <description>Duration in milliseconds of the zap animation.</description>
+    </key>
+    <key name="spin-duration-ms" type="u">
+      <range min="50" max="5000"/>
+      <default>250</default>
+      <summary>Spin duration</summary>
+      <description>Duration in milliseconds of the spin animation.</description>
+    </key>
+    <key name="spin-rotations" type="i">
+      <range min="-10" max="10"/>
+      <default>1</default>
+      <summary>Spin rotations</summary>
+      <description>How many turns the spin animation makes; negative turns the other way.</description>
+    </key>
+    <key name="squeezimize-duration-ms" type="u">
+      <range min="50" max="5000"/>
+      <default>150</default>
+      <summary>Squeezimize duration</summary>
+      <description>Duration in milliseconds of the squeezimize animation.</description>
     </key>
     <key name="magic-lamp-duration-ms" type="u">
       <range min="50" max="5000"/>

@@ -31,3 +31,8 @@ test_cube = executable('test-cube', 'cube.c',
   dependencies: [polo_fx_dep, cc.find_library('m')],
 )
 test('cube', test_cube, suite: 'unit-c', protocol: 'tap', args: ['--tap'])
+
+test_squeezimize = executable('test-squeezimize', 'squeezimize.c',
+  dependencies: [polo_fx_dep, cc.find_library('m')],
+)
+test('squeezimize', test_squeezimize, suite: 'unit-c', protocol: 'tap', args: ['--tap'])

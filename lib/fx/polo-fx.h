@@ -96,6 +96,15 @@ typedef struct {
 	PoloFxVec2 size;
 } PoloFxCube;
 
+typedef struct {
+	double progress;
+	PoloFxMagicLampDirection direction;
+	PoloFxVec2 origin;
+	PoloFxVec2 size;
+	PoloFxVec2 target;
+	PoloFxVec2 target_size;
+} PoloFxSqueezimize;
+
 /* NULL unless 2 <= cols, 2 <= rows and cols * rows <= the limit. */
 PoloFxGrid *
 polo_fx_grid_new(guint cols, guint rows);
@@ -232,6 +241,28 @@ gboolean
 polo_fx_cube_cubemap_equirect(const guint8 *src, int width, int height,
 			      int stride, guint8 *dst, int dst_width,
 			      int dst_height, int dst_stride);
+
+/* A point of the window, u and v over it, on screen at progress. */
+PoloFxVec2
+polo_fx_squeezimize_point(const PoloFxSqueezimize *sq, PoloFxVec2 window);
+
+/* Wayfire's shader: the window point a screen point shows; FALSE where the
+ * shader discards it. */
+gboolean
+polo_fx_squeezimize_texture_at(const PoloFxSqueezimize *sq, PoloFxVec2 screen,
+			       PoloFxVec2 *window);
+
+void
+polo_fx_squeezimize_grid_size(const PoloFxSqueezimize *sq, guint *cols,
+			      guint *rows);
+
+void
+polo_fx_squeezimize_fill_grid(const PoloFxSqueezimize *sq, PoloFxGrid *grid);
+
+/* Linear, as Wayfire's squeezimize_duration; restoring runs back to 0. */
+double
+polo_fx_squeezimize_advance(double progress, gboolean restoring,
+			    double elapsed_ms, double duration_ms);
 
 G_END_DECLS
 

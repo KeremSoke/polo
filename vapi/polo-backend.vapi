@@ -730,6 +730,16 @@ namespace Polo {
             public void set_alpha (float alpha);
             [CCode (cname = "polo_backend_view_mirror")]
             public View? mirror ();
+            [CCode (cname = "polo_backend_view_ghost")]
+            public View? ghost ();
+
+            [CCode (cname = "polo_backend_view_set_effect_transform")]
+            public void set_effect_transform (double cx, double cy, double scale_x, double scale_y, double angle,
+                                              double dx, double dy);
+
+            [CCode (cname = "polo_backend_view_clear_effect_transform")]
+            public void clear_effect_transform ();
+
             [CCode (cname = "polo_backend_view_mirror_views")]
             public GLib.GenericArray<View> mirror_views ();
             [CCode (cname = "polo_backend_view_place")]
@@ -840,6 +850,8 @@ namespace Polo {
             public signal void ping_timeout ();
             public signal void pong ();
             public signal void icon_changed ();
+            /* The client is closing the toplevel; its views are still in place. */
+            public signal void closing ();
             public signal void destroyed ();
         }
 

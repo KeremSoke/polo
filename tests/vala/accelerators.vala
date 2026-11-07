@@ -112,6 +112,17 @@ void test_schema_defaults () {
     assert (effects.get_key ("cube-speed-spin-horizontal").get_default_value ().get_double () == 0.02);
     assert (effects.get_key ("cube-speed-spin-vertical").get_default_value ().get_double () == 0.02);
     assert (!effects.get_key ("cube-natural-drag").get_default_value ().get_boolean ());
+    foreach (var name in new string[] { "open-animation", "close-animation", "minimize-animation" }) {
+        assert (effects.get_key (name).get_default_value ().get_string () == "none");
+    }
+    assert (effects.get_key ("open-animation").range_check (new GLib.Variant.string ("spin")));
+    assert (!effects.get_key ("open-animation").range_check (new GLib.Variant.string ("fire")));
+    assert (effects.get_key ("minimize-animation").range_check (new GLib.Variant.string ("squeezimize")));
+    assert (effects.get_key ("animation-duration-ms").get_default_value ().get_uint32 () == 400);
+    assert (effects.get_key ("zap-duration-ms").get_default_value ().get_uint32 () == 250);
+    assert (effects.get_key ("spin-duration-ms").get_default_value ().get_uint32 () == 250);
+    assert (effects.get_key ("spin-rotations").get_default_value ().get_int32 () == 1);
+    assert (effects.get_key ("squeezimize-duration-ms").get_default_value ().get_uint32 () == 150);
     assert (effects.get_key ("cube-deform").get_default_value ().get_string () == "none");
     assert (effects.get_key ("cube-deform").range_check (new GLib.Variant.string ("star")));
     assert (!effects.get_key ("cube-deform").range_check (new GLib.Variant.string ("sphere")));

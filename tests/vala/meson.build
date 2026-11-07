@@ -232,3 +232,10 @@ test('accelerators', accelerators_test, suite: 'unit-vala', protocol: 'tap', arg
   env: ['POLO_SCHEMA_DIR=' + meson.project_build_root() / 'data',
         'WESTON_MODULE_MAP=' + weston_module_map],
   depends: polo_schemas)
+
+window_animation_test = executable('test-window-animation', 'window-animation.vala',
+  vala_args: vala_args + ['--pkg', 'polo-marco'],
+  c_args: vala_c_args,
+  dependencies: [polo_policy_dep, cc.find_library('m')],
+)
+test('window-animation', window_animation_test, suite: 'unit-vala', protocol: 'tap', args: ['--tap'])

@@ -76,5 +76,20 @@ int main () {
     var doubled = new uint8[16 * 4 * 4];
     Polo.Fx.sky_texture (panorama, 8, 4, 32, doubled, 64);
     assert (doubled[0] == 0x7f && doubled[doubled.length - 1] == 0x7f);
+
+    var squeeze = Polo.Fx.Squeezimize () {
+        progress = 0.5, direction = Polo.Fx.MagicLampDirection.BOTTOM,
+        origin = Polo.Fx.Vec2 () { x = 100, y = 100 }, size = Polo.Fx.Vec2 () { x = 400, y = 300 },
+        target = Polo.Fx.Vec2 () { x = 200, y = 700 }, target_size = Polo.Fx.Vec2 () { x = 40, y = 30 }
+    };
+    var on_screen = squeeze.point (Polo.Fx.Vec2 () { x = 0.25, y = 0.75 });
+    Polo.Fx.Vec2 back;
+    assert (squeeze.texture_at (on_screen, out back));
+    assert ((back.x - 0.25).abs () < 1e-6 && (back.y - 0.75).abs () < 1e-6);
+    uint squeeze_cols, squeeze_rows;
+    squeeze.grid_size (out squeeze_cols, out squeeze_rows);
+    var squeeze_grid = Polo.Fx.Grid.create (squeeze_cols, squeeze_rows);
+    squeeze.fill_grid (squeeze_grid);
+    assert (Polo.Fx.Squeezimize.advance (0, false, 75, 150) == 0.5);
     return 0;
 }

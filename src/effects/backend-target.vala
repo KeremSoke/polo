@@ -31,7 +31,7 @@ namespace Polo.Effects {
         }
     }
 
-    public class BackendTarget : Target {
+    public class BackendTarget : Target, FrameTarget {
         private unowned Backend.Toplevel toplevel;
         private ViewCollector collect;
         private GLib.GenericArray<ViewComponent> components =
@@ -177,6 +177,23 @@ namespace Polo.Effects {
                     component.view.clear_deformation ();
                     component.view.set_alpha (1.0f);
                 }
+            }
+            foreach (unowned Backend.View view in collect ()) {
+                view.clear_effect_transform ();
+                view.set_alpha (1.0f);
+            }
+        }
+
+        public void show_frame (Policy.AnimationFrame frame) {
+            var rect = window.frame;
+            if (rect.width <= 0 || rect.height <= 0) {
+                get_surface_rect (out rect);
+            }
+            double cx = rect.x + rect.width / 2.0, cy = rect.y + rect.height / 2.0;
+            float alpha = (float) frame.alpha.clamp (0.0, 1.0);
+            foreach (unowned Backend.View view in collect ()) {
+                view.set_effect_transform (cx, cy, frame.scale_x, frame.scale_y, frame.angle, frame.dx, frame.dy);
+                view.set_alpha (alpha);
             }
         }
 

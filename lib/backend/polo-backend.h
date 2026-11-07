@@ -802,6 +802,17 @@ polo_backend_view_mirror(PoloBackendView *view);
 GPtrArray *
 polo_backend_view_mirror_views(PoloBackendView *view);
 
+PoloBackendView *
+polo_backend_view_ghost(PoloBackendView *view);
+
+void
+polo_backend_view_set_effect_transform(PoloBackendView *view, double cx,
+				       double cy, double scale_x, double scale_y,
+				       double angle, double dx, double dy);
+
+void
+polo_backend_view_clear_effect_transform(PoloBackendView *view);
+
 void
 polo_backend_view_place(PoloBackendView *view, double x, double y,
 			double scale);

@@ -52,6 +52,7 @@ enum {
 	SIGNAL_PING_TIMEOUT,
 	SIGNAL_PONG,
 	SIGNAL_ICON_CHANGED,
+	SIGNAL_CLOSING,
 	SIGNAL_DESTROYED,
 	N_SIGNALS,
 };
@@ -160,6 +161,7 @@ surface_removed(struct weston_desktop_surface *desktop_surface, void *data)
 	if (!self)
 		return;
 
+	g_signal_emit(self, signals[SIGNAL_CLOSING], 0);
 	wl_list_remove(&self->metadata_listener.link);
 	weston_desktop_surface_set_user_data(desktop_surface, NULL);
 
@@ -847,6 +849,9 @@ polo_backend_toplevel_class_init(PoloBackendToplevelClass *klass)
 	signals[SIGNAL_ICON_CHANGED] =
 		g_signal_new("icon-changed", type, G_SIGNAL_RUN_LAST, 0, NULL,
 			     NULL, NULL, G_TYPE_NONE, 0);
+	signals[SIGNAL_CLOSING] =
+		g_signal_new("closing", type, G_SIGNAL_RUN_LAST, 0, NULL, NULL,
+			     NULL, G_TYPE_NONE, 0);
 	signals[SIGNAL_DESTROYED] =
 		g_signal_new("destroyed", type, G_SIGNAL_RUN_LAST, 0, NULL,
 			     NULL, NULL, G_TYPE_NONE, 0);

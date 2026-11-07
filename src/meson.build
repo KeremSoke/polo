@@ -22,6 +22,7 @@ policy_sources = files(
   'policy/lamp-target.vala',
   'policy/expo.vala',
   'policy/cube.vala',
+  'policy/window-animation.vala',
 )
 policy_lib = static_library('polo-policy',
   policy_sources,
@@ -78,6 +79,7 @@ polo_sources = files(
   'effects/engine.vala',
   'effects/lamp-targets.vala',
   'effects/magic-lamp-effect.vala',
+  'effects/window-animation-effect.vala',
   'effects/locate-pointer.vala',
   'effects/backend-target.vala',
   'effects/wobbly-effect.vala',

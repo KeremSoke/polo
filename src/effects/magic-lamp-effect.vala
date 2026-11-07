@@ -22,7 +22,7 @@ namespace Polo.Effects {
         private bool restoring;
 
         public int priority { get { return 2; } }
-        public unowned string settings_key { get { return "magic-lamp"; } }
+        public unowned string settings_key { get { return ""; } }
         public bool deforms { get { return false; } }
         public bool minimizing { get { return !restoring; } }
 
@@ -70,7 +70,7 @@ namespace Polo.Effects {
         private bool restoring = false;
 
         public int priority { get { return 2; } }
-        public unowned string settings_key { get { return "magic-lamp"; } }
+        public unowned string settings_key { get { return ""; } }
         public bool deforms { get { return true; } }
 
         public bool minimizing { get { return !restoring; } }

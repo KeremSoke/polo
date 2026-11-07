@@ -134,6 +134,7 @@ namespace Polo.Shell {
             toplevel.request_window_menu.connect (on_request_window_menu);
             toplevel.ping_timeout.connect (on_ping_timeout);
             toplevel.pong.connect (on_pong);
+            toplevel.closing.connect (on_closing);
             toplevel.destroyed.connect (on_destroyed);
             toplevel.decoration_changed.connect (on_decoration_changed);
             toplevel.icon_changed.connect (reload_icon);
@@ -155,7 +156,25 @@ namespace Polo.Shell {
             return toplevel.get_server_decorated ();
         }
 
+        private uint decoration_idle = 0;
+
+        /* A client closing its window may drop the decoration object first, in the same batch: the frame
+         * goes after it, so a close animation can take it. */
         private void on_decoration_changed () {
+            if (!server_decorated () && decor != null) {
+                if (decoration_idle == 0) {
+                    decoration_idle = GLib.Idle.add (() => {
+                        decoration_idle = 0;
+                        apply_decoration ();
+                        return GLib.Source.REMOVE;
+                    });
+                }
+                return;
+            }
+            apply_decoration ();
+        }
+
+        private void apply_decoration () {
             bool decorated = server_decorated ();
             if (window.mwm_decorated == decorated) {
                 return;
@@ -249,6 +268,46 @@ namespace Polo.Shell {
                 last_frame_scale = scale;
             }
             return last_frame_scale;
+        }
+
+        internal void close_into (Effects.GhostTarget ghosts) {
+            var kept_shadow = shadow;
+            var kept_decor = decor;
+            if (kept_shadow != null) {
+                for (int i = 0; i < Marco.ShadowPiece.COUNT; i++) {
+                    Marco.Rect rect;
+                    unowned Backend.PixelBuffer? piece = kept_shadow.get_piece ((Marco.ShadowPiece) i, out rect);
+                    unowned Backend.View? view = piece != null ? piece.get_view () : null;
+                    if (view != null) {
+                        ghosts.adopt (view);
+                    }
+                }
+                kept_shadow.ready.disconnect (desktop.frames_changed);
+                shadow = null;
+            }
+            if (kept_decor != null) {
+                for (int i = 0; i < Decor.Frame.Edge.COUNT; i++) {
+                    Marco.Rect rect;
+                    unowned Backend.PixelBuffer? edge = kept_decor.get_edge ((Decor.Frame.Edge) i, out rect);
+                    unowned Backend.View? view = edge != null ? edge.get_view () : null;
+                    if (view != null) {
+                        ghosts.adopt (view);
+                    }
+                }
+                kept_decor.ready.disconnect (desktop.frames_changed);
+                decor = null;
+            }
+            foreach (var view in toplevel.get_surface_tree_views ()) {
+                ghosts.add (view);
+            }
+            ghosts.on_release (() => {
+                if (kept_decor != null) {
+                    kept_decor.clear ();
+                }
+                if (kept_shadow != null) {
+                    kept_shadow.clear ();
+                }
+            });
         }
 
         private void drop_decor () {
@@ -554,6 +613,7 @@ namespace Polo.Shell {
                 log ().debug ("mapped %s at %d,%d %dx%d", window.describe (),
                               window.frame.x, window.frame.y, width, height);
                 desktop.model.stack_changed ();
+                desktop.animate_open (this);
                 return;
             }
 
@@ -742,10 +802,20 @@ namespace Polo.Shell {
             desktop.window_withdrawn (this, old);
         }
 
+        private void on_closing () {
+            if (mapped) {
+                desktop.animate_close (this);
+            }
+        }
+
         private void on_destroyed () {
             /* The desktop drops its reference below; stay alive until
              * this handler returns. */
             var self = this;
+            if (decoration_idle != 0) {
+                GLib.Source.remove (decoration_idle);
+                decoration_idle = 0;
+            }
 
             mapped = false;
             /* Break the window/adapter cycle before the toplevel disappears. */
