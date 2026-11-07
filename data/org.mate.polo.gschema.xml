@@ -118,5 +118,66 @@
       <summary>Magic Lamp duration</summary>
       <description>Duration in milliseconds for the Magic Lamp animation.</description>
     </key>
+    <key name="expo" type="b">
+      <default>true</default>
+      <summary>Enable Expo</summary>
+      <description>Show every workspace side by side with its expo key, to pick a workspace or drag windows between workspaces.</description>
+    </key>
+    <key name="expo-layout" type="s">
+      <choices>
+        <choice value="workspaces"/>
+        <choice value="row"/>
+        <choice value="grid"/>
+      </choices>
+      <default>'workspaces'</default>
+      <summary>Expo layout</summary>
+      <description>How Expo arranges the workspaces: as the workspace switcher lays them out ("workspaces"), in one row ("row"), or in a grid as square as possible ("grid").</description>
+    </key>
+    <key name="expo-workspace-names" type="b">
+      <default>true</default>
+      <summary>Workspace names in Expo</summary>
+      <description>Show each workspace's name under it in Expo.</description>
+    </key>
+    <key name="expo-label-opacity" type="d">
+      <range min="0.0" max="1.0"/>
+      <default>0.75</default>
+      <summary>Opacity of Expo's workspace name boxes</summary>
+      <description>How opaque the dark box behind each workspace name is, from 0 (only the text) to 1; the media key OSDs use 0.75.</description>
+    </key>
+    <key name="expo-label-radius" type="u">
+      <range min="0" max="32"/>
+      <default>6</default>
+      <summary>Corner radius of Expo's workspace name boxes</summary>
+      <description>The radius in pixels of the corners of the box behind each workspace name; 0 gives square corners.</description>
+    </key>
+    <key name="expo-background" type="s">
+      <choices>
+        <choice value="solid"/>
+        <choice value="wallpaper"/>
+        <choice value="blurred-wallpaper"/>
+      </choices>
+      <default>'blurred-wallpaper'</default>
+      <summary>Expo background</summary>
+      <description>What Expo shows behind the workspaces: a solid dark grey ("solid"), the desktop background ("wallpaper"), or the desktop background blurred ("blurred-wallpaper").</description>
+    </key>
+    <key name="expo-background-blur" type="u">
+      <range min="1" max="100"/>
+      <default>40</default>
+      <summary>Expo background blur radius</summary>
+      <description>How far, in pixels, the "blurred-wallpaper" Expo background is blurred.</description>
+    </key>
+    <key name="expo-background-dim" type="d">
+      <range min="0.0" max="1.0"/>
+      <default>0.3</default>
+      <summary>Expo background dimming</summary>
+      <description>How much darker the wallpaper behind Expo is drawn, from 0 (as is) to 1 (black).</description>
+    </key>
+  </schema>
+  <schema id="org.mate.polo.keybindings" path="/org/mate/polo/keybindings/">
+    <key name="expo" type="s">
+      <default>'&lt;Mod4&gt;e'</default>
+      <summary>Show Expo</summary>
+      <description>Shows every workspace side by side, in Marco's accelerator syntax ("disabled" for none).</description>
+    </key>
   </schema>
 </schemalist>

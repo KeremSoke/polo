@@ -469,6 +469,16 @@ polo_backend_pixel_buffer_begin(PoloBackendPixelBuffer *self, int *length,
 	return self->back->pixels;
 }
 
+const guint8 *
+polo_backend_pixel_buffer_peek(PoloBackendPixelBuffer *self, int *length,
+			       int *stride)
+{
+	g_return_val_if_fail(POLO_BACKEND_IS_PIXEL_BUFFER(self), NULL);
+	*stride = self->width * 4;
+	*length = self->front ? (int)self->front->size : 0;
+	return self->front ? self->front->pixels : NULL;
+}
+
 void
 polo_backend_pixel_buffer_commit(PoloBackendPixelBuffer *self)
 {

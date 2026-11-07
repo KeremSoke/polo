@@ -786,6 +786,13 @@ polo_backend_view_clear_deformation(PoloBackendView *view);
 void
 polo_backend_view_set_alpha(PoloBackendView *view, float alpha);
 
+PoloBackendView *
+polo_backend_view_mirror(PoloBackendView *view);
+
+void
+polo_backend_view_place(PoloBackendView *view, double x, double y,
+			double scale);
+
 /* Put the view on top of @layer (NULL: remove it from any layer). */
 void
 polo_backend_view_move_to_layer(PoloBackendView *view,
@@ -1048,6 +1055,10 @@ polo_backend_pixel_buffer_get_size(PoloBackendPixelBuffer *buffer,
 guint8 *
 polo_backend_pixel_buffer_begin(PoloBackendPixelBuffer *buffer, int *length,
 				int *stride);
+
+const guint8 *
+polo_backend_pixel_buffer_peek(PoloBackendPixelBuffer *buffer, int *length,
+			       int *stride);
 
 void
 polo_backend_pixel_buffer_commit(PoloBackendPixelBuffer *buffer);

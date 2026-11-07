@@ -20,6 +20,7 @@ policy_sources = files(
   'policy/screenshot.vala',
   'policy/screen-share.vala',
   'policy/lamp-target.vala',
+  'policy/expo.vala',
 )
 policy_lib = static_library('polo-policy',
   policy_sources,
@@ -112,6 +113,7 @@ polo_sources = files(
   'shell/shell-ui.vala',
   'shell/switcher.vala',
   'shell/share-chooser.vala',
+  'shell/expo.vala',
   'shell/frame-input.vala',
   'shell/window-menu.vala',
   'shell/workspace-switcher.vala',

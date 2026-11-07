@@ -68,6 +68,7 @@ namespace Polo.Input {
         public const string DIR = "/org/mate/desktop/keybindings/";
         public const string SCHEMA = "org.mate.control-center.keybinding";
         private const string PREFIX = "custom-shortcut:";
+        private const string GROUP = "custom-shortcuts";
 
         private class Entry {
             public string path;
@@ -110,7 +111,7 @@ namespace Polo.Input {
                 reload_idle = 0;
             }
             clear ();
-            bindings.set_custom (new GLib.GenericArray<Binding> ());
+            bindings.set_custom (GROUP, new GLib.GenericArray<Binding> ());
         }
 
         private void schedule_reload () {
@@ -164,7 +165,7 @@ namespace Polo.Input {
                 unowned Entry bound = entry;
                 bindings.register (name, (binding, seat, event) => run (bound));
             }
-            bindings.set_custom (custom);
+            bindings.set_custom (GROUP, custom);
             log.debug ("%u custom shortcuts", custom.length);
         }
 

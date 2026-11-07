@@ -131,10 +131,13 @@ void cover_input_device (Polo.Backend.InputDevice device) {
 void check_pixel_buffer (Polo.Backend.Server server, GLib.MainContext context) {
     var buffer = new Polo.Backend.PixelBuffer (server, 4, 2, 1);
     int stride;
+    assert (buffer.peek (out stride).length == 0 && stride == 16);
     unowned uint8[] pixels = buffer.begin (out stride);
     assert (pixels.length == 4 * 2 * 4 && stride == 16);
     GLib.Memory.set (pixels, 0x11, pixels.length);
     buffer.commit ();
+    unowned uint8[] front = buffer.peek (out stride);
+    assert (front.length == 4 * 2 * 4 && front[0] == 0x11 && front[front.length - 1] == 0x11);
     int turns = 0;
     while (!buffer.is_ready () && turns < 50) {
         context.iteration (false);

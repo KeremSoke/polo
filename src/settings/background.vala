@@ -107,6 +107,16 @@ namespace Polo.Settings {
 
         /* ---- Outputs ---------------------------------------------------- */
 
+        public unowned Backend.View? wallpaper_view (Policy.Output output) {
+            var entry = entry_for (output);
+            return entry != null && entry.buffer != null ? entry.buffer.get_view () : null;
+        }
+
+        public Backend.PixelBuffer? wallpaper_buffer (Policy.Output output) {
+            var entry = entry_for (output);
+            return entry != null ? entry.buffer : null;
+        }
+
         private Entry? entry_for (Policy.Output output) {
             foreach (var entry in entries) {
                 if (entry.output == output) {

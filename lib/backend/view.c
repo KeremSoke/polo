@@ -3,7 +3,9 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
  * PoloBackendView: a handle on a weston_view. The handle does not own the
- * view; its creator, such as a toplevel or layer surface, destroys it.
+ * view; its creator, such as a toplevel or layer surface, destroys it. A
+ * mirror (another view of the same surface, for Expo) is the exception: its
+ * handle owns it.
  */
 
 #include <libweston/libweston.h>
@@ -17,6 +19,9 @@ struct _PoloBackendView {
 	struct weston_view *view;
 	PoloBackendToplevel *toplevel; /* unowned */
 	struct wl_listener destroy_listener;
+	gboolean owned;
+	gboolean scaled;
+	struct weston_transform scale;
 };
 
 enum {
@@ -67,8 +72,53 @@ polo_backend_view_destroy(PoloBackendView *self)
 	wl_list_remove(&self->destroy_listener.link);
 	g_hash_table_remove(self->server->views, self->view);
 	self->view = NULL;
+	self->scaled = FALSE;
 	self->toplevel = NULL;
 	g_signal_emit(self, signals[SIGNAL_DESTROYED], 0);
+}
+
+PoloBackendView *
+polo_backend_view_mirror(PoloBackendView *source)
+{
+	PoloBackendView *mirror;
+
+	g_return_val_if_fail(POLO_BACKEND_IS_VIEW(source), NULL);
+
+	if (!source->view ||
+	    weston_surface_get_main_surface(source->view->surface) !=
+		    source->view->surface)
+		return NULL;
+	mirror = polo_backend_view_new(
+		source->server, weston_view_create(source->view->surface),
+		NULL);
+	mirror->owned = TRUE;
+	return mirror;
+}
+
+void
+polo_backend_view_place(PoloBackendView *view, double x, double y, double scale)
+{
+	struct weston_view *v;
+
+	g_return_if_fail(POLO_BACKEND_IS_VIEW(view));
+	v = view->view;
+	if (!v)
+		return;
+	if (view->scaled) {
+		weston_view_remove_transform(v, &view->scale);
+		view->scaled = FALSE;
+	}
+	weston_view_set_position(
+		v, (struct weston_coord_global){ .c = weston_coord(x, y) });
+	if (scale != 1.0) {
+		weston_matrix_init(&view->scale.matrix);
+		weston_matrix_scale(&view->scale.matrix, scale, scale, 1);
+		weston_view_add_transform(v, &v->geometry.transformation_list,
+					  &view->scale);
+		view->scaled = TRUE;
+	}
+	weston_view_update_transform(v);
+	weston_view_schedule_repaint(v);
 }
 
 void
@@ -190,8 +240,24 @@ polo_backend_view_get_client(PoloBackendView *view)
 }
 
 static void
+polo_backend_view_dispose(GObject *object)
+{
+	PoloBackendView *self = POLO_BACKEND_VIEW(object);
+	struct weston_view *view = self->view;
+
+	if (self->owned && view) {
+		if (self->scaled)
+			weston_view_remove_transform(view, &self->scale);
+		polo_backend_view_destroy(self);
+		weston_view_destroy(view);
+	}
+	G_OBJECT_CLASS(polo_backend_view_parent_class)->dispose(object);
+}
+
+static void
 polo_backend_view_class_init(PoloBackendViewClass *klass)
 {
+	G_OBJECT_CLASS(klass)->dispose = polo_backend_view_dispose;
 	signals[SIGNAL_DESTROYED] = g_signal_new(
 		"destroyed", G_TYPE_FROM_CLASS(klass), G_SIGNAL_RUN_LAST, 0,
 		NULL, NULL, NULL, G_TYPE_NONE, 0);
@@ -200,4 +266,5 @@ polo_backend_view_class_init(PoloBackendViewClass *klass)
 static void
 polo_backend_view_init(PoloBackendView *self)
 {
+	wl_list_init(&self->scale.link);
 }

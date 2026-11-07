@@ -720,6 +720,10 @@ namespace Polo {
             public void clear_deformation ();
             [CCode (cname = "polo_backend_view_set_alpha")]
             public void set_alpha (float alpha);
+            [CCode (cname = "polo_backend_view_mirror")]
+            public View? mirror ();
+            [CCode (cname = "polo_backend_view_place")]
+            public void place (double x, double y, double scale);
 
             /* On top of layer; null removes the view from any layer. */
             [CCode (cname = "polo_backend_view_move_to_layer")]
@@ -933,6 +937,9 @@ namespace Polo {
              * Empty without the internal client. */
             [CCode (cname = "polo_backend_pixel_buffer_begin", array_length_pos = 0.1)]
             public unowned uint8[] begin (out int stride);
+
+            [CCode (cname = "polo_backend_pixel_buffer_peek", array_length_pos = 0.1)]
+            public unowned uint8[] peek (out int stride);
 
             [CCode (cname = "polo_backend_pixel_buffer_commit")]
             public void commit ();

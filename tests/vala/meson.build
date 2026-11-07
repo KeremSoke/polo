@@ -206,3 +206,10 @@ lamp_target_test = executable('test-lamp-target', 'lamp-target.vala',
   dependencies: [polo_policy_dep],
 )
 test('lamp-target', lamp_target_test, suite: 'unit-vala', protocol: 'tap', args: ['--tap'])
+
+expo_test = executable('test-expo', 'expo.vala',
+  vala_args: vala_args + ['--pkg', 'polo-marco'],
+  c_args: vala_c_args,
+  dependencies: [polo_policy_dep, cc.find_library('m')],
+)
+test('expo', expo_test, suite: 'unit-vala', protocol: 'tap', args: ['--tap'])

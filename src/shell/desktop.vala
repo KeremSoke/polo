@@ -31,7 +31,7 @@ namespace Polo.Shell {
             new GLib.HashTable<Backend.Toplevel, XdgWindow> (GLib.direct_hash, GLib.direct_equal);
 
         public LayerShell layer_shell { get; private set; }
-        private Settings.Background background;
+        public Settings.Background background { get; private set; }
         private Settings.InterfaceMirror interface_mirror;
         private Bell bell;
         private Effects.LocatePointer locate_pointer;
@@ -49,6 +49,7 @@ namespace Polo.Shell {
         public Input.MoveResize move_resize { get; private set; }
         public Switcher switcher { get; private set; }
         public ShareChooser share_chooser { get; private set; }
+        public Expo expo { get; private set; }
         public WindowMenu window_menu { get; private set; }
         private FrameInput frame_input;
         public WorkspaceSwitcher workspace_switcher { get; private set; }
@@ -133,6 +134,7 @@ namespace Polo.Shell {
             move_resize.tile_preview_hidden.connect (tile_preview.hide);
             switcher = new Switcher (server, model, this, bindings);
             share_chooser = new ShareChooser (server, model, this);
+            expo = new Expo (server, model, this, bindings);
             window_menu = new WindowMenu (server, model, this, bindings);
             frame_input = new FrameInput (this, model);
             workspace_switcher = new WorkspaceSwitcher (server, model, this, bindings);
@@ -245,6 +247,7 @@ namespace Polo.Shell {
             model.work_areas_changed.disconnect (push_work_areas);
             switcher.shutdown ();
             share_chooser.shutdown ();
+            expo.shutdown ();
             workspace_switcher.shutdown ();
 #if POLO_HAVE_XWAYLAND
             if (ewmh != null) {
@@ -594,8 +597,8 @@ namespace Polo.Shell {
 
         public bool grab_active {
             get {
-                return move_resize.active || switcher.active || share_chooser.active || workspace_switcher.active ||
-                       frame_input.active;
+                return move_resize.active || switcher.active || share_chooser.active || expo.active ||
+                       workspace_switcher.active || frame_input.active;
             }
         }
 
@@ -641,6 +644,8 @@ namespace Polo.Shell {
                     grabbed = switcher.key (seat, event);
                 } else if (share_chooser.active) {
                     grabbed = share_chooser.key (seat, event);
+                } else if (expo.active) {
+                    grabbed = expo.key (seat, event);
                 } else {
                     grabbed = workspace_switcher.key (seat, event);
                 }

@@ -17,6 +17,10 @@ namespace Polo.Shell {
             return new Effects.BackendTarget (window, toplevel, effect_views);
         }
 
+        internal GLib.GenericArray<Backend.View> all_views () {
+            return effect_views ();
+        }
+
         private GLib.GenericArray<Backend.View> effect_views () {
             var views = toplevel.get_surface_tree_views ();
             if (decor != null) {

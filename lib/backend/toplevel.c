@@ -605,31 +605,38 @@ polo_backend_toplevel_get_view(PoloBackendToplevel *toplevel)
 
 static void
 collect_surface_tree_views(PoloBackendToplevel *toplevel,
-			   struct weston_surface *surface, GPtrArray *views)
+			   struct weston_view *view, GPtrArray *views)
 {
-	struct weston_view *weston_view;
+	PoloBackendView *handle =
+		polo_backend_server_lookup_view(toplevel->server, view);
 	struct weston_subsurface *subsurface;
 	struct weston_subsurface *next;
 
-	wl_list_for_each(weston_view, &surface->views, surface_link)
-	{
-		PoloBackendView *handle = polo_backend_server_lookup_view(
-			toplevel->server, weston_view);
-		if (!handle) {
-			handle = polo_backend_view_new(toplevel->server,
-						       weston_view, toplevel);
-			g_ptr_array_add(toplevel->subsurface_views,
-					g_object_ref(handle));
-		}
-		g_ptr_array_add(views, g_object_ref(handle));
+	if (!handle) {
+		handle =
+			polo_backend_view_new(toplevel->server, view, toplevel);
+		g_ptr_array_add(toplevel->subsurface_views, handle);
 	}
+	g_ptr_array_add(views, g_object_ref(handle));
 
-	wl_list_for_each_safe(subsurface, next, &surface->subsurface_list,
+	/* Only this view's own children: mirrors have views of the same
+	 * subsurfaces. */
+	wl_list_for_each_safe(subsurface, next, &view->surface->subsurface_list,
 			      parent_link)
 	{
-		if (subsurface->surface != surface)
-			collect_surface_tree_views(toplevel,
-						   subsurface->surface, views);
+		struct weston_view *child;
+
+		if (subsurface->surface == view->surface)
+			continue;
+		wl_list_for_each(child, &subsurface->surface->views,
+				 surface_link)
+		{
+			if (child->geometry.parent == view) {
+				collect_surface_tree_views(toplevel, child,
+							   views);
+				break;
+			}
+		}
 	}
 }
 
@@ -637,7 +644,7 @@ GPtrArray *
 polo_backend_toplevel_get_surface_tree_views(PoloBackendToplevel *toplevel)
 {
 	GPtrArray *views;
-	struct weston_surface *surface;
+	struct weston_view *view;
 
 	g_return_val_if_fail(POLO_BACKEND_IS_TOPLEVEL(toplevel), NULL);
 	if (!toplevel->desktop_surface || !toplevel->view)
@@ -646,8 +653,9 @@ polo_backend_toplevel_get_surface_tree_views(PoloBackendToplevel *toplevel)
 		toplevel->subsurface_views =
 			g_ptr_array_new_with_free_func(g_object_unref);
 	views = g_ptr_array_new_with_free_func(g_object_unref);
-	surface = weston_desktop_surface_get_surface(toplevel->desktop_surface);
-	collect_surface_tree_views(toplevel, surface, views);
+	view = polo_backend_view_get_weston_view(toplevel->view);
+	if (view)
+		collect_surface_tree_views(toplevel, view, views);
 	return views;
 }
 

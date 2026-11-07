@@ -42,7 +42,8 @@ namespace Polo.Input {
             new GLib.HashTable<string, Action> (GLib.str_hash, GLib.str_equal);
 
         private MarcoPrefs? prefs = null;
-        private GLib.GenericArray<Binding> custom = new GLib.GenericArray<Binding> ();
+        private GLib.HashTable<string, GLib.GenericArray<Binding>> custom =
+            new GLib.HashTable<string, GLib.GenericArray<Binding>> (GLib.str_hash, GLib.str_equal);
 
         private static void* key (uint64 value) {
             return (void*) (ulong) value;
@@ -64,8 +65,8 @@ namespace Polo.Input {
             actions.remove (name);
         }
 
-        public void set_custom (GLib.GenericArray<Binding> bindings) {
-            custom = bindings;
+        public void set_custom (string group, GLib.GenericArray<Binding> bindings) {
+            custom[group] = bindings;
             if (prefs != null) {
                 rebuild (prefs);
             }
@@ -144,8 +145,10 @@ namespace Polo.Input {
                     insert (fresh, binding, accelerator.mask | Marco.VirtualModifier.SHIFT_MASK, text);
                 }
             }
-            foreach (var binding in custom) {
-                insert (fresh, binding, binding.accelerator.mask, binding.name);
+            foreach (var group in custom.get_values ()) {
+                foreach (var binding in group) {
+                    insert (fresh, binding, binding.accelerator.mask, binding.name);
+                }
             }
             table = fresh;
             log.debug ("%u key bindings", table.size ());
