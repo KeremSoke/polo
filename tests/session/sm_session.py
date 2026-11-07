@@ -31,7 +31,12 @@ class Polo:
     it starts those, each running sleep in the Application phase; otherwise nothing,
     and the session is Running at once."""
 
-    def __init__(self, polo, autostart=(), shell_ui="", env_extra=None, outputs=1):
+    def __init__(self, polo, autostart=(), shell_ui="", env_extra=None, outputs=1, before_start=None):
+        self.bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+        if before_start:
+            before_start(self.bus)
+            self.bus.call_sync("org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                               "GetId", None, GLib.VariantType("(s)"), Gio.DBusCallFlags.NONE, 5000, None)
         self.tmp = tempfile.mkdtemp(prefix="polo-sm-")
         for sub in ("run", "data", "none", "config/autostart"):
             os.makedirs(f"{self.tmp}/{sub}", mode=0o700, exist_ok=True)
@@ -56,7 +61,6 @@ class Polo:
              "--xwayland=off", "--socket=polo-sm-test", f"--outputs={outputs}",
              f"--log={self.tmp}/polo.log"],
             env=env, stdout=subprocess.DEVNULL, stderr=self.stderr)
-        self.bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
 
     def wait_owned(self):
         for _ in range(400):

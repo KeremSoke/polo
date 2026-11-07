@@ -68,16 +68,19 @@ class Session:
             for name, text in autostart.items():
                 (config / "autostart" / f"{name}.desktop").write_text(text)
             env.update(XDG_CONFIG_HOME=str(config), POLO_TEST_AUTOSTART="1")
-        self.polo = sm_session.Polo(polo, shell_ui=fake_ui, env_extra=env)
         self.seen = []
+        self.polo = sm_session.Polo(polo, shell_ui=fake_ui, env_extra=env, before_start=self.subscribe)
         if not self.polo.wait_owned():
             raise RuntimeError(f"polo never owned {NAME}")
         self.bus = self.polo.bus
-        for path, interface in ((ROOT, NAME), (PRESENCE, NAME + ".Presence")):
-            self.bus.signal_subscribe(NAME, interface, None, path, None, Gio.DBusSignalFlags.NONE,
-                                      lambda c, s, p, i, name, params: self.seen.append((name, params.unpack())))
         self.children = []
         until(lambda: "bound" in lines(self.ui_log), 10)
+
+    def subscribe(self, bus):
+        """Before polo starts, so that no early signal such as SessionRunning is missed."""
+        for path, interface in ((ROOT, NAME), (PRESENCE, NAME + ".Presence")):
+            bus.signal_subscribe(None, interface, None, path, None, Gio.DBusSignalFlags.NONE,
+                                 lambda c, s, p, i, name, params: self.seen.append((name, params.unpack())))
 
     def env(self):
         return dict(os.environ, WAYLAND_DISPLAY="polo-sm-test", XDG_RUNTIME_DIR=self.polo.tmp + "/run",
