@@ -448,10 +448,19 @@ void
 polo_marco_label_size(const char *text, const char *font, int *width,
 		      int *height);
 
+void
+polo_marco_label_size_padded(const char *text, const char *font, int padding,
+			     int *width, int *height);
+
 /* Into width x height ARGB32 pixels with the given stride. */
 void
 polo_marco_label_render(const char *text, const char *font, int width,
 			int height, guint8 *pixels, int stride);
+
+void
+polo_marco_label_render_osd(const char *text, const char *font, double radius,
+			    double opacity, int width, int height,
+			    guint8 *pixels, int stride);
 
 /* Marco release the ports follow. */
 const char *

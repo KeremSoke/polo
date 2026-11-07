@@ -786,7 +786,14 @@ namespace Polo.Marco {
     [CCode (cname = "polo_marco_label_size")]
     public void label_size (string text, string? font, out int width, out int height);
 
+    [CCode (cname = "polo_marco_label_size_padded")]
+    public void label_size_padded (string text, string? font, int padding, out int width, out int height);
+
     [CCode (cname = "polo_marco_label_render")]
     public void label_render (string text, string? font, int width, int height,
                               [CCode (array_length = false)] uint8[] pixels, int stride);
+
+    [CCode (cname = "polo_marco_label_render_osd")]
+    public void label_render_osd (string text, string? font, double radius, double opacity, int width, int height,
+                                  [CCode (array_length = false)] uint8[] pixels, int stride);
 }

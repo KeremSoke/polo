@@ -168,6 +168,13 @@ void test_label () {
     var pixels = new uint8[width * height * 4];
     Polo.Marco.label_render ("Locked", null, width, height, pixels, width * 4);
     assert (pixels[3] == 0xff);
+    int tight_width, tight_height;
+    Polo.Marco.label_size_padded ("Locked", null, 8, out tight_width, out tight_height);
+    assert (width - tight_width == 32 && height - tight_height == 32);
+    Polo.Marco.label_render_osd ("Locked", null, 8, 0.75, width, height, pixels, width * 4);
+    assert (pixels[3] == 0);
+    var middle = (height / 2 * width + 2) * 4;
+    assert (((int) pixels[middle + 3] - 191).abs () <= 2 && pixels[middle] < 0x30);
     Polo.Marco.release_fonts ();
 }
 
