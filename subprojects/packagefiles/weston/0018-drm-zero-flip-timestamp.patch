@@ -1,0 +1,20 @@
+--- a/libweston/backend-drm/kms.c
++++ b/libweston/backend-drm/kms.c
+@@ -2492,11 +2492,16 @@
+ 
+ 	drm_output_update_msc(output, frame);
+ 
+-	if (output->state_cur->tear) {
++	if (output->state_cur->tear || (sec == 0 && usec == 0)) {
+ 		/* When tearing we might not get accurate timestamps from
+ 		 * the driver, so just use whatever time it is now.
+ 		 * Note: This could actually be after a vblank that occured
+ 		 * after entering this function.
++		 *
++		 * Some drivers also complete a mode change with no timestamp
++		 * at all (zero). Handing that on makes
++		 * weston_output_finish_frame () abort, as the time goes
++		 * backwards.
+ 		 */
+ 		weston_compositor_read_presentation_clock(ec, &now);
+ 		sec = now.tv_sec;
