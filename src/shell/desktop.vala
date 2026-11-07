@@ -748,6 +748,9 @@ namespace Polo.Shell {
             if (event.pressed) {
                 locate_pointer.button ();
             }
+            if (cube.drag_button (seat, event)) {
+                return Backend.FilterResult.CONSUME;
+            }
             if (switcher.active) {
                 switcher.button (event);
                 return Backend.FilterResult.PASS;

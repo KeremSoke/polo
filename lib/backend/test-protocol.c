@@ -227,6 +227,59 @@ test_button(struct wl_client *client, struct wl_resource *resource,
 }
 
 static void
+test_move_pointer_absolute(struct wl_client *client,
+			   struct wl_resource *resource, int32_t x, int32_t y)
+{
+	PoloBackendServer *server = wl_resource_get_user_data(resource);
+	struct weston_seat *seat = first_seat(server);
+	struct weston_pointer_motion_event event;
+	struct weston_coord_global pos;
+	struct timespec time;
+
+	if (!seat || !weston_seat_get_pointer(seat))
+		return;
+	pos.c = weston_coord(x, y);
+	weston_compositor_get_time(&time);
+	weston_pointer_motion_event_init(&event, &time, seat,
+					 WESTON_POINTER_MOTION_ABS, &pos, NULL,
+					 NULL);
+	notify_motion(&event);
+	notify_pointer_frame(seat);
+}
+
+static void
+test_pointer_axis(struct wl_client *client, struct wl_resource *resource,
+		  int32_t value)
+{
+	PoloBackendServer *server = wl_resource_get_user_data(resource);
+	struct weston_seat *seat = first_seat(server);
+	struct weston_pointer_axis_event event;
+	struct timespec time;
+
+	if (!seat)
+		return;
+	weston_compositor_get_time(&time);
+	weston_pointer_axis_event_init(&event, &time, seat, 0, value, true,
+				       value > 0 ? 1 : -1);
+	notify_axis(&event);
+	notify_pointer_frame(seat);
+}
+
+static void
+test_get_pointer_position(struct wl_client *client,
+			  struct wl_resource *resource)
+{
+	PoloBackendServer *server = wl_resource_get_user_data(resource);
+	struct weston_seat *seat = first_seat(server);
+	struct weston_pointer *pointer =
+		seat ? weston_seat_get_pointer(seat) : NULL;
+
+	if (pointer)
+		polo_test_v1_send_pointer_position(resource, pointer->pos.c.x,
+						   pointer->pos.c.y);
+}
+
+static void
 test_key(struct wl_client *client, struct wl_resource *resource, uint32_t key,
 	 uint32_t state)
 {
@@ -583,6 +636,9 @@ static const struct polo_test_v1_interface test_implementation = {
 	.output_device_changed = test_output_device_changed,
 	.get_lamp_target = test_get_lamp_target,
 	.bend_mirror = test_bend_mirror,
+	.move_pointer_absolute = test_move_pointer_absolute,
+	.pointer_axis = test_pointer_axis,
+	.get_pointer_position = test_get_pointer_position,
 };
 
 static void
@@ -639,8 +695,9 @@ polo_backend_test_protocol_init(PoloBackendServer *server, GError **error)
 	weston_compositor_add_screenshot_authority(
 		server->compositor, &server->screenshot_authority,
 		authorize_screenshot);
-	server->test_global = wl_global_create(
-		server->display, &polo_test_v1_interface, 9, server, test_bind);
+	server->test_global =
+		wl_global_create(server->display, &polo_test_v1_interface, 10,
+				 server, test_bind);
 	if (!server->test_global) {
 		g_set_error(error, POLO_BACKEND_ERROR,
 			    POLO_BACKEND_ERROR_FAILED,

@@ -373,6 +373,15 @@ test_lamp_target(void *data, struct polo_test_v1 *test,
 						.source = source };
 }
 
+static void
+test_pointer_position(void *data, struct polo_test_v1 *test, int32_t x,
+		      int32_t y)
+{
+	struct harness *h = data;
+	h->pointer_x = x;
+	h->pointer_y = y;
+}
+
 static const struct polo_test_v1_listener test_listener = {
 	test_window_info,
 	test_window_unknown,
@@ -383,6 +392,7 @@ static const struct polo_test_v1_listener test_listener = {
 	test_shell_ui_unbound,
 	test_shell_ui_request,
 	test_lamp_target,
+	test_pointer_position,
 };
 
 static void
@@ -415,7 +425,7 @@ registry_global(void *data, struct wl_registry *registry, uint32_t name,
 		wl_seat_add_listener(h->seat, &seat_listener, h);
 	} else if (strcmp(interface, polo_test_v1_interface.name) == 0) {
 		h->test = wl_registry_bind(registry, name,
-					   &polo_test_v1_interface, 9);
+					   &polo_test_v1_interface, 10);
 		polo_test_v1_add_listener(h->test, &test_listener, h);
 	} else if (strcmp(interface, zwlr_layer_shell_v1_interface.name) == 0) {
 		h->layer_shell = wl_registry_bind(
@@ -973,6 +983,29 @@ void
 harness_move_pointer(struct harness *h, int x, int y)
 {
 	polo_test_v1_move_pointer(h->test, x, y);
+	harness_wait_repaint(h);
+}
+
+void
+harness_move_pointer_absolute(struct harness *h, int x, int y)
+{
+	polo_test_v1_move_pointer_absolute(h->test, x, y);
+	harness_wait_repaint(h);
+}
+
+void
+harness_pointer_position(struct harness *h, int *x, int *y)
+{
+	polo_test_v1_get_pointer_position(h->test);
+	harness_roundtrip(h);
+	*x = h->pointer_x;
+	*y = h->pointer_y;
+}
+
+void
+harness_scroll(struct harness *h, int value)
+{
+	polo_test_v1_pointer_axis(h->test, value);
 	harness_wait_repaint(h);
 }
 

@@ -586,6 +586,10 @@ typedef enum {
 void
 polo_backend_seat_set_cursor(PoloBackendSeat *seat, PoloBackendCursor cursor);
 
+/* Hide the compositor pointer while an interactive grab is active. */
+void
+polo_backend_seat_set_pointer_hidden(PoloBackendSeat *seat, gboolean hidden);
+
 /*
  * The keyboard's effective real modifiers, as in key events. Key events
  * carry the state before the key; "modifiers-changed" (guint32) gives the
@@ -756,11 +760,17 @@ polo_backend_seat_start_pointer_grab_for_binding(PoloBackendSeat *seat,
 
 /*
  * Signals: "motion" (double x, double y, guint time_msec),
+ * "motion-delta" (double dx, double dy, gboolean relative, guint time_msec),
  * "button" (guint button, gboolean pressed, guint buttons_held),
+ * "axis" (guint axis, double value, gboolean has_discrete, gint discrete),
  * "ended" (gboolean cancelled). After "ended" the grab is inert.
  */
 void
 polo_backend_pointer_grab_end(PoloBackendPointerGrab *grab);
+
+void
+polo_backend_pointer_grab_set_relative_locked(PoloBackendPointerGrab *grab,
+					       gboolean locked);
 
 /* ---- View --------------------------------------------------------------- */
 

@@ -635,6 +635,9 @@ namespace Polo {
             [CCode (cname = "polo_backend_seat_set_cursor")]
             public void set_cursor (Cursor cursor);
 
+            [CCode (cname = "polo_backend_seat_set_pointer_hidden")]
+            public void set_pointer_hidden (bool hidden);
+
             [CCode (cname = "polo_backend_seat_get_modifiers")]
             public Modifiers get_modifiers ();
 
@@ -694,8 +697,13 @@ namespace Polo {
             [CCode (cname = "polo_backend_pointer_grab_end")]
             public void end ();
 
+            [CCode (cname = "polo_backend_pointer_grab_set_relative_locked")]
+            public void set_relative_locked (bool locked);
+
             public signal void motion (double x, double y, uint time_msec);
+            public signal void motion_delta (double dx, double dy, bool relative, uint time_msec);
             public signal void button (uint button, bool pressed, uint buttons_held);
+            public signal void axis (uint axis, double value, bool has_discrete, int discrete);
             /* Emitted once; the grab is inert afterwards. */
             public signal void ended (bool cancelled);
         }

@@ -14,7 +14,7 @@
     tests check policy decisions rather than libweston internals.
   </description>
 
-  <interface name="polo_test_v1" version="9">
+  <interface name="polo_test_v1" version="10">
     <request name="destroy" type="destructor"/>
 
     <request name="get_window_info">
@@ -240,5 +240,24 @@
       <arg name="width" type="int"/>
       <arg name="height" type="int"/>
     </request>
+    <request name="move_pointer_absolute" since="10">
+      <description summary="send an absolute pointer position as a tablet would"/>
+      <arg name="x" type="int"/>
+      <arg name="y" type="int"/>
+    </request>
+
+    <request name="pointer_axis" since="10">
+      <description summary="send one vertical wheel step"/>
+      <arg name="value" type="int"/>
+    </request>
+
+    <request name="get_pointer_position" since="10">
+      <description summary="ask for the seat's pointer position"/>
+    </request>
+
+    <event name="pointer_position" since="10">
+      <arg name="x" type="int"/>
+      <arg name="y" type="int"/>
+    </event>
   </interface>
 </protocol>

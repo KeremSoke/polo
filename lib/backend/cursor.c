@@ -43,6 +43,7 @@ struct cursor_pointer {
 	struct wl_listener motion, focus, destroy;
 	struct wl_list link;
 	int visible;
+	gboolean hidden;
 	struct cursor_image *pending_image;
 	struct wl_callback *pending_callback;
 	int pending_index;
@@ -93,9 +94,8 @@ update_pointer(struct cursor_pointer *cp)
 	struct weston_pointer *pointer = cp->pointer;
 	int index = output_index(cp);
 
-	if (pointer->focus)
-		index = -1; /* Clients own their cursor, including explicitly
-			       hiding it. */
+	if (pointer->focus || cp->hidden)
+		index = -1;
 	if (index >= 0 && !cp->views[index] &&
 	    cp->cursor->images[index].surface)
 		cp->views[index] =
@@ -169,6 +169,27 @@ polo_backend_cursor_add_pointer(PoloBackendServer *server,
 	wl_signal_add(&pointer->destroy_signal, &cp->destroy);
 	wl_list_insert(&cursor->pointers, &cp->link);
 	update_pointer(cp);
+}
+
+void
+polo_backend_cursor_set_hidden(PoloBackendServer *server,
+			       struct weston_pointer *pointer, gboolean hidden)
+{
+	struct cursor_pointer *cp;
+	struct polo_cursor *cursor = server->cursor;
+
+	if (!cursor || !pointer)
+		return;
+	wl_list_for_each(cp, &cursor->pointers, link)
+	{
+		if (cp->pointer != pointer)
+			continue;
+		cp->hidden = hidden;
+		if (hidden)
+			weston_pointer_set_sprite(pointer, NULL, 0, 0, NULL);
+		update_pointer(cp);
+		return;
+	}
 }
 
 gboolean

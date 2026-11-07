@@ -272,3 +272,9 @@ test('cube-switch', executable('test-cube-switch', 'test-cube-switch.c', depende
   suite: 'protocol',
   timeout: 90,
 )
+test('cube-interactive', executable('test-cube-interactive', 'test-cube-interactive.c', dependencies: harness_dep),
+  args: [polo_exe],
+  env: magic_lamp_env,
+  suite: 'protocol',
+  timeout: 90,
+)

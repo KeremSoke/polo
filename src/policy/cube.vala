@@ -164,6 +164,24 @@ namespace Polo.Policy {
             start ();
         }
 
+        public void cancel () {
+            if (!active) {
+                return;
+            }
+            in_exit = true;
+            reset ();
+            rotation.restart_with_end (0);
+            start ();
+        }
+
+        public void turn_while_open (int direction) {
+            if (!active || in_exit) {
+                return;
+            }
+            rotation.restart_with_end (rotation.end - direction * side_angle);
+            start ();
+        }
+
         public void rotate (double dx, double dy, double speed_horizontal, double speed_vertical) {
             if (!active || in_exit) {
                 return;

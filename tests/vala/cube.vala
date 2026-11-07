@@ -112,6 +112,43 @@ void test_release_snaps_back () {
     assert (cube.finish () == 0);
 }
 
+void test_interactive_keys_and_cancel () {
+    var cube = new CubeAnimation (DURATION);
+    assert (cube.grab (4, 0.1));
+    cube.tick (DURATION);
+    cube.turn_while_open (1);
+    cube.tick (2 * DURATION);
+    assert (!cube.in_exit && !cube.done ());
+    assert (near (cube.rotation.value, -Math.PI / 2));
+    cube.turn_while_open (1);
+    cube.tick (3 * DURATION);
+    assert (near (cube.rotation.value, -Math.PI));
+    cube.release ();
+    cube.tick (4 * DURATION);
+    assert (cube.finish () == 2);
+
+    assert (cube.grab (4, 0.1));
+    cube.tick (5 * DURATION);
+    cube.turn_while_open (1);
+    cube.tick (6 * DURATION);
+    cube.release ();
+    cube.cancel ();
+    cube.tick (7 * DURATION);
+    assert (cube.done () && cube.finish () == 0);
+
+    assert (cube.grab (4, 0.1));
+    cube.tick (8 * DURATION);
+    cube.rotate (-100, -30, SPEED, SPEED);
+    cube.tick (9 * DURATION);
+    cube.scroll (1, 0.07);
+    cube.tick (10 * DURATION);
+    cube.cancel ();
+    cube.tick (11 * DURATION);
+    assert (cube.done ());
+    assert_at_rest (cube, 0);
+    assert (cube.finish () == 0);
+}
+
 void test_clamps () {
     var cube = new CubeAnimation (DURATION);
     cube.grab (4, 0.1);
@@ -167,6 +204,7 @@ int main (string[] args) {
     Test.add_func ("/cube/wraps", test_wraps);
     Test.add_func ("/cube/grab-and-release", test_grab_and_release);
     Test.add_func ("/cube/release-snaps-back", test_release_snaps_back);
+    Test.add_func ("/cube/interactive-keys-and-cancel", test_interactive_keys_and_cancel);
     Test.add_func ("/cube/clamps", test_clamps);
     Test.add_func ("/cube/shortest-turn", test_shortest_turn);
     Test.add_func ("/cube/one-side", test_one_side);

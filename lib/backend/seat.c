@@ -1307,6 +1307,17 @@ polo_backend_seat_set_cursor(PoloBackendSeat *seat, PoloBackendCursor cursor)
 		polo_backend_cursor_set_shape(seat->server, pointer, cursor);
 }
 
+void
+polo_backend_seat_set_pointer_hidden(PoloBackendSeat *seat, gboolean hidden)
+{
+	struct weston_pointer *pointer;
+
+	g_return_if_fail(POLO_BACKEND_IS_SEAT(seat));
+	pointer = seat->seat ? weston_seat_get_pointer(seat->seat) : NULL;
+	if (pointer)
+		polo_backend_cursor_set_hidden(seat->server, pointer, hidden);
+}
+
 /* ---- AccessX ------------------------------------------------------------- */
 
 bool

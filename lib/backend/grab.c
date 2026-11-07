@@ -17,11 +17,14 @@ struct _PoloBackendPointerGrab {
 	struct weston_pointer_grab grab;
 	struct weston_pointer *pointer; /* NULL once ended */
 	struct wl_listener pointer_destroy_listener;
+	gboolean lock_relative;
 };
 
 enum {
 	SIGNAL_MOTION,
+	SIGNAL_MOTION_DELTA,
 	SIGNAL_BUTTON,
+	SIGNAL_AXIS,
 	SIGNAL_ENDED,
 	N_SIGNALS,
 };
@@ -78,10 +81,18 @@ grab_motion(struct weston_pointer_grab *grab,
 {
 	PoloBackendPointerGrab *self = from_grab(grab);
 	struct weston_pointer *pointer = grab->pointer;
+	double old_x = pointer->pos.c.x, old_y = pointer->pos.c.y;
+	gboolean relative = (event->mask & WESTON_POINTER_MOTION_REL) != 0;
+	double dx, dy;
 
-	weston_pointer_move(pointer, event);
+	if (!self->lock_relative || !relative)
+		weston_pointer_move(pointer, event);
+	dx = relative ? event->rel.x : pointer->pos.c.x - old_x;
+	dy = relative ? event->rel.y : pointer->pos.c.y - old_y;
 	g_signal_emit(self, signals[SIGNAL_MOTION], 0, pointer->pos.c.x,
 		      pointer->pos.c.y, msec(&event->base.ts));
+	g_signal_emit(self, signals[SIGNAL_MOTION_DELTA], 0, dx, dy, relative,
+		      msec(&event->base.ts));
 }
 
 static void
@@ -99,6 +110,10 @@ static void
 grab_axis(struct weston_pointer_grab *grab,
 	  const struct weston_pointer_axis_event *event)
 {
+	PoloBackendPointerGrab *self = from_grab(grab);
+
+	g_signal_emit(self, signals[SIGNAL_AXIS], 0, event->axis, event->value,
+		      event->has_discrete, event->discrete);
 }
 
 static void
@@ -168,6 +183,14 @@ polo_backend_pointer_grab_end(PoloBackendPointerGrab *grab)
 	g_object_unref(grab);
 }
 
+void
+polo_backend_pointer_grab_set_relative_locked(PoloBackendPointerGrab *grab,
+					      gboolean locked)
+{
+	g_return_if_fail(POLO_BACKEND_IS_POINTER_GRAB(grab));
+	grab->lock_relative = locked;
+}
+
 static void
 polo_backend_pointer_grab_class_init(PoloBackendPointerGrabClass *klass)
 {
@@ -175,10 +198,18 @@ polo_backend_pointer_grab_class_init(PoloBackendPointerGrabClass *klass)
 		"motion", G_TYPE_FROM_CLASS(klass), G_SIGNAL_RUN_LAST, 0, NULL,
 		NULL, NULL, G_TYPE_NONE, 3, G_TYPE_DOUBLE, G_TYPE_DOUBLE,
 		G_TYPE_UINT);
+	signals[SIGNAL_MOTION_DELTA] = g_signal_new(
+		"motion-delta", G_TYPE_FROM_CLASS(klass), G_SIGNAL_RUN_LAST, 0,
+		NULL, NULL, NULL, G_TYPE_NONE, 4, G_TYPE_DOUBLE, G_TYPE_DOUBLE,
+		G_TYPE_BOOLEAN, G_TYPE_UINT);
 	signals[SIGNAL_BUTTON] = g_signal_new(
 		"button", G_TYPE_FROM_CLASS(klass), G_SIGNAL_RUN_LAST, 0, NULL,
 		NULL, NULL, G_TYPE_NONE, 3, G_TYPE_UINT, G_TYPE_BOOLEAN,
 		G_TYPE_UINT);
+	signals[SIGNAL_AXIS] = g_signal_new(
+		"axis", G_TYPE_FROM_CLASS(klass), G_SIGNAL_RUN_LAST, 0, NULL,
+		NULL, NULL, G_TYPE_NONE, 4, G_TYPE_UINT, G_TYPE_DOUBLE,
+		G_TYPE_BOOLEAN, G_TYPE_INT);
 	signals[SIGNAL_ENDED] = g_signal_new(
 		"ended", G_TYPE_FROM_CLASS(klass), G_SIGNAL_RUN_LAST, 0, NULL,
 		NULL, NULL, G_TYPE_NONE, 1, G_TYPE_BOOLEAN);

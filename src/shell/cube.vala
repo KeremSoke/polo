@@ -16,6 +16,7 @@
 
 namespace Polo.Shell {
     public class Cube : GLib.Object {
+        public const string BINDING_OPEN = "polo-cube";
         public const string BINDING_LEFT = "polo-cube-rotate-left";
         public const string BINDING_RIGHT = "polo-cube-rotate-right";
         private const string GROUP = "polo-cube";
@@ -23,6 +24,12 @@ namespace Polo.Shell {
         private const uint LAYER_BACKGROUND = 0;
         private const uint LAYER_BOTTOM = 1;
         private const uint LAYER_TOP = 2;
+        private const uint KEY_ESC = 1;
+        private const uint KEY_ENTER = 28;
+        private const uint KEY_SPACE = 57;
+        private const uint KEY_KPENTER = 96;
+        private const uint KEY_LEFT = 105;
+        private const uint KEY_RIGHT = 106;
 
         private class Piece {
             public Backend.View view;
@@ -65,10 +72,15 @@ namespace Polo.Shell {
         }
 
         private class State {
+            public Backend.Seat? seat;
             public Backend.PointerGrab? grab;
             public int[] row;
             public int start;
             public bool model_switch = false;
+            public bool interactive = false;
+            public bool cancelled = false;
+            public uint drag_button = 0;
+            public uint held_button = 0;
             public Window? carried;
             public GLib.GenericArray<Screen> screens = new GLib.GenericArray<Screen> ();
             public double last_ms = -1;
@@ -79,6 +91,7 @@ namespace Polo.Shell {
         private Desktop desktop;
         private Input.Bindings bindings;
         private GLib.Settings? keys = null;
+        private Input.ButtonAccelerator drag_binding;
         private Policy.CubeAnimation animation;
         private State? state = null;
 
@@ -94,14 +107,16 @@ namespace Polo.Shell {
             animation = new Policy.CubeAnimation (350);
             var source = GLib.SettingsSchemaSource.get_default ();
             var schema = source != null ? source.lookup (KEYS_SCHEMA, true) : null;
-            if (schema != null && schema.has_key ("cube-rotate-left")) {
+            if (schema != null && schema.has_key ("cube")) {
                 keys = new GLib.Settings.full (schema, null, null);
                 keys.changed.connect (on_keys_changed);
             }
+            bindings.register (BINDING_OPEN, (binding, seat, event) => toggle (seat));
             bindings.register (BINDING_LEFT, (binding, seat, event) => turn (seat, -1));
             bindings.register (BINDING_RIGHT, (binding, seat, event) => turn (seat, 1));
             model.workspace_switching.connect (on_workspace_switching);
             bind_keys ();
+            bind_drag ();
         }
 
         public void shutdown () {
@@ -111,6 +126,7 @@ namespace Polo.Shell {
             if (keys != null) {
                 keys.changed.disconnect (on_keys_changed);
             }
+            bindings.unregister (BINDING_OPEN);
             bindings.unregister (BINDING_LEFT);
             bindings.unregister (BINDING_RIGHT);
             model.workspace_switching.disconnect (on_workspace_switching);
@@ -118,16 +134,26 @@ namespace Polo.Shell {
         }
 
         private void on_keys_changed (string key) {
-            if (key.has_prefix ("cube-rotate-")) {
+            if (key == "cube" || key.has_prefix ("cube-rotate-")) {
                 bind_keys ();
+            } else if (key == "cube-drag") {
+                bind_drag ();
             }
         }
 
         private void bind_keys () {
             var custom = new GLib.GenericArray<Input.Binding> ();
+            add_key (custom, "cube", BINDING_OPEN);
             add_key (custom, "cube-rotate-left", BINDING_LEFT);
             add_key (custom, "cube-rotate-right", BINDING_RIGHT);
             bindings.set_custom (GROUP, custom);
+        }
+
+        private void bind_drag () {
+            drag_binding = Input.ButtonAccelerator ();
+            if (keys != null) {
+                Input.Accelerators.parse_button (keys.get_string ("cube-drag"), out drag_binding);
+            }
         }
 
         private void add_key (GLib.GenericArray<Input.Binding> custom, string key, string name) {
@@ -188,10 +214,65 @@ namespace Polo.Shell {
             if (state == null && !begin (seat)) {
                 return false;
             }
+            if (state.model_switch) {
+                return false;
+            }
             animation.tick (now_ms ());
-            animation.move (state.row.length, direction);
+            if (state.interactive) {
+                animation.turn_while_open (direction);
+            } else {
+                animation.move (state.row.length, direction);
+            }
             draw ();
             return true;
+        }
+
+        public void toggle (Backend.Seat seat) {
+            if (state != null) {
+                if (state.interactive && !animation.in_exit) {
+                    release (false);
+                }
+                return;
+            }
+            if (!begin (seat)) {
+                return;
+            }
+            state.interactive = true;
+            prepare_interactive ();
+        }
+
+        public bool drag_button (Backend.Seat seat, Backend.ButtonEvent event) {
+            if (!event.pressed || !Input.Accelerators.matches_button (drag_binding, event.button,
+                                                                       (Backend.Modifiers) event.modifiers) ||
+                state != null || !begin (seat)) {
+                return false;
+            }
+            state.interactive = true;
+            state.drag_button = event.button;
+            state.held_button = event.button;
+            prepare_interactive ();
+            return true;
+        }
+
+        private void prepare_interactive () {
+            state.grab.set_relative_locked (true);
+            state.seat.set_pointer_hidden (true);
+            animation.grab (state.row.length, real ("cube-zoom", 0.1));
+            draw ();
+        }
+
+        private void release (bool cancel) {
+            if (state == null || !state.interactive || (animation.in_exit && !cancel)) {
+                return;
+            }
+            state.cancelled = cancel;
+            animation.tick (now_ms ());
+            if (cancel) {
+                animation.cancel ();
+            } else {
+                animation.release ();
+            }
+            draw ();
         }
 
         private void on_workspace_switching (int from, int to, Window? carried, bool animate) {
@@ -269,6 +350,7 @@ namespace Polo.Shell {
                 return false;
             }
             state = new State ();
+            state.seat = seat;
             state.row = row;
             state.start = start;
             if (!pointer_grab) {
@@ -276,9 +358,16 @@ namespace Polo.Shell {
             }
             if (pointer_grab && seat != null) {
                 state.grab = seat.begin_pointer_grab ();
+                if (state.grab == null) {
+                    state = null;
+                    return false;
+                }
             }
             if (state.grab != null) {
                 state.grab.ended.connect (on_grab_ended);
+                state.grab.motion_delta.connect (on_motion_delta);
+                state.grab.button.connect (on_button);
+                state.grab.axis.connect (on_axis);
             }
             animation.duration_ms = number ("cube-duration-ms", 350);
             animation.tick (now_ms ());
@@ -299,24 +388,111 @@ namespace Polo.Shell {
             state.last_ms = now;
             animation.tick (now);
             draw ();
-            if (animation.done ()) {
+            if (animation.done () && state.held_button == 0) {
                 int landed = animation.finish ();
                 int workspace = state.row[(state.start + landed) % state.row.length];
                 bool model_switch = state.model_switch;
+                bool cancelled = state.cancelled;
                 end ();
-                if (!model_switch && workspace != model.current_workspace) {
+                if (!model_switch && !cancelled && workspace != model.current_workspace) {
                     model.switch_workspace (workspace, null, false);
                 }
             }
         }
 
         public Backend.FilterResult key (Backend.Seat seat, Backend.KeyEvent event) {
-            return state == null ? Backend.FilterResult.PASS : Backend.FilterResult.CONSUME;
+            if (state == null) {
+                return Backend.FilterResult.PASS;
+            }
+            if (!event.pressed || !state.interactive || animation.in_exit) {
+                return Backend.FilterResult.CONSUME;
+            }
+            unowned Input.Binding? binding = bindings.match (event);
+            if (binding != null && binding.name == BINDING_OPEN) {
+                release (false);
+                return Backend.FilterResult.CONSUME;
+            }
+            switch (event.keycode) {
+                case KEY_ESC:
+                    release (true);
+                    break;
+                case KEY_ENTER:
+                case KEY_KPENTER:
+                case KEY_SPACE:
+                    release (false);
+                    break;
+                case KEY_LEFT:
+                    turn (seat, -1);
+                    break;
+                case KEY_RIGHT:
+                    turn (seat, 1);
+                    break;
+                default:
+                    break;
+            }
+            return Backend.FilterResult.CONSUME;
+        }
+
+        private void on_motion_delta (double dx, double dy, bool relative, uint time_msec) {
+            if (state == null || !state.interactive || animation.in_exit) {
+                return;
+            }
+            if (!relative) {
+                double x, y;
+                state.seat.get_pointer_position (out x, out y);
+                model.pointer_moved (x, y);
+            }
+            animation.tick (now_ms ());
+            animation.rotate (dx, dy, real ("cube-speed-spin-horizontal", 0.02),
+                              real ("cube-speed-spin-vertical", 0.02));
+            draw ();
+        }
+
+        private void on_button (uint button, bool pressed, uint buttons_held) {
+            if (state == null || !state.interactive) {
+                return;
+            }
+            if (!pressed && button == state.held_button) {
+                state.held_button = 0;
+            }
+            if (animation.in_exit) {
+                return;
+            }
+            if (state.drag_button != 0) {
+                if (!pressed && button == state.drag_button) {
+                    release (false);
+                }
+            } else if (pressed) {
+                state.held_button = button;
+                release (false);
+            }
+        }
+
+        private void on_axis (uint axis, double value, bool has_discrete, int discrete) {
+            if (state == null || !state.interactive || animation.in_exit || axis != 0) {
+                return;
+            }
+            animation.tick (now_ms ());
+            animation.scroll (has_discrete ? discrete : value / 10.0,
+                              real ("cube-speed-zoom", 0.07));
+            draw ();
         }
 
         private void on_grab_ended (bool cancelled) {
             if (state != null) {
                 state.grab = null;
+                state.held_button = 0;
+                if (state.seat != null) {
+                    state.seat.set_pointer_hidden (false);
+                }
+                if (state.interactive) {
+                    release (true);
+                } else {
+                    state.cancelled = true;
+                    animation.tick (now_ms ());
+                    animation.cancel ();
+                    draw ();
+                }
             }
         }
 
@@ -329,8 +505,14 @@ namespace Polo.Shell {
             model.stack_changed.disconnect (rebuild);
             clear (done);
             if (done.grab != null) {
+                done.grab.motion_delta.disconnect (on_motion_delta);
+                done.grab.button.disconnect (on_button);
+                done.grab.axis.disconnect (on_axis);
                 done.grab.ended.disconnect (on_grab_ended);
                 done.grab.end ();
+            }
+            if (done.seat != null && done.interactive) {
+                done.seat.set_pointer_hidden (false);
             }
             animating = false;
         }

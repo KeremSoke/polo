@@ -83,6 +83,7 @@ struct harness {
 	struct wl_pointer *pointer;
 	struct wl_keyboard *keyboard;
 	struct polo_test_v1 *test;
+	int pointer_x, pointer_y;
 	struct zwlr_layer_shell_v1 *layer_shell;
 	struct weston_capture_v1 *capture;
 
@@ -235,6 +236,15 @@ harness_capture_output(struct harness *h, int index, int *width, int *height);
 
 void
 harness_move_pointer(struct harness *h, int x, int y);
+
+void
+harness_move_pointer_absolute(struct harness *h, int x, int y);
+
+void
+harness_pointer_position(struct harness *h, int *x, int *y);
+
+void
+harness_scroll(struct harness *h, int value);
 
 void
 harness_button(struct harness *h, uint32_t button, bool pressed);

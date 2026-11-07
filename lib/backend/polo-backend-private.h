@@ -694,6 +694,10 @@ void
 polo_backend_cursor_add_pointer(PoloBackendServer *server,
 				struct weston_pointer *pointer);
 
+void
+polo_backend_cursor_set_hidden(PoloBackendServer *server,
+			       struct weston_pointer *pointer, gboolean hidden);
+
 gboolean
 polo_backend_cursor_get_image(PoloBackendServer *server,
 			      struct weston_pointer *pointer,
