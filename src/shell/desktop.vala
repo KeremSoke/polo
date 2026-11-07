@@ -601,7 +601,7 @@ namespace Polo.Shell {
         public bool grab_active {
             get {
                 return move_resize.active || switcher.active || share_chooser.active || expo.active ||
-                       cube.active || workspace_switcher.active || frame_input.active;
+                       cube.grabbing || workspace_switcher.active || frame_input.active;
             }
         }
 
@@ -649,7 +649,7 @@ namespace Polo.Shell {
                     grabbed = share_chooser.key (seat, event);
                 } else if (expo.active) {
                     grabbed = expo.key (seat, event);
-                } else if (cube.active) {
+                } else if (cube.grabbing) {
                     grabbed = cube.key (seat, event);
                 } else {
                     grabbed = workspace_switcher.key (seat, event);

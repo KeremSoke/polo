@@ -64,8 +64,9 @@ namespace Polo.Shell {
             }
             var mask = Input.Accelerators.from_real (event.modifiers);
             var primary = Switcher.primary_modifier (mask);
-            int next = model.workspace_neighbor (motion);
+            int next = next_workspace (motion, model.current_workspace);
             bool grabbed_before_release = primary != 0 && primary in seat.get_modifiers ();
+            activate (next, window, motion);
             if (grabbed_before_release) {
                 grab = new Grab () {
                     seat = seat,
@@ -77,17 +78,40 @@ namespace Polo.Shell {
                 seat.modifiers_changed.connect (on_modifiers_changed);
                 server.get_shell_ui ().switcher_select.connect (on_switcher_select);
             }
-            activate (next, window);
-            if (grabbed_before_release) {
+            if (grabbed_before_release && !desktop.cube.active) {
                 show_popup ();
             }
         }
 
-        private void activate (int workspace, Window? window) {
+        private int next_workspace (Policy.Motion motion, int from) {
+            if (desktop.cube.available () && (motion == Policy.Motion.LEFT || motion == Policy.Motion.RIGHT)) {
+                var layout = model.workspace_layout ();
+                int[] row = {};
+                int position = -1;
+                for (int column = 0; column < layout.cols; column++) {
+                    int workspace = layout.grid[layout.current_row * layout.cols + column];
+                    if (workspace < 0) {
+                        continue;
+                    }
+                    if (workspace == from) {
+                        position = row.length;
+                    }
+                    row += workspace;
+                }
+                if (row.length > 1 && position >= 0) {
+                    int step = motion == Policy.Motion.RIGHT ? 1 : -1;
+                    return row[(position + step + row.length) % row.length];
+                }
+            }
+            return model.workspace_neighbor (motion, from);
+        }
+
+        private void activate (int workspace, Window? window, Policy.Motion motion) {
+            int direction = motion == Policy.Motion.RIGHT ? 1 : motion == Policy.Motion.LEFT ? -1 : 0;
             if (window != null) {
-                model.move_window_and_activate (window, workspace);
+                model.move_window_and_activate (window, workspace, direction);
             } else {
-                model.switch_workspace (workspace);
+                model.switch_workspace (workspace, null, true, direction);
             }
         }
 
@@ -146,6 +170,13 @@ namespace Polo.Shell {
             grab.showing = true;
         }
 
+        public void hide_popup () {
+            if (grab != null && grab.showing) {
+                server.get_shell_ui ().hide_switcher ();
+                grab.showing = false;
+            }
+        }
+
         private void update_popup () {
             if (!grab.showing) {
                 return;
@@ -176,9 +207,13 @@ namespace Polo.Shell {
                 }
             }
             if (motion != null) {
-                grab.selected = model.workspace_neighbor (motion, grab.selected);
-                activate (grab.selected, grab.window);
-                update_popup ();
+                grab.selected = next_workspace (motion, grab.selected);
+                activate (grab.selected, grab.window, motion);
+                if (!grab.showing && !desktop.cube.active) {
+                    show_popup ();
+                } else {
+                    update_popup ();
+                }
                 return Backend.FilterResult.CONSUME;
             }
             bool switching = grab.window == null;

@@ -146,7 +146,7 @@ namespace Polo.Shell {
                 }
                 return;
             }
-            if (!enabled () || desktop.grab_active || model.get_outputs ().length == 0) {
+            if (!enabled () || desktop.grab_active || desktop.cube.active || model.get_outputs ().length == 0) {
                 return;
             }
             var grab = seat.begin_pointer_grab ();
@@ -516,7 +516,7 @@ namespace Polo.Shell {
                 done.grab.end ();
             }
             if (switch_to && done.selected != model.current_workspace) {
-                model.switch_workspace (done.selected);
+                model.switch_workspace (done.selected, null, false);
             }
         }
 

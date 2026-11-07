@@ -71,6 +71,7 @@ namespace Polo.Policy {
         public Corner workspaces_corner { get; private set; default = Corner.TOPLEFT; }
         /* The window of a MOVING or KEYBOARD_MOVING grab op. */
         public Window? moving_window { get; set; default = null; }
+        public int workspace_switch_direction { get; private set; default = 0; }
 
         private GLib.GenericArray<Output> outputs = new GLib.GenericArray<Output> ();
         /* Managed windows, in the order they became known. */
@@ -88,6 +89,7 @@ namespace Polo.Policy {
 
         /* The stacking order or a window's visibility changed. */
         public signal void stack_changed ();
+        public signal void workspace_switching (int from, int to, Window? carried, bool animate);
         /* Keyboard focus moved; focused may be null. */
         public signal void focus_changed ();
         public signal void work_areas_changed ();
@@ -1907,7 +1909,7 @@ namespace Polo.Policy {
                 relocate_windows (extra, last_remaining);
             }
             if (current_workspace >= new_num) {
-                switch_workspace (last_remaining);
+                switch_workspace (last_remaining, null, false);
             }
             foreach (var key in mru_lists.get_keys ()) {
                 if (key >= new_num) {
@@ -2030,16 +2032,20 @@ namespace Polo.Policy {
         }
 
         /* meta_workspace_activate_with_focus (); focus_this may be null. */
-        public void switch_workspace (int workspace, Window? focus_this = null) {
+        public void switch_workspace (int workspace, Window? focus_this = null, bool animate = true,
+                                      int direction = 0, Window? carried = null) {
             if (workspace < 0 || workspace >= n_workspaces || workspace == current_workspace) {
                 return;
             }
-            previous_workspace = current_workspace;
-            current_workspace = workspace;
-            var move_window = moving_window;
+            var move_window = carried ?? moving_window;
             if (move_window != null && move_window.has_state (WindowState.STICKY)) {
                 move_window = null;
             }
+            workspace_switch_direction = direction;
+            workspace_switching (current_workspace, workspace, move_window, animate);
+            workspace_switch_direction = 0;
+            previous_workspace = current_workspace;
+            current_workspace = workspace;
             if (move_window != null) {
                 change_workspace (move_window, workspace);
             }
@@ -2058,10 +2064,9 @@ namespace Polo.Policy {
             }
         }
 
-        public void move_window_and_activate (Window window, int workspace) {
-            change_workspace (window, workspace);
+        public void move_window_and_activate (Window window, int workspace, int direction = 0) {
             focus_policy.leave_mouse_mode ();
-            switch_workspace (workspace, window);
+            switch_workspace (workspace, window, true, direction, window);
         }
 
         public void move_to_workspace (Window window, int workspace) {

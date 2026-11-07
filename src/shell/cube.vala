@@ -61,13 +61,15 @@ namespace Polo.Shell {
             public double backdrop_zoom = 1.0;
             public int[] order = {};
             public bool stacked = false;
+            public GLib.GenericArray<Backend.View> carried = new GLib.GenericArray<Backend.View> ();
         }
 
         private class State {
-            public unowned Backend.Seat seat;
             public Backend.PointerGrab? grab;
             public int[] row;
             public int start;
+            public bool model_switch = false;
+            public Window? carried;
             public GLib.GenericArray<Screen> screens = new GLib.GenericArray<Screen> ();
             public double last_ms = -1;
         }
@@ -81,6 +83,7 @@ namespace Polo.Shell {
         private State? state = null;
 
         public bool active { get { return state != null; } }
+        public bool grabbing { get { return state != null && state.grab != null; } }
         public bool animating { get; private set; default = false; }
 
         public Cube (Backend.Server server, Policy.Model model, Desktop desktop, Input.Bindings bindings) {
@@ -97,6 +100,7 @@ namespace Polo.Shell {
             }
             bindings.register (BINDING_LEFT, (binding, seat, event) => turn (seat, -1));
             bindings.register (BINDING_RIGHT, (binding, seat, event) => turn (seat, 1));
+            model.workspace_switching.connect (on_workspace_switching);
             bind_keys ();
         }
 
@@ -109,6 +113,7 @@ namespace Polo.Shell {
             }
             bindings.unregister (BINDING_LEFT);
             bindings.unregister (BINDING_RIGHT);
+            model.workspace_switching.disconnect (on_workspace_switching);
             bindings.set_custom (GROUP, new GLib.GenericArray<Input.Binding> ());
         }
 
@@ -189,12 +194,62 @@ namespace Polo.Shell {
             return true;
         }
 
+        private void on_workspace_switching (int from, int to, Window? carried, bool animate) {
+            if (!animate || !available ()) {
+                if (state != null && state.model_switch) {
+                    end ();
+                }
+                return;
+            }
+            var layout = model.workspace_layout ();
+            int from_column = -1;
+            int to_column = -1;
+            int index = 0;
+            for (int column = 0; column < layout.cols; column++) {
+                int workspace = layout.grid[layout.current_row * layout.cols + column];
+                if (workspace < 0) {
+                    continue;
+                }
+                if (workspace == from) {
+                    from_column = index;
+                }
+                if (workspace == to) {
+                    to_column = index;
+                }
+                index++;
+            }
+            if (from_column < 0 || to_column < 0) {
+                if (state != null && state.model_switch) {
+                    end ();
+                }
+                return;
+            }
+            if (state == null && !begin (null, false)) {
+                return;
+            }
+            if (!state.model_switch && animation.active) {
+                return;
+            }
+            state.model_switch = true;
+            state.carried = carried;
+            int direction = model.workspace_switch_direction;
+            int steps = direction != 0 ? direction :
+                Policy.CubeAnimation.shortest_turn (from_column, to_column, state.row.length);
+            if (steps == 0) {
+                return;
+            }
+            animation.tick (now_ms ());
+            animation.move (state.row.length, steps);
+            rebuild ();
+        }
+
         private static double now_ms () {
             return GLib.get_monotonic_time () / 1000.0;
         }
 
-        private bool begin (Backend.Seat seat) {
-            if (!available () || desktop.grab_active || model.get_outputs ().length == 0) {
+        private bool begin (Backend.Seat? seat, bool pointer_grab = true) {
+            if (!available () || (desktop.grab_active && (pointer_grab || !desktop.workspace_switcher.active)) ||
+                model.get_outputs ().length == 0) {
                 return false;
             }
             var layout = model.workspace_layout ();
@@ -214,10 +269,14 @@ namespace Polo.Shell {
                 return false;
             }
             state = new State ();
-            state.seat = seat;
             state.row = row;
             state.start = start;
-            state.grab = seat.begin_pointer_grab ();
+            if (!pointer_grab) {
+                desktop.workspace_switcher.hide_popup ();
+            }
+            if (pointer_grab && seat != null) {
+                state.grab = seat.begin_pointer_grab ();
+            }
             if (state.grab != null) {
                 state.grab.ended.connect (on_grab_ended);
             }
@@ -243,9 +302,10 @@ namespace Polo.Shell {
             if (animation.done ()) {
                 int landed = animation.finish ();
                 int workspace = state.row[(state.start + landed) % state.row.length];
+                bool model_switch = state.model_switch;
                 end ();
-                if (workspace != model.current_workspace) {
-                    model.switch_workspace (workspace);
+                if (!model_switch && workspace != model.current_workspace) {
+                    model.switch_workspace (workspace, null, false);
                 }
             }
         }
@@ -294,6 +354,7 @@ namespace Polo.Shell {
                     }
                     screen.sides.add (side);
                 }
+                build_carried (screen);
                 state.screens.add (screen);
             }
         }
@@ -332,7 +393,8 @@ namespace Polo.Shell {
             }
             foreach (var window in model.get_stack ()) {
                 var xdg = window.adapter as XdgWindow;
-                if (xdg == null || !xdg.mapped || !on_workspace (model, window, side.workspace) ||
+                if (xdg == null || !xdg.mapped || window == state.carried ||
+                    !on_workspace (model, window, side.workspace) ||
                     !intersects (window.outer_rect (), screen.output.rect)) {
                     continue;
                 }
@@ -356,6 +418,26 @@ namespace Polo.Shell {
             side.mirrors.add (mirror);
             foreach (var view in mirror.mirror_views ()) {
                 side.pieces.add (make_piece (screen, view, geometry, spacing));
+            }
+        }
+
+        private void build_carried (Screen screen) {
+            foreach (var mirror in screen.carried) {
+                mirror.move_to_layer (null);
+            }
+            screen.carried.remove_range (0, screen.carried.length);
+            var xdg = state.carried != null ? state.carried.adapter as XdgWindow : null;
+            if (xdg == null || !xdg.mapped || !intersects (state.carried.outer_rect (), screen.output.rect)) {
+                return;
+            }
+            foreach (var source in xdg.all_views ()) {
+                var mirror = source.mirror ();
+                if (mirror != null) {
+                    double x, y;
+                    source.get_position (out x, out y);
+                    mirror.set_position (x, y);
+                    screen.carried.add (mirror);
+                }
             }
         }
 
@@ -399,6 +481,10 @@ namespace Polo.Shell {
         private void clear (State done) {
             foreach (var screen in done.screens) {
                 clear_sides (screen);
+                foreach (var mirror in screen.carried) {
+                    mirror.move_to_layer (null);
+                }
+                screen.carried.remove_range (0, screen.carried.length);
                 if (screen.backdrop != null && screen.backdrop_ready != 0) {
                     screen.backdrop.disconnect (screen.backdrop_ready);
                 }
@@ -434,6 +520,7 @@ namespace Polo.Shell {
             bool light = flag ("cube-light", true);
             foreach (var screen in state.screens) {
                 clear_sides (screen);
+                build_carried (screen);
                 var geometry = geometry_for (screen.output);
                 for (int i = 0; i < state.row.length; i++) {
                     var side = new Side ();
@@ -539,6 +626,9 @@ namespace Polo.Shell {
                 if (shade != null) {
                     shade.move_to_layer (side.shown ? overlay : null);
                 }
+            }
+            foreach (var mirror in screen.carried) {
+                mirror.move_to_layer (overlay);
             }
             screen.order = order;
             screen.stacked = backdrop != null;
