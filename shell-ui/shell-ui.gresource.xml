@@ -2,5 +2,9 @@
 <gresources>
   <gresource prefix="/org/mate/polo/shell-ui">
     <file preprocess="xml-stripblanks">zenity.ui</file>
+    <file>icons/scalable/status/polo-display-primary-only-symbolic.svg</file>
+    <file>icons/scalable/status/polo-display-mirror-symbolic.svg</file>
+    <file>icons/scalable/status/polo-display-extend-symbolic.svg</file>
+    <file>icons/scalable/status/polo-display-secondary-only-symbolic.svg</file>
   </gresource>
 </gresources>

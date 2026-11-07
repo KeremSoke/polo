@@ -73,6 +73,7 @@ namespace PoloShellUi {
             printerr ("polo-shell-ui: the compositor has no layer shell\n");
             return 1;
         }
+        Gtk.IconTheme.get_default ().add_resource_path ("/org/mate/polo/shell-ui/icons");
         Helper helper;
         try {
             helper = new Helper (new Client (Gdk.Display.get_default ()));

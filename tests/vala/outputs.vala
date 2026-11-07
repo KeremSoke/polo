@@ -97,6 +97,114 @@ void layout_test () {
     assert (!Outputs.Layout.restore (outputs, saved));
 }
 
+void add_mode (Polo.Output output, int width, int height, int rate) {
+    var mode = new OutputMode ();
+    mode.width = width;
+    mode.height = height;
+    mode.rate = rate;
+    output.modes.add (mode);
+}
+
+Polo.Output? named (GenericArray<Polo.Output> outputs, string name) {
+    foreach (var output in outputs) {
+        if (output.name == name) {
+            return output;
+        }
+    }
+    return null;
+}
+
+void layout_hotplug_test () {
+    var outputs = new GenericArray<Polo.Output> ();
+    var laptop = monitor ("eDP-1", "BOE", "0x0001", "1", 1920, 1080, true);
+    var tv = monitor ("HDMI-A-1", "SAM", "0x0002", "2", 1280, 720);
+    outputs.add (laptop);
+    outputs.add (tv);
+    Outputs.Layout.arrange (outputs, null, null, 1, true, false);
+    assert (laptop.enabled && !tv.enabled);
+    var dell = monitor ("DP-1", "DEL", "0x0003", "3", 2560, 1440);
+    outputs.add (dell);
+    var added = new GenericArray<Polo.Output> ();
+    added.add (dell);
+    Outputs.Layout.hotplug (outputs, added, null, null, 1);
+    assert (laptop.enabled && laptop.primary && laptop.x == 0);
+    assert (!tv.enabled);
+    assert (dell.enabled && !dell.primary && dell.x == 1920 && dell.width == 2560);
+
+    laptop.enabled = false;
+    dell.enabled = false;
+    var none = new GenericArray<Polo.Output> ();
+    Outputs.Layout.hotplug (outputs, none, null, null, 1);
+    assert (outputs[0].enabled && outputs[0].primary);
+}
+
+void display_modes_test () {
+    var outputs = new GenericArray<Polo.Output> ();
+    var external = monitor ("HDMI-A-1", "DEL", "0x0010", "10", 2560, 1440);
+    add_mode (external, 1920, 1080, 60000);
+    add_mode (external, 1920, 1080, 75000);
+    add_mode (external, 1280, 720, 60000);
+    var laptop = monitor ("eDP-1", "BOE", "0x0011", "11", 1920, 1200, true);
+    add_mode (laptop, 1920, 1080, 60000);
+    add_mode (laptop, 1280, 720, 60000);
+    outputs.add (external);
+    outputs.add (laptop);
+    var lone = new GenericArray<Polo.Output> ();
+    lone.add (laptop);
+    assert (!Outputs.DisplayModes.available (lone, Outputs.DisplayMode.EXTEND));
+    assert (Outputs.DisplayModes.primary_of (outputs) == laptop);
+
+    var only = Outputs.DisplayModes.configure (outputs, Outputs.DisplayMode.PRIMARY_ONLY, 1);
+    var p = named (only, "eDP-1"), e = named (only, "HDMI-A-1");
+    assert (p.enabled && p.primary && p.width == 1920 && p.height == 1200 && p.x == 0);
+    assert (!e.enabled);
+    assert (Outputs.DisplayModes.current (only) == Outputs.DisplayMode.PRIMARY_ONLY);
+
+    var secondary = Outputs.DisplayModes.configure (outputs, Outputs.DisplayMode.SECONDARY_ONLY, 1);
+    p = named (secondary, "eDP-1");
+    e = named (secondary, "HDMI-A-1");
+    assert (!p.enabled && e.enabled && e.primary && e.width == 2560 && e.x == 0);
+    assert (Outputs.DisplayModes.current (secondary) == Outputs.DisplayMode.SECONDARY_ONLY);
+
+    var extended = Outputs.DisplayModes.configure (outputs, Outputs.DisplayMode.EXTEND, 1);
+    p = named (extended, "eDP-1");
+    e = named (extended, "HDMI-A-1");
+    assert (p.enabled && p.primary && p.x == 0 && e.enabled && !e.primary && e.x == 1920 && e.width == 2560);
+    assert (Outputs.DisplayModes.current (extended) == Outputs.DisplayMode.EXTEND);
+
+    int width, height;
+    assert (Outputs.DisplayModes.common_size (outputs, out width, out height) && width == 1920 && height == 1080);
+    var mirrored = Outputs.DisplayModes.configure (outputs, Outputs.DisplayMode.MIRROR, 0);
+    p = named (mirrored, "eDP-1");
+    e = named (mirrored, "HDMI-A-1");
+    assert (p.enabled && e.enabled && p.primary && !e.primary);
+    assert (p.width == 1920 && p.height == 1080 && e.width == 1920 && e.height == 1080);
+    assert (e.rate == 75000 && p.x == 0 && e.x == 0 && p.scale == 1 && e.scale == 1);
+    assert (Outputs.DisplayModes.current (mirrored) == Outputs.DisplayMode.MIRROR);
+
+    var odd = monitor ("DP-2", "ACR", "0x0012", "12", 1366, 768);
+    var with_odd = new GenericArray<Polo.Output> ();
+    with_odd.add (laptop);
+    with_odd.add (odd);
+    assert (!Outputs.DisplayModes.common_size (with_odd, out width, out height));
+    assert (!Outputs.DisplayModes.available (with_odd, Outputs.DisplayMode.MIRROR));
+    assert (Outputs.DisplayModes.configure (with_odd, Outputs.DisplayMode.MIRROR, 1) == null);
+    assert (Outputs.DisplayModes.available (with_odd, Outputs.DisplayMode.EXTEND));
+
+    var desktops = new GenericArray<Polo.Output> ();
+    var left = monitor ("DP-1", "DEL", "0x0020", "20", 1920, 1080);
+    var right = monitor ("DP-2", "DEL", "0x0020", "21", 1920, 1080);
+    right.enabled = true;
+    right.primary = true;
+    desktops.add (left);
+    desktops.add (right);
+    assert (Outputs.DisplayModes.primary_of (desktops) == right);
+    left.enabled = false;
+    right.enabled = false;
+    assert (Outputs.DisplayModes.primary_of (desktops) == left);
+    assert (Outputs.DisplayModes.current (lone) == -1);
+}
+
 class FakeAdapter : GLib.Object, WindowAdapter {
     public Marco.Rect configured;
     public void configure (Marco.Rect rect) { configured = rect; }
@@ -162,6 +270,8 @@ int main (string[] args) {
     Test.add_func ("/outputs/parser", parser_test);
     Test.add_func ("/outputs/layout", layout_test);
     Test.add_func ("/outputs/hotplug", hotplug_test);
+    Test.add_func ("/outputs/layout-hotplug", layout_hotplug_test);
+    Test.add_func ("/outputs/display-modes", display_modes_test);
     Test.add_func ("/outputs/persistence", persistence_test);
     return Test.run ();
 }

@@ -51,6 +51,7 @@ namespace Polo.Shell {
         public ShareChooser share_chooser { get; private set; }
         public Expo expo { get; private set; }
         public Cube cube { get; private set; }
+        public DisplaySwitcher display_switcher { get; private set; }
         public WindowMenu window_menu { get; private set; }
         private FrameInput frame_input;
         public WorkspaceSwitcher workspace_switcher { get; private set; }
@@ -137,6 +138,7 @@ namespace Polo.Shell {
             share_chooser = new ShareChooser (server, model, this);
             expo = new Expo (server, model, this, bindings);
             cube = new Cube (server, model, this, bindings);
+            display_switcher = new DisplaySwitcher (server, this, bindings);
             window_menu = new WindowMenu (server, model, this, bindings);
             frame_input = new FrameInput (this, model);
             workspace_switcher = new WorkspaceSwitcher (server, model, this, bindings);
@@ -252,6 +254,8 @@ namespace Polo.Shell {
             share_chooser.shutdown ();
             expo.shutdown ();
             cube.shutdown ();
+            display_switcher.shutdown ();
+            store.finish ();
             workspace_switcher.shutdown ();
 #if POLO_HAVE_XWAYLAND
             if (ewmh != null) {
@@ -287,10 +291,8 @@ namespace Polo.Shell {
 
         private void on_output_removed (Backend.Output backend_output) {
             heads.remove (backend_output);
-            var output = outputs.lookup (backend_output);
-            if (output != null) {
-                outputs.remove (backend_output);
-                model.remove_output (output);
+            if (outputs.lookup (backend_output) != null) {
+                release_head (backend_output);
                 layer_shell.arrange ();
             }
         }
@@ -339,6 +341,20 @@ namespace Polo.Shell {
             return o;
         }
 
+        public bool manages_outputs { get { return drm; } }
+
+        public int window_scaling () {
+            var iface = settings ("org.mate.interface");
+            return iface != null ? iface.get_int ("window-scaling-factor") : 0;
+        }
+
+        private bool laid_out = false;
+        private GLib.GenericSet<string> known_monitors = new GLib.GenericSet<string> (GLib.str_hash, GLib.str_equal);
+
+        private static string monitor_key (Polo.Output o) {
+            return "%s\t%s\t%s\t%s".printf (o.name, o.vendor, o.product, o.serial);
+        }
+
         private void apply_layout () {
             var monitors = new GLib.GenericArray<Polo.Output> ();
             var backends = new GLib.HashTable<Polo.Output, Backend.Output> (GLib.direct_hash, GLib.direct_equal);
@@ -349,20 +365,67 @@ namespace Polo.Shell {
             }
             if (drm) {
                 var iface = settings ("org.mate.interface");
-                var xrandr = settings ("org.mate.SettingsDaemon.plugins.xrandr");
-                Outputs.Layout.arrange (monitors, store.saved, store.imported,
-                    iface != null ? iface.get_int ("window-scaling-factor") : 0,
-                    xrandr == null || xrandr.get_boolean ("turn-on-laptop-monitor-at-startup"),
-                    xrandr == null || xrandr.get_boolean ("turn-on-external-monitors-at-startup"));
+                int scaling = iface != null ? iface.get_int ("window-scaling-factor") : 0;
+                var present = new GLib.GenericSet<string> (GLib.str_hash, GLib.str_equal);
+                var added = new GLib.GenericArray<Polo.Output> ();
+                foreach (var o in monitors) {
+                    string key = monitor_key (o);
+                    present.add (key);
+                    if (!known_monitors.contains (key)) {
+                        added.add (o);
+                    }
+                }
+                if (!laid_out) {
+                    var xrandr = settings ("org.mate.SettingsDaemon.plugins.xrandr");
+                    Outputs.Layout.arrange (monitors, store.saved, store.imported, scaling,
+                        xrandr == null || xrandr.get_boolean ("turn-on-laptop-monitor-at-startup"),
+                        xrandr == null || xrandr.get_boolean ("turn-on-external-monitors-at-startup"));
+                    laid_out = monitors.length > 0;
+                } else {
+                    Outputs.Layout.hotplug (monitors, added, store.saved, store.imported, scaling);
+                }
+                known_monitors = present;
             } else {
                 Outputs.Layout.ensure_primary (monitors);
             }
             commit (monitors, backends, true);
         }
 
+        /* libweston moves the outputs right of one whose mode changes, so
+         * those placed before it are put back afterwards. */
+        private bool light (GLib.GenericArray<Polo.Output> monitors,
+                            GLib.HashTable<Polo.Output, Backend.Output> backends) {
+            bool success = true;
+            for (int round = 0; round < 2; round++) {
+                foreach (var o in monitors) {
+                    var head = backends[o];
+                    if (!o.enabled) {
+                        continue;
+                    }
+                    if (round == 1) {
+                        int x, y, width, height;
+                        head.get_geometry (out x, out y, out width, out height);
+                        if (!head.get_enabled () || (x == o.x && y == o.y)) {
+                            continue;
+                        }
+                    }
+                    try {
+                        head.apply (o.width, o.height, o.rate, o.scale, o.transform, o.x, o.y, true);
+                    } catch (GLib.Error e) {
+                        GLib.warning ("Output configuration failed: %s", e.message);
+                        success = false;
+                    }
+                }
+            }
+            return success;
+        }
+
         private bool commit (GLib.GenericArray<Polo.Output> monitors,
                              GLib.HashTable<Polo.Output, Backend.Output> backends, bool remember) {
             bool success = true;
+            if (drm) {
+                success = light (monitors, backends);
+            }
             /* Enable destinations before disabling sources, so windows can relocate. */
             for (int pass = 0; pass < 2; pass++) {
                 foreach (var o in monitors) {
@@ -370,7 +433,7 @@ namespace Polo.Shell {
                         continue;
                     }
                     var head = backends[o];
-                    if (drm) {
+                    if (drm && !o.enabled) {
                         try {
                             head.apply (o.width, o.height, o.rate, o.scale, o.transform, o.x, o.y, o.enabled);
                         } catch (GLib.Error e) {
@@ -381,13 +444,28 @@ namespace Polo.Shell {
                     var existing = outputs.lookup (head);
                     if (!head.get_enabled ()) {
                         if (existing != null) {
-                            model.remove_output (existing);
-                            outputs.remove (head);
+                            release_head (head);
                         }
                         continue;
                     }
                     var rect = Marco.Rect ();
                     head.get_geometry (out rect.x, out rect.y, out rect.width, out rect.height);
+                    var shown = mirrored_output (head, rect);
+                    if (shown != null) {
+                        if (existing != null && existing != shown) {
+                            release_head (head);
+                        }
+                        outputs.insert (head, shown);
+                        mirrors.add (head);
+                        shown.primary |= o.primary;
+                        head.set_background_color (BACKGROUND_RED, BACKGROUND_GREEN, BACKGROUND_BLUE);
+                        continue;
+                    }
+                    if (mirrors.contains (head)) {
+                        mirrors.remove (head);
+                        outputs.remove (head);
+                        existing = null;
+                    }
                     if (existing == null) {
                         existing = new Policy.Output (o.name, rect);
                         existing.primary = o.primary;
@@ -402,6 +480,21 @@ namespace Polo.Shell {
                     head.set_background_color (BACKGROUND_RED, BACKGROUND_GREEN, BACKGROUND_BLUE);
                 }
             }
+            foreach (var head in heads) {
+                var shown = outputs.lookup (head);
+                if (!mirrors.contains (head) || shown == null) {
+                    continue;
+                }
+                var rect = Marco.Rect ();
+                head.get_geometry (out rect.x, out rect.y, out rect.width, out rect.height);
+                if (!shown.rect.equal (rect)) {
+                    mirrors.remove (head);
+                    var own = new Policy.Output (head.get_name (), rect);
+                    own.scale = head.get_scale ();
+                    outputs.insert (head, own);
+                    model.add_output (own);
+                }
+            }
             if (drm && success && remember) {
                 store.remember (monitors);
             }
@@ -414,6 +507,41 @@ namespace Polo.Shell {
             server.output_state_changed ();
             layout_changed ();
             return success;
+        }
+
+        private GLib.GenericSet<Backend.Output> mirrors =
+            new GLib.GenericSet<Backend.Output> (GLib.direct_hash, GLib.direct_equal);
+
+        private Policy.Output? mirrored_output (Backend.Output head, Marco.Rect rect) {
+            foreach (var other in heads) {
+                if (other == head || !other.get_enabled () || mirrors.contains (other)) {
+                    continue;
+                }
+                var shown = outputs.lookup (other);
+                if (shown != null && shown.rect.equal (rect)) {
+                    return shown;
+                }
+            }
+            return null;
+        }
+
+        private void release_head (Backend.Output head) {
+            var shown = outputs.lookup (head);
+            if (shown == null) {
+                return;
+            }
+            outputs.remove (head);
+            if (mirrors.contains (head)) {
+                mirrors.remove (head);
+                return;
+            }
+            foreach (var other in heads) {
+                if (mirrors.contains (other) && outputs.lookup (other) == shown) {
+                    mirrors.remove (other);
+                    return;
+                }
+            }
+            model.remove_output (shown);
         }
 
         public signal void layout_changed ();
@@ -552,6 +680,8 @@ namespace Polo.Shell {
                     var area = output.work_area;
                     head.set_work_area (area.x, area.y, area.width, area.height);
                     head.set_primary (output.primary);
+                } else {
+                    head.set_primary (false);
                 }
             }
         }
@@ -602,7 +732,7 @@ namespace Polo.Shell {
         public bool grab_active {
             get {
                 return move_resize.active || switcher.active || share_chooser.active || expo.active ||
-                       cube.grabbing || workspace_switcher.active || frame_input.active;
+                       cube.grabbing || display_switcher.active || workspace_switcher.active || frame_input.active;
             }
         }
 
@@ -652,6 +782,8 @@ namespace Polo.Shell {
                     grabbed = expo.key (seat, event);
                 } else if (cube.grabbing) {
                     grabbed = cube.key (seat, event);
+                } else if (display_switcher.active) {
+                    grabbed = display_switcher.key (seat, event);
                 } else {
                     grabbed = workspace_switcher.key (seat, event);
                 }
@@ -758,6 +890,10 @@ namespace Polo.Shell {
             }
             if (share_chooser.active) {
                 share_chooser.button (event);
+                return Backend.FilterResult.PASS;
+            }
+            if (display_switcher.active) {
+                display_switcher.button (event);
                 return Backend.FilterResult.PASS;
             }
             if (workspace_switcher.active) {

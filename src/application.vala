@@ -187,7 +187,7 @@ namespace Polo {
                 marco_prefs = new Settings.MarcoPrefsReader (model);
             }
             var store = new Outputs.Store ();
-            if (config.kind == Backend.Kind.DRM) {
+            if (config.kind == Backend.Kind.DRM || config.manage_outputs) {
                 store.load.begin (() => loop.quit ());
                 loop.run ();
             }

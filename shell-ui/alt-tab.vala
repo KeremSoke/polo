@@ -352,6 +352,7 @@ namespace PoloShellUi {
             window.motion_notify_event.connect (on_motion);
 
             int scale = window.get_scale_factor ();
+            var foreground = window.get_style_context ().get_color (Gtk.StateFlags.NORMAL);
             foreach (var entry in entries) {
                 entry.markup = title_markup (entry);
             }
@@ -403,7 +404,7 @@ namespace PoloShellUi {
                         entry.workspace = new SelectWorkspace (entry, workspace_info, (int) entries.length);
                         image = entry.workspace;
                     } else {
-                        var select = new SelectImage (picture (entry, icon_size, scale));
+                        var select = new SelectImage (picture (entry, icon_size, scale, foreground));
                         select.halign = Gtk.Align.CENTER;
                         select.valign = Gtk.Align.CENTER;
                         entry.widget = select;
@@ -483,10 +484,18 @@ namespace PoloShellUi {
             return markup;
         }
 
-        private static Gdk.Pixbuf? entry_icon (TabEntry entry, int size, int scale) {
+        private static Gdk.Pixbuf? entry_icon (TabEntry entry, int size, int scale, Gdk.RGBA foreground) {
             var theme = Gtk.IconTheme.get_default ();
             if (entry.icon_name != null && theme.has_icon (entry.icon_name)) {
                 try {
+                    if (entry.icon_name.has_suffix ("-symbolic")) {
+                        var info = theme.lookup_icon_for_scale (entry.icon_name, size, scale,
+                                                                Gtk.IconLookupFlags.FORCE_SIZE);
+                        bool was_symbolic;
+                        if (info != null) {
+                            return info.load_symbolic (foreground, null, null, null, out was_symbolic);
+                        }
+                    }
                     return theme.load_icon_for_scale (entry.icon_name, size, scale,
                                                       Gtk.IconLookupFlags.FORCE_SIZE);
                 } catch (GLib.Error e) {
@@ -539,8 +548,8 @@ namespace PoloShellUi {
             return dimmed;
         }
 
-        private static Cairo.Surface picture (TabEntry entry, int icon_size, int scale) {
-            var pixbuf = entry_icon (entry, icon_size, scale);
+        private static Cairo.Surface picture (TabEntry entry, int icon_size, int scale, Gdk.RGBA foreground) {
+            var pixbuf = entry_icon (entry, icon_size, scale, foreground);
             if (pixbuf == null) {
                 return new Cairo.ImageSurface (Cairo.Format.ARGB32, icon_size, icon_size);
             }

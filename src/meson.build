@@ -39,7 +39,8 @@ polo_policy_dep = declare_dependency(
 )
 
 output_lib = static_library('polo-output',
-  'core/output.vala', 'output/monitors-xml.vala', 'output/layout.vala', 'output/store.vala',
+  'core/output.vala', 'output/monitors-xml.vala', 'output/layout.vala', 'output/display-modes.vala',
+  'output/store.vala',
   vala_args: vala_args,
   vala_header: 'polo-output.h',
   vala_vapi: 'polo-output.vapi',
@@ -118,6 +119,7 @@ polo_sources = files(
   'shell/share-chooser.vala',
   'shell/backdrop.vala',
   'shell/cube.vala',
+  'shell/display-switcher.vala',
   'shell/expo.vala',
   'shell/frame-input.vala',
   'shell/window-menu.vala',

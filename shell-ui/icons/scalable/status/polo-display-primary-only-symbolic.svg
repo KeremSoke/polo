@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="48" viewBox="0 0 64 48">
+  <path fill="#bebebe" fill-rule="evenodd" d="M2 16h36v24H2zM5 19v18h30V19z"/><path fill="#bebebe" d="M17 40h6v3h-6zM12 43h16v2H12z"/><circle fill="#bebebe" cx="20" cy="28" r="5"/><g opacity="0.35"><path fill="#bebebe" fill-rule="evenodd" d="M40 4h22v16H40zM42.5 6.5v11h17v-11z"/><path fill="#bebebe" d="M49 20h4v2h-4zM46 22h10v1.5H46z"/></g>
+</svg>

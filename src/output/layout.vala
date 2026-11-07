@@ -62,6 +62,55 @@ namespace Polo.Outputs {
             }
         }
 
+        public static void use_preferred (Polo.Output output, int scaling) {
+            output.width = 0;
+            foreach (var mode in output.modes) {
+                if (mode.preferred || output.width == 0) {
+                    output.width = mode.width;
+                    output.height = mode.height;
+                    output.rate = mode.rate;
+                    if (mode.preferred) {
+                        break;
+                    }
+                }
+            }
+            output.scale = scaling > 0 ? int.min (scaling, 8) :
+                (output.mm_width > 0 && output.width * 25.4 / output.mm_width > 192 ? 2 : 1);
+            output.transform = 0;
+        }
+
+        public static void hotplug (GLib.GenericArray<Polo.Output> outputs, GLib.GenericArray<Polo.Output> added,
+                                    MonitorsXml? saved, MonitorsXml? imported, int scaling) {
+            if (restore (outputs, saved) || restore (outputs, imported)) {
+                return;
+            }
+            int right = 0;
+            foreach (var output in outputs) {
+                uint index;
+                if (output.enabled && !added.find (output, out index)) {
+                    right = int.max (right, output.x + output.logical_width ());
+                }
+            }
+            foreach (var output in added) {
+                use_preferred (output, scaling);
+                output.x = right;
+                output.y = 0;
+                output.enabled = true;
+                output.primary = false;
+                right += output.logical_width ();
+            }
+            bool any = false;
+            foreach (var output in outputs) {
+                any |= output.enabled;
+            }
+            if (!any && outputs.length > 0) {
+                use_preferred (outputs[0], scaling);
+                outputs[0].x = outputs[0].y = 0;
+                outputs[0].enabled = true;
+            }
+            ensure_primary (outputs);
+        }
+
         public static void arrange (GLib.GenericArray<Polo.Output> outputs, MonitorsXml? saved,
                                     MonitorsXml? imported, int scaling, bool laptop, bool external) {
             outputs.sort ((a, b) => {
@@ -76,19 +125,7 @@ namespace Polo.Outputs {
             int x = 0;
             bool enabled = false;
             foreach (var output in outputs) {
-                foreach (var mode in output.modes) {
-                    if (mode.preferred || output.width == 0) {
-                        output.width = mode.width;
-                        output.height = mode.height;
-                        output.rate = mode.rate;
-                        if (mode.preferred) {
-                            break;
-                        }
-                    }
-                }
-                output.scale = scaling > 0 ? int.min (scaling, 8) :
-                    (output.mm_width > 0 && output.width * 25.4 / output.mm_width > 192 ? 2 : 1);
-                output.transform = 0;
+                use_preferred (output, scaling);
                 output.x = x;
                 output.y = 0;
                 output.enabled = output.internal_panel ? laptop : external;

@@ -221,7 +221,9 @@ namespace Polo.Shell {
                     rfkill.begin (true);
                     break;
                 case Input.MediaKey.DISPLAY:
-                    if (model.get_outputs ().length > 1) {
+                    if (desktop.display_switcher.can_switch ()) {
+                        desktop.display_switcher.cycle (null);
+                    } else if (desktop.current_outputs ().length > 1) {
                         osd (Backend.OsdKind.MESSAGE, "video-joined-displays-symbolic",
                              dgettext (DOMAIN, "Changing Screen Layout"));
                     } else {

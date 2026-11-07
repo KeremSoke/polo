@@ -9,6 +9,7 @@ namespace Polo.Outputs {
         public string path;
         private bool saving;
         private bool dirty;
+        private bool finished;
 
         public Store () {
             path = GLib.Path.build_filename (GLib.Environment.get_user_config_dir (),
@@ -83,14 +84,14 @@ namespace Polo.Outputs {
             }
             saved.configurations.add (config);
             dirty = true;
-            if (!saving) {
+            if (!saving && !finished) {
                 flush.begin ();
             }
         }
 
         private async void flush () {
             saving = true;
-            while (dirty) {
+            while (dirty && !finished) {
                 dirty = false;
                 try {
                     yield saved.save (path);
@@ -99,6 +100,22 @@ namespace Polo.Outputs {
                 }
             }
             saving = false;
+        }
+
+        public void finish () {
+            bool pending = dirty || saving;
+            finished = true;
+            dirty = false;
+            if (saved == null || !pending) {
+                return;
+            }
+            try {
+                GLib.DirUtils.create_with_parents (GLib.Path.get_dirname (path), 0700);
+                GLib.FileUtils.set_contents_full (path, saved.serialize (), -1,
+                                                  GLib.FileSetContentsFlags.CONSISTENT, 0600);
+            } catch (GLib.Error e) {
+                GLib.warning ("Cannot save monitor configuration: %s", e.message);
+            }
         }
     }
 }

@@ -338,6 +338,11 @@
       <summary>Show Expo</summary>
       <description>Shows every workspace side by side, in Marco's accelerator syntax ("disabled" for none).</description>
     </key>
+    <key name="display-mode" type="s">
+      <default>'&lt;Mod4&gt;p'</default>
+      <summary>Choose how the screens are used</summary>
+      <description>Opens the display-mode popup (primary screen only, mirror, extend, secondary screen only) when two or more screens are connected, in Marco's accelerator syntax ("disabled" for none). Pressing it again with the modifier held moves on; releasing the modifier applies. The laptop's display key (XF86Display) opens it too.</description>
+    </key>
     <key name="cube" type="s">
       <default>'&lt;Mod4&gt;c'</default>
       <summary>Show the desktop cube</summary>

@@ -353,3 +353,15 @@ test('window-animations-squeezimize', window_animations_test,
   suite: 'protocol',
   timeout: 60,
 )
+test('display-switcher', executable('test-display-switcher', 'test-display-switcher.c', dependencies: harness_dep),
+  args: [polo_exe, fake_shell_ui],
+  env: protocol_test_env,
+  suite: 'protocol',
+  timeout: 60,
+)
+test('hotplug', executable('test-hotplug', 'test-hotplug.c', dependencies: harness_dep),
+  args: [polo_exe, fake_shell_ui],
+  env: protocol_test_env,
+  suite: 'protocol',
+  timeout: 60,
+)
