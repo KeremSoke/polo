@@ -80,6 +80,7 @@ struct _PoloBackendServer {
 	gpointer test_settings_data;
 	GDestroyNotify test_settings_destroy;
 	struct wl_global *test_global;
+	PoloBackendView *test_mirror;  /* bend_mirror's, owned */
 	struct wl_list test_resources; /* polo_test_v1 */
 	char *test_color_table; /* Latest color table, cached for clients that
 				   bind later. */

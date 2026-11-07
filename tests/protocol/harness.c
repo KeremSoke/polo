@@ -359,8 +359,8 @@ test_shell_ui_request(void *data, struct polo_test_v1 *test, const char *text)
 
 static void
 test_lamp_target(void *data, struct polo_test_v1 *test,
-		 struct wl_surface *surface, int32_t x, int32_t y, int32_t width,
-		 int32_t height, uint32_t edge, uint32_t source)
+		 struct wl_surface *surface, int32_t x, int32_t y,
+		 int32_t width, int32_t height, uint32_t edge, uint32_t source)
 {
 	struct harness_window *w = wl_surface_get_user_data(surface);
 
@@ -415,7 +415,7 @@ registry_global(void *data, struct wl_registry *registry, uint32_t name,
 		wl_seat_add_listener(h->seat, &seat_listener, h);
 	} else if (strcmp(interface, polo_test_v1_interface.name) == 0) {
 		h->test = wl_registry_bind(registry, name,
-					   &polo_test_v1_interface, 8);
+					   &polo_test_v1_interface, 9);
 		polo_test_v1_add_listener(h->test, &test_listener, h);
 	} else if (strcmp(interface, zwlr_layer_shell_v1_interface.name) == 0) {
 		h->layer_shell = wl_registry_bind(
@@ -633,6 +633,13 @@ harness_wait_frame(struct harness *h, struct wl_surface *surface)
 struct wl_buffer *
 harness_buffer_create(struct wl_shm *shm, int width, int height)
 {
+	return harness_buffer_create_colour(shm, width, height, 0xff3070c0);
+}
+
+struct wl_buffer *
+harness_buffer_create_colour(struct wl_shm *shm, int width, int height,
+			     uint32_t argb)
+{
 	int stride = width * 4;
 	int size = stride * height;
 	struct wl_shm_pool *pool;
@@ -646,7 +653,7 @@ harness_buffer_create(struct wl_shm *shm, int width, int height)
 	pixels = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 	CHECK(pixels != MAP_FAILED, "mmap: %s", strerror(errno));
 	for (i = 0; i < width * height; i++)
-		pixels[i] = 0xff3070c0;
+		pixels[i] = argb;
 	munmap(pixels, size);
 
 	pool = wl_shm_create_pool(shm, fd, size);
@@ -1027,7 +1034,7 @@ harness_cpu_ticks(struct harness *h)
 struct capture_state {
 	int width, height;
 	uint32_t format; /* DRM fourcc */
-	int done; /* 1 complete, 2 retry, 3 failed */
+	int done;        /* 1 complete, 2 retry, 3 failed */
 };
 
 static void
@@ -1137,8 +1144,8 @@ harness_capture_output(struct harness *h, int index, int *width, int *height)
 			    state.format == FOURCC_XBGR8888) {
 				for (size_t i = 0; i < size / 4; i++)
 					copy[i] = (copy[i] & 0xff00ff00u) |
-						  ((copy[i] & 0xffu) << 16) |
-						  ((copy[i] >> 16) & 0xffu);
+						((copy[i] & 0xffu) << 16) |
+						((copy[i] >> 16) & 0xffu);
 			}
 			*width = state.width;
 			*height = state.height;

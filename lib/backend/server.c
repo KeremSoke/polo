@@ -835,6 +835,7 @@ polo_backend_server_stop(PoloBackendServer *server)
 	if (!server->started || server->stopped)
 		return;
 	server->stopped = TRUE;
+	g_clear_object(&server->test_mirror);
 	polo_backend_cursor_fini(server);
 	polo_backend_internal_client_fini(server);
 

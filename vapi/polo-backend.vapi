@@ -722,6 +722,8 @@ namespace Polo {
             public void set_alpha (float alpha);
             [CCode (cname = "polo_backend_view_mirror")]
             public View? mirror ();
+            [CCode (cname = "polo_backend_view_mirror_views")]
+            public GLib.GenericArray<View> mirror_views ();
             [CCode (cname = "polo_backend_view_place")]
             public void place (double x, double y, double scale);
 

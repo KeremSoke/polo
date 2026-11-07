@@ -188,6 +188,10 @@ harness_window_create_with_decoration(struct harness *h, int width, int height,
 struct wl_buffer *
 harness_buffer_create(struct wl_shm *shm, int width, int height);
 
+struct wl_buffer *
+harness_buffer_create_colour(struct wl_shm *shm, int width, int height,
+			     uint32_t argb);
+
 void
 harness_window_destroy(struct harness_window *w);
 

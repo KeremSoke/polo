@@ -254,3 +254,9 @@ test('expo', executable('test-expo', 'test-expo.c', dependencies: harness_dep),
   suite: 'protocol',
   timeout: 60,
 )
+test('bend-mirror', executable('test-bend-mirror', 'test-bend-mirror.c', dependencies: harness_dep),
+  args: [polo_exe],
+  env: magic_lamp_env,
+  suite: 'protocol',
+  timeout: 60,
+)

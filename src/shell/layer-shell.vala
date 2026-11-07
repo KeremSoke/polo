@@ -227,6 +227,18 @@ namespace Polo.Shell {
             return best_layer >= 0;
         }
 
+        public GLib.GenericArray<Backend.View> views_on (Policy.Output output, uint[] layers) {
+            var views = new GLib.GenericArray<Backend.View> ();
+            foreach (uint layer in layers) {
+                foreach (var entry in entries) {
+                    if (entry.output == output && entry.handle.mapped && entry.handle.layer == layer) {
+                        views.add (entry.view);
+                    }
+                }
+            }
+            return views;
+        }
+
         public bool covers_output (Policy.Output output) {
             foreach (var entry in entries) {
                 var handle = entry.handle;

@@ -270,3 +270,24 @@ polo_fx_cube_fill_grid(const PoloFxCube *cube, int side, double view_x,
 	}
 	return in_front;
 }
+
+void
+polo_fx_cube_fill_shade(const PoloFxCube *cube, int side, guint8 *pixels,
+			int width, int height, int stride)
+{
+	g_return_if_fail(cube != NULL && pixels != NULL);
+	for (int y = 0; y < height; y++) {
+		guint32 *row = (guint32 *)(pixels + (gsize)y * stride);
+
+		for (int x = 0; x < width; x++) {
+			PoloFxVec2 local = { (x + 0.5) * cube->size.x / width,
+					     (y + 0.5) * cube->size.y /
+						     height };
+			double shade = polo_fx_cube_shade(cube, side, local);
+			guint32 alpha = (guint32)lround(
+				CLAMP(1.0 - shade, 0.0, 1.0) * 255.0);
+
+			row[x] = alpha << 24;
+		}
+	}
+}

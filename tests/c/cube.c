@@ -220,6 +220,23 @@ test_shade(void)
 }
 
 static void
+test_fill_shade(void)
+{
+	PoloFxCube cube = rest(4, 1024, 768);
+	guint32 pixels[8 * 6];
+	guint32 expected =
+		lround((1 - (0.3 + 0.7 * pow(cos(G_PI / 4), 1.5))) * 255);
+
+	polo_fx_cube_fill_shade(&cube, 0, (guint8 *)pixels, 8, 6, 8 * 4);
+	for (int i = 0; i < 8 * 6; i++)
+		g_assert_cmphex(pixels[i], ==, 0);
+	cube.rotation = G_PI / 4;
+	polo_fx_cube_fill_shade(&cube, 0, (guint8 *)pixels, 8, 6, 8 * 4);
+	g_assert_cmpuint(pixels[3 * 8 + 4] >> 24, ==, expected);
+	g_assert_cmphex(pixels[3 * 8 + 4] & 0xffffff, ==, 0);
+}
+
+static void
 test_grids(void)
 {
 	PoloFxCube cube = rest(4, 1024, 768);
@@ -289,6 +306,7 @@ main(int argc, char **argv)
 	g_test_add_func("/cube/culling", test_culling_every_step);
 	g_test_add_func("/cube/deformations", test_deformations);
 	g_test_add_func("/cube/shade", test_shade);
+	g_test_add_func("/cube/fill-shade", test_fill_shade);
 	g_test_add_func("/cube/grids", test_grids);
 	g_test_add_func("/cube/behind-camera", test_behind_camera);
 	return g_test_run();

@@ -144,6 +144,16 @@ void check_pixel_buffer (Polo.Backend.Server server, GLib.MainContext context) {
         turns++;
     }
     assert (buffer.is_ready () && buffer.get_view () != null);
+    var mirror = buffer.get_view ().mirror ();
+    assert (mirror != null);
+    var mirrored = mirror.mirror_views ();
+    assert (mirrored.length == 1 && mirrored[0] == mirror);
+    mirror.place (10, 20, 0.5);
+    float[] grid = { 0, 0, 0, 0, 4, 0, 1, 0, 0, 2, 0, 1, 4, 2, 1, 1 };
+    mirror.set_deformation (grid, 2, 2);
+    mirror.clear_deformation ();
+    mirror.place (0, 0, 1);
+    mirror = null;
     for (int round = 0; round < 4; round++) {
         pixels = buffer.begin (out stride);
         for (int i = 0; i < pixels.length; i++) {

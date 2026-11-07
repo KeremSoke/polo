@@ -175,6 +175,10 @@ namespace Polo.Fx {
         [CCode (cname = "polo_fx_cube_shade")]
         public double shade (int side, Vec2 local);
 
+        [CCode (cname = "polo_fx_cube_fill_shade")]
+        public void fill_shade (int side, [CCode (array_length = false)] uint8[] pixels, int width, int height,
+                                int stride);
+
         [CCode (cname = "polo_fx_cube_grid_size")]
         public void grid_size (double width, double height, double spacing, out uint cols, out uint rows);
 

@@ -50,6 +50,9 @@ int main () {
     cube.side_order (order);
     assert (order[0] == 3 && order[3] == 1);
     assert ((cube.shade (1, Polo.Fx.Vec2 () { x = 400, y = 300 }) - 1.0).abs () < 1e-6);
+    var shade = new uint8[4 * 3 * 4];
+    cube.fill_shade (1, shade, 4, 3, 16);
+    assert (shade[3] == 0);
     uint cube_cols, cube_rows;
     cube.grid_size (800, 600, 40, out cube_cols, out cube_rows);
     assert (cube_cols == 31 && cube_rows == 31);

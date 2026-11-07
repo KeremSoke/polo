@@ -789,6 +789,9 @@ polo_backend_view_set_alpha(PoloBackendView *view, float alpha);
 PoloBackendView *
 polo_backend_view_mirror(PoloBackendView *view);
 
+GPtrArray *
+polo_backend_view_mirror_views(PoloBackendView *view);
+
 void
 polo_backend_view_place(PoloBackendView *view, double x, double y,
 			double scale);

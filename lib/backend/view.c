@@ -4,8 +4,9 @@
  *
  * PoloBackendView: a handle on a weston_view. The handle does not own the
  * view; its creator, such as a toplevel or layer surface, destroys it. A
- * mirror (another view of the same surface, for Expo) is the exception: its
- * handle owns it.
+ * mirror (another view of the same surface, for Expo and the cube) is the
+ * exception: its handle owns it, and keeps the handles of the child views
+ * libweston made for its subsurfaces.
  */
 
 #include <libweston/libweston.h>
@@ -21,7 +22,9 @@ struct _PoloBackendView {
 	struct wl_listener destroy_listener;
 	gboolean owned;
 	gboolean scaled;
+	gboolean deformed;
 	struct weston_transform scale;
+	GPtrArray *children;
 };
 
 enum {
@@ -73,6 +76,7 @@ polo_backend_view_destroy(PoloBackendView *self)
 	g_hash_table_remove(self->server->views, self->view);
 	self->view = NULL;
 	self->scaled = FALSE;
+	self->deformed = FALSE;
 	self->toplevel = NULL;
 	g_signal_emit(self, signals[SIGNAL_DESTROYED], 0);
 }
@@ -95,6 +99,63 @@ polo_backend_view_mirror(PoloBackendView *source)
 	return mirror;
 }
 
+static void
+collect_child_views(PoloBackendView *self, struct weston_view *view,
+		    GPtrArray *views)
+{
+	struct weston_subsurface *sub;
+
+	wl_list_for_each(sub, &view->surface->subsurface_list, parent_link)
+	{
+		struct weston_view *child;
+
+		if (sub->surface == view->surface)
+			continue;
+		wl_list_for_each(child, &sub->surface->views, surface_link)
+		{
+			PoloBackendView *handle;
+
+			if (child->parent_view != view)
+				continue;
+			handle = polo_backend_server_lookup_view(self->server,
+								 child);
+			if (!handle) {
+				handle = polo_backend_view_new(self->server,
+							       child, NULL);
+				g_ptr_array_add(self->children, handle);
+			}
+			g_ptr_array_add(views, g_object_ref(handle));
+			collect_child_views(self, child, views);
+			break;
+		}
+	}
+}
+
+GPtrArray *
+polo_backend_view_mirror_views(PoloBackendView *self)
+{
+	GPtrArray *views;
+
+	g_return_val_if_fail(POLO_BACKEND_IS_VIEW(self), NULL);
+	views = g_ptr_array_new_with_free_func(g_object_unref);
+	if (!self->view)
+		return views;
+	if (!self->children)
+		self->children = g_ptr_array_new_with_free_func(g_object_unref);
+	g_ptr_array_add(views, g_object_ref(self));
+	collect_child_views(self, self->view, views);
+	return views;
+}
+
+static void
+unscale(PoloBackendView *view)
+{
+	if (view->scaled) {
+		weston_view_remove_transform(view->view, &view->scale);
+		view->scaled = FALSE;
+	}
+}
+
 void
 polo_backend_view_place(PoloBackendView *view, double x, double y, double scale)
 {
@@ -104,10 +165,11 @@ polo_backend_view_place(PoloBackendView *view, double x, double y, double scale)
 	v = view->view;
 	if (!v)
 		return;
-	if (view->scaled) {
-		weston_view_remove_transform(v, &view->scale);
-		view->scaled = FALSE;
+	if (view->deformed) {
+		weston_view_clear_deformation(v);
+		view->deformed = FALSE;
 	}
+	unscale(view);
 	weston_view_set_position(
 		v, (struct weston_coord_global){ .c = weston_coord(x, y) });
 	if (scale != 1.0) {
@@ -144,10 +206,13 @@ polo_backend_view_set_deformation(PoloBackendView *view, const float *vertices,
 			4 * sizeof(float));
 	if (!view->view)
 		return FALSE;
-	return weston_view_set_deformation(
-		       view->view,
-		       (const struct weston_view_deform_vertex *)vertices, cols,
-		       rows) == 0;
+	unscale(view);
+	view->deformed =
+		weston_view_set_deformation(
+			view->view,
+			(const struct weston_view_deform_vertex *)vertices,
+			cols, rows) == 0;
+	return view->deformed;
 }
 
 void
@@ -156,6 +221,7 @@ polo_backend_view_clear_deformation(PoloBackendView *view)
 	g_return_if_fail(POLO_BACKEND_IS_VIEW(view));
 	if (view->view)
 		weston_view_clear_deformation(view->view);
+	view->deformed = FALSE;
 }
 
 void
@@ -251,6 +317,7 @@ polo_backend_view_dispose(GObject *object)
 		polo_backend_view_destroy(self);
 		weston_view_destroy(view);
 	}
+	g_clear_pointer(&self->children, g_ptr_array_unref);
 	G_OBJECT_CLASS(polo_backend_view_parent_class)->dispose(object);
 }
 

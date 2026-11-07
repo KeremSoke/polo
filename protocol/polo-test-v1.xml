@@ -14,7 +14,7 @@
     tests check policy decisions rather than libweston internals.
   </description>
 
-  <interface name="polo_test_v1" version="8">
+  <interface name="polo_test_v1" version="9">
     <request name="destroy" type="destructor"/>
 
     <request name="get_window_info">
@@ -226,5 +226,19 @@
       <arg name="edge" type="uint"/>
       <arg name="source" type="uint"/>
     </event>
+
+    <request name="bend_mirror" since="9">
+      <description summary="show the window's mirror bent into a rectangle">
+        Mirrors the window with its subsurfaces in the overlay layer and
+        deforms every view of the mirror on its own, so that together they
+        fill the rectangle, in global logical coordinates. Replaces the
+        previous mirror; a zero width or height only removes it.
+      </description>
+      <arg name="surface" type="object" interface="wl_surface"/>
+      <arg name="x" type="int"/>
+      <arg name="y" type="int"/>
+      <arg name="width" type="int"/>
+      <arg name="height" type="int"/>
+    </request>
   </interface>
 </protocol>

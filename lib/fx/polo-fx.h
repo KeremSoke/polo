@@ -192,6 +192,10 @@ double
 polo_fx_cube_shade(const PoloFxCube *cube, int side, PoloFxVec2 local);
 
 void
+polo_fx_cube_fill_shade(const PoloFxCube *cube, int side, guint8 *pixels,
+			int width, int height, int stride);
+
+void
 polo_fx_cube_grid_size(const PoloFxCube *cube, double width, double height,
 		       double spacing, guint *cols, guint *rows);
 

@@ -83,6 +83,77 @@ test_get_lamp_target(struct wl_client *client, struct wl_resource *resource,
 }
 
 static void
+view_rect(PoloBackendView *view, double *x, double *y, double *width,
+	  double *height)
+{
+	int w, h;
+
+	polo_backend_view_get_position(view, x, y);
+	polo_backend_view_get_size(view, &w, &h);
+	*width = w;
+	*height = h;
+}
+
+static void
+test_bend_mirror(struct wl_client *client, struct wl_resource *resource,
+		 struct wl_resource *surface_resource, int32_t x, int32_t y,
+		 int32_t width, int32_t height)
+{
+	PoloBackendServer *server = wl_resource_get_user_data(resource);
+	struct weston_surface *surface =
+		wl_resource_get_user_data(surface_resource);
+	PoloBackendToplevel *toplevel;
+	PoloBackendView *source;
+	GPtrArray *views;
+	double sx, sy, x1, y1, x2, y2;
+
+	g_clear_object(&server->test_mirror);
+	toplevel = polo_backend_toplevel_from_surface(surface);
+	if (width <= 0 || height <= 0 || !toplevel)
+		return;
+	source = polo_backend_toplevel_get_view(toplevel);
+	server->test_mirror = polo_backend_view_mirror(source);
+	if (!server->test_mirror)
+		return;
+	polo_backend_view_get_position(source, &sx, &sy);
+	polo_backend_view_set_position(server->test_mirror, sx, sy);
+	views = polo_backend_view_mirror_views(server->test_mirror);
+	x1 = y1 = G_MAXDOUBLE;
+	x2 = y2 = -G_MAXDOUBLE;
+	for (guint i = 0; i < views->len; i++) {
+		double vx, vy, vw, vh;
+
+		view_rect(views->pdata[i], &vx, &vy, &vw, &vh);
+		x1 = MIN(x1, vx);
+		y1 = MIN(y1, vy);
+		x2 = MAX(x2, vx + vw);
+		y2 = MAX(y2, vy + vh);
+	}
+	for (guint i = 0; i < views->len && x2 > x1 && y2 > y1; i++) {
+		double vx, vy, vw, vh;
+		float grid[16];
+
+		view_rect(views->pdata[i], &vx, &vy, &vw, &vh);
+		for (int corner = 0; corner < 4; corner++) {
+			double u = corner & 1, v = corner >> 1;
+
+			grid[corner * 4] =
+				x + (vx + u * vw - x1) / (x2 - x1) * width;
+			grid[corner * 4 + 1] =
+				y + (vy + v * vh - y1) / (y2 - y1) * height;
+			grid[corner * 4 + 2] = u;
+			grid[corner * 4 + 3] = v;
+		}
+		polo_backend_view_set_deformation(views->pdata[i], grid, 2, 2);
+	}
+	g_ptr_array_unref(views);
+	polo_backend_view_move_to_layer(
+		server->test_mirror,
+		polo_backend_server_get_layer(server,
+					      POLO_BACKEND_LAYER_OVERLAY));
+}
+
+static void
 test_get_layer_surface_info(struct wl_client *client,
 			    struct wl_resource *resource,
 			    struct wl_resource *surface_resource)
@@ -511,6 +582,7 @@ static const struct polo_test_v1_interface test_implementation = {
 	.shell_ui_lookup_color = test_shell_ui_lookup_color,
 	.output_device_changed = test_output_device_changed,
 	.get_lamp_target = test_get_lamp_target,
+	.bend_mirror = test_bend_mirror,
 };
 
 static void
@@ -568,7 +640,7 @@ polo_backend_test_protocol_init(PoloBackendServer *server, GError **error)
 		server->compositor, &server->screenshot_authority,
 		authorize_screenshot);
 	server->test_global = wl_global_create(
-		server->display, &polo_test_v1_interface, 8, server, test_bind);
+		server->display, &polo_test_v1_interface, 9, server, test_bind);
 	if (!server->test_global) {
 		g_set_error(error, POLO_BACKEND_ERROR,
 			    POLO_BACKEND_ERROR_FAILED,
