@@ -134,4 +134,16 @@ namespace Polo.Fx {
         [CCode (cname = "polo_fx_magic_lamp_advance")]
         public static double advance (double progress, bool restoring, double elapsed_ms, double duration_ms);
     }
+
+    [CCode (cname = "polo_fx_blur")]
+    public static void blur ([CCode (array_length = false)] uint8[] pixels, int width, int height, int stride,
+                             int radius);
+
+    [CCode (cname = "polo_fx_dim")]
+    public static void dim ([CCode (array_length = false)] uint8[] pixels, int width, int height, int stride,
+                            double amount);
+
+    [CCode (cname = "polo_fx_downscale")]
+    public static void downscale ([CCode (array_length = false)] uint8[] src, int width, int height, int stride,
+                                  int factor, [CCode (array_length = false)] uint8[] dst, int dst_stride);
 }

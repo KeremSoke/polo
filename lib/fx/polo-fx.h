@@ -141,6 +141,16 @@ polo_fx_magic_lamp_grid_size(const PoloFxMagicLamp *lamp, guint *cols,
 void
 polo_fx_magic_lamp_fill_grid(const PoloFxMagicLamp *lamp, PoloFxGrid *grid);
 
+void
+polo_fx_blur(guint8 *pixels, int width, int height, int stride, int radius);
+
+void
+polo_fx_dim(guint8 *pixels, int width, int height, int stride, double amount);
+
+void
+polo_fx_downscale(const guint8 *src, int width, int height, int stride,
+		  int factor, guint8 *dst, int dst_stride);
+
 G_END_DECLS
 
 #endif /* POLO_FX_H */

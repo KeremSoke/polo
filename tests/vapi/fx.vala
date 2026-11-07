@@ -24,5 +24,15 @@ int main () {
     var grid = Polo.Fx.Grid.create (cols, rows);
     lamp.fill_grid (grid);
     assert (grid.vertices[2] == 0 && grid.vertices[3] == 0);
+
+    var pixels = new uint8[8 * 8 * 4];
+    GLib.Memory.set (pixels, 0x80, pixels.length);
+    Polo.Fx.blur (pixels, 8, 8, 32, 2);
+    assert (pixels[0] == 0x80 && pixels[pixels.length - 1] == 0x80);
+    Polo.Fx.dim (pixels, 8, 8, 32, 0.5);
+    assert (pixels[0] == 0x40 && pixels[3] == 0x80);
+    var small = new uint8[4 * 4 * 4];
+    Polo.Fx.downscale (pixels, 8, 8, 32, 2, small, 16);
+    assert (small[0] == 0x40 && small[3] == 0x80);
     return 0;
 }

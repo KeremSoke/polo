@@ -23,3 +23,6 @@ test_magic_lamp = executable('test-magic-lamp', 'magic-lamp.c',
   dependencies: [polo_fx_dep, cc.find_library('m')],
 )
 test('magic-lamp', test_magic_lamp, suite: 'unit-c', protocol: 'tap', args: ['--tap'])
+
+test_blur = executable('test-blur', 'blur.c', dependencies: [polo_fx_dep])
+test('blur', test_blur, suite: 'unit-c', protocol: 'tap', args: ['--tap'])
