@@ -205,6 +205,28 @@ polo_fx_cube_fill_grid(const PoloFxCube *cube, int side, double view_x,
 		       double clip_x, double clip_y, double clip_width,
 		       double clip_height, PoloFxGrid *grid);
 
+PoloFxVec2
+polo_fx_cube_sky_uv(const PoloFxCube *cube, PoloFxVec2 screen,
+		    gboolean mirror);
+
+void
+polo_fx_cube_fill_sky_grid(const PoloFxCube *cube, gboolean mirror,
+			   PoloFxGrid *grid);
+
+/* Wayfire's 4x3 cubemap cross, in +X,-X,+Y,-Y,+Z,-Z order. */
+PoloFxVec2
+polo_fx_cube_cubemap_uv(double x, double y, double z);
+
+gboolean
+polo_fx_cube_cubemap_equirect(const guint8 *src, int width, int height,
+			      int stride, guint8 *dst, int dst_width,
+			      int dst_height, int dst_stride);
+
+gboolean
+polo_fx_cube_cubemap_face(const guint8 *src, int width, int height,
+			  int stride, guint8 *dst, int dst_width,
+			  int dst_height, int dst_stride, int face);
+
 G_END_DECLS
 
 #endif /* POLO_FX_H */

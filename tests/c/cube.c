@@ -295,6 +295,72 @@ test_behind_camera(void)
 	polo_fx_grid_free(grid);
 }
 
+static void
+test_skydome(void)
+{
+	PoloFxCube cube = rest(4, 1024, 768);
+	PoloFxVec2 centre = { 612, 434 };
+	PoloFxVec2 uv = polo_fx_cube_sky_uv(&cube, centre, FALSE);
+	PoloFxGrid *grid = polo_fx_grid_new(129, 129);
+
+	g_assert_cmpfloat_with_epsilon(uv.x, 0.75, 1e-6);
+	g_assert_cmpfloat_with_epsilon(uv.y, 0.5, 1e-6);
+	uv = polo_fx_cube_sky_uv(&cube, centre, TRUE);
+	g_assert_cmpfloat_with_epsilon(uv.x, 0.5, 1e-6);
+	cube.rotation = G_PI / 2;
+	uv = polo_fx_cube_sky_uv(&cube, centre, FALSE);
+	g_assert_cmpfloat_with_epsilon(uv.x, 0.0, 1e-6);
+	cube.offset_y = 0.5;
+	uv = polo_fx_cube_sky_uv(&cube, centre, FALSE);
+	g_assert_cmpfloat(uv.y, >, 0.5);
+	polo_fx_cube_fill_sky_grid(&cube, FALSE, grid);
+	g_assert_cmpfloat_with_epsilon(grid->vertices[0], 100, 1e-6);
+	g_assert_cmpfloat_with_epsilon(grid->vertices[1], 50, 1e-6);
+	for (int i = 0; i < grid->n_floats; i++)
+		g_assert_true(isfinite(grid->vertices[i]));
+	polo_fx_grid_free(grid);
+}
+
+static void
+test_cubemap(void)
+{
+	const double directions[6][3] = { { 1, 0, 0 }, { -1, 0, 0 },
+					  { 0, 1, 0 }, { 0, -1, 0 },
+					  { 0, 0, 1 }, { 0, 0, -1 } };
+	const int tiles[6][2] = { { 2, 1 }, { 0, 1 }, { 1, 0 },
+				  { 1, 2 }, { 1, 1 }, { 3, 1 } };
+	for (int i = 0; i < 6; i++) {
+		PoloFxVec2 uv = polo_fx_cube_cubemap_uv(
+			directions[i][0], directions[i][1], directions[i][2]);
+		g_assert_cmpfloat_with_epsilon(uv.x, (tiles[i][0] + 0.5) / 4,
+					       1e-6);
+		g_assert_cmpfloat_with_epsilon(uv.y, (tiles[i][1] + 0.5) / 3,
+					       1e-6);
+	}
+	guint32 source[12], result[128 * 64];
+	for (int i = 0; i < 12; i++)
+		source[i] = 0xff000000u | (guint32)i;
+	g_assert_true(polo_fx_cube_cubemap_equirect((const guint8 *)source, 4,
+						    3, 16, (guint8 *)result,
+						    128, 64, 128 * 4));
+	/* Looking along +Z samples the front cell; -Z samples the back. */
+	g_assert_cmphex(result[32 * 128 + 32], ==, source[5]);
+	g_assert_cmphex(result[32 * 128 + 96], ==, source[7]);
+	g_assert_true(polo_fx_cube_cubemap_face((const guint8 *)source, 4, 3,
+						16, (guint8 *)result, 128, 64,
+						128 * 4, 4));
+	g_assert_cmphex(result[32 * 128 + 32], ==, source[5]);
+	g_assert_cmphex(result[32 * 128 + 96], ==, 0);
+	g_assert_true(polo_fx_cube_cubemap_face((const guint8 *)source, 4, 3,
+						16, (guint8 *)result, 128, 64,
+						128 * 4, 5));
+	g_assert_cmphex(result[32 * 128 + 32], ==, 0);
+	g_assert_cmphex(result[32 * 128 + 96], ==, source[7]);
+	g_assert_false(polo_fx_cube_cubemap_equirect((const guint8 *)source, 4,
+						     4, 16, (guint8 *)result,
+						     128, 64, 128 * 4));
+}
+
 int
 main(int argc, char **argv)
 {
@@ -309,5 +375,7 @@ main(int argc, char **argv)
 	g_test_add_func("/cube/fill-shade", test_fill_shade);
 	g_test_add_func("/cube/grids", test_grids);
 	g_test_add_func("/cube/behind-camera", test_behind_camera);
+	g_test_add_func("/cube/skydome", test_skydome);
+	g_test_add_func("/cube/cubemap", test_cubemap);
 	return g_test_run();
 }

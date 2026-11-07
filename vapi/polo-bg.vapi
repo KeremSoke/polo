@@ -7,6 +7,21 @@
 
 [CCode (cheader_filename = "bg.h")]
 namespace Polo.Bg {
+    [Compact]
+    [CCode (cname = "PoloBgImage", free_function = "polo_bg_image_free")]
+    public class Image {
+        [CCode (cname = "polo_bg_image_load")]
+        public static Image? load (string filename);
+
+        [CCode (cname = "polo_bg_image_width")]
+        public int width ();
+
+        [CCode (cname = "polo_bg_image_height")]
+        public int height ();
+
+        [CCode (cname = "polo_bg_image_copy_argb")]
+        public void copy_argb ([CCode (array_length = false)] uint8[] data, int stride);
+    }
     /* org.mate.background's color-shading-type setting. */
     [CCode (cname = "PoloBgColorType", cprefix = "POLO_BG_COLOR_", has_type_id = false)]
     public enum ColorType {

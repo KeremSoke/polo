@@ -291,3 +291,142 @@ polo_fx_cube_fill_shade(const PoloFxCube *cube, int side, guint8 *pixels,
 		}
 	}
 }
+
+PoloFxVec2
+polo_fx_cube_sky_uv(const PoloFxCube *cube, PoloFxVec2 screen, gboolean mirror)
+{
+	double nx = 2.0 * (screen.x - cube->origin.x) / cube->size.x - 1.0;
+	double ny = 1.0 - 2.0 * (screen.y - cube->origin.y) / cube->size.y;
+	double ex = nx / focal(), ey = ny / focal(), ez = -1.0;
+	double pitch = cube->offset_y * 0.5;
+	double c = cos(pitch), s = sin(pitch);
+	double wx = ex, wy = c * ey + s * ez, wz = -s * ey + c * ez;
+	double cr = cos(cube->rotation), sr = sin(cube->rotation);
+	double x = cr * wx - sr * wz, z = sr * wx + cr * wz;
+	double length = sqrt(x * x + wy * wy + z * z);
+	double u = atan2(z, x) / (2.0 * G_PI);
+	double phi = acos(CLAMP(wy / length, -1.0, 1.0));
+	double v = CLAMP((phi / G_PI * 128.0 - 1.0) / 126.0, 0.0, 1.0);
+
+	if (u < 0.0)
+		u += 1.0;
+	if (u > 1.0 - 1e-12)
+		u = 0.0;
+	if (mirror)
+		u = 1.0 - fabs(2.0 * u - 1.0);
+	return (PoloFxVec2){ u, v };
+}
+
+void
+polo_fx_cube_fill_sky_grid(const PoloFxCube *cube, gboolean mirror,
+			   PoloFxGrid *grid)
+{
+	float *vertex;
+
+	g_return_if_fail(cube != NULL && grid != NULL);
+	vertex = grid->vertices;
+	for (guint row = 0; row < grid->rows; row++) {
+		for (guint col = 0; col < grid->cols; col++) {
+			PoloFxVec2 screen = {
+				cube->origin.x +
+					cube->size.x * col / (grid->cols - 1),
+				cube->origin.y +
+					cube->size.y * row / (grid->rows - 1)
+			};
+			PoloFxVec2 uv =
+				polo_fx_cube_sky_uv(cube, screen, mirror);
+
+			*vertex++ = screen.x;
+			*vertex++ = screen.y;
+			*vertex++ = uv.x;
+			*vertex++ = uv.y;
+		}
+	}
+}
+
+static PoloFxVec2
+cubemap_uv(double x, double y, double z, int *face)
+{
+	double ax = fabs(x), ay = fabs(y), az = fabs(z);
+	double sc, tc, ma;
+	int tile_x, tile_y;
+
+	if (ax == 0.0 && ay == 0.0 && az == 0.0) {
+		if (face)
+			*face = 5;
+		return (PoloFxVec2){ 0.875, 0.5 };
+	}
+
+	if (ax >= ay && ax >= az) {
+		if (face)
+			*face = x >= 0 ? 0 : 1;
+		ma = ax;
+		sc = x >= 0 ? -z : z;
+		tc = -y;
+		tile_x = x >= 0 ? 2 : 0;
+		tile_y = 1;
+	} else if (ay >= az) {
+		if (face)
+			*face = y >= 0 ? 2 : 3;
+		ma = ay;
+		sc = x;
+		tc = y >= 0 ? z : -z;
+		tile_x = 1;
+		tile_y = y >= 0 ? 0 : 2;
+	} else {
+		if (face)
+			*face = z >= 0 ? 4 : 5;
+		ma = az;
+		sc = z >= 0 ? x : -x;
+		tc = -y;
+		tile_x = z >= 0 ? 1 : 3;
+		tile_y = 1;
+	}
+	return (PoloFxVec2){ (tile_x + (sc / ma + 1.0) / 2.0) / 4.0,
+			     (tile_y + (tc / ma + 1.0) / 2.0) / 3.0 };
+}
+
+PoloFxVec2
+polo_fx_cube_cubemap_uv(double x, double y, double z)
+{
+	return cubemap_uv(x, y, z, NULL);
+}
+
+gboolean
+polo_fx_cube_cubemap_face(const guint8 *src, int width, int height, int stride,
+			  guint8 *dst, int dst_width, int dst_height,
+			  int dst_stride, int face)
+{
+	if (!src || !dst || width < 4 || height < 3 || width % 4 ||
+	    height % 3 || width / 4 != height / 3 || dst_width < 1 ||
+	    dst_height < 1 || stride < width * 4 ||
+	    dst_stride < dst_width * 4 || face < -1 || face >= 6)
+		return FALSE;
+	for (int row = 0; row < dst_height; row++) {
+		double phi = G_PI * (row + 0.5) / dst_height;
+		for (int col = 0; col < dst_width; col++) {
+			double theta = 2.0 * G_PI * (col + 0.5) / dst_width;
+			int selected;
+			PoloFxVec2 uv =
+				cubemap_uv(cos(theta) * sin(phi), cos(phi),
+					   sin(theta) * sin(phi), &selected);
+			int sx = CLAMP((int)(uv.x * width), 0, width - 1);
+			int sy = CLAMP((int)(uv.y * height), 0, height - 1);
+			const guint32 *in =
+				(const guint32 *)(src + sy * stride);
+			guint32 *out = (guint32 *)(dst + row * dst_stride);
+
+			out[col] = face == -1 || face == selected ? in[sx] : 0;
+		}
+	}
+	return TRUE;
+}
+
+gboolean
+polo_fx_cube_cubemap_equirect(const guint8 *src, int width, int height,
+			      int stride, guint8 *dst, int dst_width,
+			      int dst_height, int dst_stride)
+{
+	return polo_fx_cube_cubemap_face(src, width, height, stride, dst,
+					 dst_width, dst_height, dst_stride, -1);
+}

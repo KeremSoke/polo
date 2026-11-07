@@ -185,7 +185,25 @@ namespace Polo.Fx {
         [CCode (cname = "polo_fx_cube_fill_grid")]
         public bool fill_grid (int side, double view_x, double view_y, double view_width, double view_height,
                                double clip_x, double clip_y, double clip_width, double clip_height, Grid grid);
+
+        [CCode (cname = "polo_fx_cube_sky_uv")]
+        public Vec2 sky_uv (Vec2 screen, bool mirror);
+
+        [CCode (cname = "polo_fx_cube_fill_sky_grid")]
+        public void fill_sky_grid (bool mirror, Grid grid);
     }
+
+    [CCode (cname = "polo_fx_cube_cubemap_equirect")]
+    public static bool cubemap_equirect ([CCode (array_length = false)] uint8[] source,
+                                          int width, int height, int stride,
+                                          [CCode (array_length = false)] uint8[] dest,
+                                          int dest_width, int dest_height, int dest_stride);
+
+    [CCode (cname = "polo_fx_cube_cubemap_face")]
+    public static bool cubemap_face ([CCode (array_length = false)] uint8[] source,
+                                      int width, int height, int stride,
+                                      [CCode (array_length = false)] uint8[] dest,
+                                      int dest_width, int dest_height, int dest_stride, int face);
 
     [CCode (cname = "polo_fx_blur")]
     public static void blur ([CCode (array_length = false)] uint8[] pixels, int width, int height, int stride,

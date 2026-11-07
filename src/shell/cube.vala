@@ -60,12 +60,21 @@ namespace Polo.Shell {
             public bool shown = false;
         }
 
+        private class BackgroundFace {
+            public Backend.PixelBuffer buffer;
+            public ulong ready = 0;
+        }
+
         private class Screen {
             public Policy.Output output;
             public GLib.GenericArray<Side> sides = new GLib.GenericArray<Side> ();
             public Backend.PixelBuffer? backdrop = null;
             public ulong backdrop_ready = 0;
             public double backdrop_zoom = 1.0;
+            public bool sky = false;
+            public bool sky_mirror = false;
+            public Fx.Grid? sky_grid = null;
+            public GLib.GenericArray<BackgroundFace> faces = new GLib.GenericArray<BackgroundFace> ();
             public int[] order = {};
             public bool stacked = false;
             public GLib.GenericArray<Backend.View> carried = new GLib.GenericArray<Backend.View> ();
@@ -94,6 +103,8 @@ namespace Polo.Shell {
         private Input.ButtonAccelerator drag_binding;
         private Policy.CubeAnimation animation;
         private State? state = null;
+        private GLib.HashTable<string, string> failed_images =
+            new GLib.HashTable<string, string> (str_hash, str_equal);
 
         public bool active { get { return state != null; } }
         public bool grabbing { get { return state != null && state.grab != null; } }
@@ -542,11 +553,36 @@ namespace Polo.Shell {
         }
 
         private void make_backdrop (Screen screen) {
-            screen.backdrop = Backdrop.make (server, desktop, screen.output,
-                                             text ("cube-background", "solid"),
-                                             Backdrop.parse_colour (text ("cube-background-color", "#1a1a1a")),
-                                             number ("expo-background-blur", 40),
-                                             real ("expo-background-dim", 0.3), out screen.backdrop_zoom);
+            string mode = text ("cube-background", "solid");
+            if (mode == "skydome" || mode == "cubemap") {
+                string path = text (mode == "skydome" ? "cube-skydome-image" : "cube-cubemap-image", "");
+                bool loaded = mode == "skydome" ? (screen.backdrop = image_backdrop (path)) != null :
+                                                    load_faces (screen, path);
+                if (loaded) {
+                    screen.sky = true;
+                    screen.sky_mirror = mode == "skydome" && flag ("cube-skydome-mirror", false);
+                    screen.sky_grid = Fx.Grid.create (129, 129);
+                    if (screen.sky_grid == null) {
+                        screen.backdrop = null;
+                        screen.sky = false;
+                        screen.faces.remove_range (0, screen.faces.length);
+                        loaded = false;
+                    }
+                }
+                if (!loaded && failed_images.lookup (mode + path) == null) {
+                    warning ("Cannot load cube %s image '%s'; using solid background", mode, path);
+                    failed_images.insert (mode + path, mode + path);
+                }
+                if (!loaded || mode == "cubemap") {
+                    mode = "solid";
+                }
+            }
+            if (screen.backdrop == null) {
+                screen.backdrop = Backdrop.make (server, desktop, screen.output, mode,
+                                                 Backdrop.parse_colour (text ("cube-background-color", "#1a1a1a")),
+                                                 number ("expo-background-blur", 40),
+                                                 real ("expo-background-dim", 0.3), out screen.backdrop_zoom);
+            }
             if (!screen.backdrop.is_ready ()) {
                 unowned Screen placed = screen;
                 screen.backdrop_ready = screen.backdrop.ready.connect (() => {
@@ -554,6 +590,65 @@ namespace Polo.Shell {
                     draw ();
                 });
             }
+        }
+
+        private Backend.PixelBuffer? image_backdrop (string path) {
+            var image = Bg.Image.load (path);
+            if (image == null) {
+                return null;
+            }
+            int width = image.width (), height = image.height ();
+            if (width <= 0 || height <= 0 || width > 4096 || height > 4096) {
+                return null;
+            }
+            var buffer = new Backend.PixelBuffer (server, width, height, 1);
+            int stride;
+            unowned uint8[] pixels = buffer.begin (out stride);
+            if (pixels.length < stride * height) {
+                return null;
+            }
+            image.copy_argb (pixels, stride);
+            buffer.set_accepts_input (false);
+            buffer.commit ();
+            return buffer;
+        }
+
+        private bool load_faces (Screen screen, string path) {
+            var image = Bg.Image.load (path);
+            if (image == null) {
+                return false;
+            }
+            int width = image.width (), height = image.height ();
+            if (width < 4 || height < 3 || width > 4096 || height > 4096 ||
+                width % 4 != 0 || height % 3 != 0 || width / 4 != height / 3) {
+                return false;
+            }
+            uint8[] source = new uint8[width * height * 4];
+            image.copy_argb (source, width * 4);
+            int out_width = int.min (width, 1024), out_height = out_width / 2;
+            for (int i = 0; i < 6; i++) {
+                var face = new BackgroundFace ();
+                face.buffer = new Backend.PixelBuffer (server, out_width, out_height, 1);
+                int stride;
+                unowned uint8[] pixels = face.buffer.begin (out stride);
+                if (pixels.length < stride * out_height ||
+                    !Fx.cubemap_face (source, width, height, width * 4, pixels,
+                                      out_width, out_height, stride, i)) {
+                    screen.faces.remove_range (0, screen.faces.length);
+                    return false;
+                }
+                face.buffer.set_accepts_input (false);
+                face.buffer.commit ();
+                if (!face.buffer.is_ready ()) {
+                    unowned Screen placed = screen;
+                    face.ready = face.buffer.ready.connect (() => {
+                        placed.stacked = false;
+                        draw ();
+                    });
+                }
+                screen.faces.add (face);
+            }
+            return true;
         }
 
         private static bool on_workspace (Policy.Model model, Window window, int workspace) {
@@ -670,6 +765,16 @@ namespace Polo.Shell {
                 if (screen.backdrop != null && screen.backdrop_ready != 0) {
                     screen.backdrop.disconnect (screen.backdrop_ready);
                 }
+                foreach (var face in screen.faces) {
+                    if (face.ready != 0) {
+                        face.buffer.disconnect (face.ready);
+                    }
+                    unowned Backend.View? face_view = face.buffer.get_view ();
+                    if (face_view != null) {
+                        face_view.move_to_layer (null);
+                    }
+                }
+                screen.faces.remove_range (0, screen.faces.length);
                 unowned Backend.View? view = screen.backdrop != null ? screen.backdrop.get_view () : null;
                 if (view != null) {
                     view.move_to_layer (null);
@@ -758,6 +863,22 @@ namespace Polo.Shell {
                 if (changed) {
                     restack (screen, order);
                 }
+                if (screen.sky && screen.sky_grid != null) {
+                    geometry.fill_sky_grid (screen.sky_mirror, screen.sky_grid);
+                    if (screen.faces.length == 0) {
+                        unowned Backend.View? view = screen.backdrop.get_view ();
+                        if (view != null) {
+                            view.set_deformation (screen.sky_grid.vertices, 129, 129);
+                        }
+                    }
+                    foreach (var face in screen.faces) {
+                        unowned Backend.View? view = face.buffer.get_view ();
+                        if (view == null) {
+                            continue;
+                        }
+                        view.set_deformation (screen.sky_grid.vertices, 129, 129);
+                    }
+                }
             }
         }
 
@@ -799,6 +920,13 @@ namespace Polo.Shell {
                 backdrop.place (screen.output.rect.x, screen.output.rect.y, screen.backdrop_zoom);
                 backdrop.move_to_layer (overlay);
             }
+            foreach (var face in screen.faces) {
+                unowned Backend.View? view = face.buffer.get_view ();
+                if (view != null) {
+                    view.place (screen.output.rect.x, screen.output.rect.y, 1.0);
+                    view.move_to_layer (overlay);
+                }
+            }
             foreach (int index in order) {
                 var side = screen.sides[index];
                 unowned Backend.View? shade = side.shade != null ? side.shade.get_view () : null;
@@ -814,6 +942,11 @@ namespace Polo.Shell {
             }
             screen.order = order;
             screen.stacked = backdrop != null;
+            foreach (var face in screen.faces) {
+                if (face.buffer.get_view () == null) {
+                    screen.stacked = false;
+                }
+            }
             foreach (var side in screen.sides) {
                 if (side.shown && side.shade != null && side.shade.get_view () == null) {
                     screen.stacked = false;

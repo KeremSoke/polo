@@ -45,6 +45,23 @@ typedef struct _PoloBg PoloBg;
 PoloBg *
 polo_bg_new(void);
 
+typedef struct _PoloBgImage PoloBgImage;
+
+PoloBgImage *
+polo_bg_image_load(const char *filename);
+
+void
+polo_bg_image_free(PoloBgImage *image);
+
+int
+polo_bg_image_width(const PoloBgImage *image);
+
+int
+polo_bg_image_height(const PoloBgImage *image);
+
+void
+polo_bg_image_copy_argb(const PoloBgImage *image, guint8 *data, int stride);
+
 PoloBg *
 polo_bg_ref(PoloBg *bg);
 

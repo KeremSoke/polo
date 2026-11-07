@@ -364,6 +364,49 @@ load_pixbuf(PoloBg *bg, const char *filename, int best_width, int best_height)
 	return rotated;
 }
 
+struct _PoloBgImage {
+	GdkPixbuf *pixbuf;
+};
+
+PoloBgImage *
+polo_bg_image_load(const char *filename)
+{
+	PoloBg *bg;
+	PoloBgImage *image;
+
+	if (!filename || !*filename)
+		return NULL;
+	bg = polo_bg_new();
+	GdkPixbuf *pixbuf = load_pixbuf(bg, filename, 0, 0);
+	polo_bg_unref(bg);
+	if (!pixbuf)
+		return NULL;
+	image = g_new(PoloBgImage, 1);
+	image->pixbuf = pixbuf;
+	return image;
+}
+
+void
+polo_bg_image_free(PoloBgImage *image)
+{
+	if (!image)
+		return;
+	g_object_unref(image->pixbuf);
+	g_free(image);
+}
+
+int
+polo_bg_image_width(const PoloBgImage *image)
+{
+	return gdk_pixbuf_get_width(image->pixbuf);
+}
+
+int
+polo_bg_image_height(const PoloBgImage *image)
+{
+	return gdk_pixbuf_get_height(image->pixbuf);
+}
+
 static double
 now(void)
 {
@@ -825,6 +868,15 @@ copy_to_argb32(GdkPixbuf *src, guint8 *data, int width, int height, int stride)
 			d[x] = 0xff000000u | ((guint32)s[0] << 16) |
 				((guint32)s[1] << 8) | s[2];
 	}
+}
+
+void
+polo_bg_image_copy_argb(const PoloBgImage *image, guint8 *data, int stride)
+{
+	g_return_if_fail(image != NULL && data != NULL);
+	g_return_if_fail(stride >= polo_bg_image_width(image) * 4);
+	copy_to_argb32(image->pixbuf, data, polo_bg_image_width(image),
+		       polo_bg_image_height(image), stride);
 }
 
 void
