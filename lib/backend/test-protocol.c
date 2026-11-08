@@ -396,9 +396,13 @@ test_get_outputs(struct wl_client *client, struct wl_resource *resource)
 		struct weston_output *wo =
 			polo_backend_output_get_weston_output(output);
 		int x, y, width, height;
+		struct weston_geometry area = { 0 };
 
 		polo_backend_output_get_geometry(output, &x, &y, &width,
 						 &height);
+		if (!wo->enabled ||
+		    !polo_backend_output_get_work_area(output, &area))
+			area = (struct weston_geometry){ 0 };
 		polo_test_v1_send_output_state(
 			resource, polo_backend_output_get_name(output),
 			wo->enabled, x, y, width, height,
@@ -406,9 +410,10 @@ test_get_outputs(struct wl_client *client, struct wl_resource *resource)
 			polo_backend_output_get_primary(output),
 			wo->enabled && wo->current_mode
 				? wo->current_mode->refresh
-				: 0);
+				: 0,
+			area.x, area.y, area.width, area.height);
 	}
-	polo_test_v1_send_outputs_done(resource);
+	polo_test_v1_send_outputs_done(resource, server->monitor_count);
 }
 
 static void

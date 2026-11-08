@@ -1533,6 +1533,9 @@ void polo_backend_server_set_output_config_handler(PoloBackendServer *server,
 
 void polo_backend_server_output_state_changed(PoloBackendServer *server);
 
+void polo_backend_server_set_monitor_count(PoloBackendServer *server,
+					   guint count);
+
 G_END_DECLS
 
 #endif /* POLO_BACKEND_H */

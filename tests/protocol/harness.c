@@ -387,7 +387,8 @@ static void
 test_output_state(void *data, struct polo_test_v1 *test, const char *name,
 		  uint32_t enabled, int32_t x, int32_t y, int32_t width,
 		  int32_t height, int32_t scale, uint32_t primary,
-		  uint32_t refresh)
+		  uint32_t refresh, int32_t area_x, int32_t area_y,
+		  int32_t area_width, int32_t area_height)
 {
 	struct harness *h = data;
 	struct harness_output_state *o;
@@ -403,13 +404,18 @@ test_output_state(void *data, struct polo_test_v1 *test, const char *name,
 	o->scale = scale;
 	o->primary = primary != 0;
 	o->refresh = refresh;
+	o->area_x = area_x;
+	o->area_y = area_y;
+	o->area_width = area_width;
+	o->area_height = area_height;
 }
 
 static void
-test_outputs_done(void *data, struct polo_test_v1 *test)
+test_outputs_done(void *data, struct polo_test_v1 *test, uint32_t monitors)
 {
 	struct harness *h = data;
 
+	h->monitors = monitors;
 	h->outputs_done = true;
 }
 

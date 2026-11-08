@@ -300,8 +300,18 @@
       <arg name="scale" type="int"/>
       <arg name="primary" type="uint"/>
       <arg name="refresh" type="uint"/>
+      <arg name="area_x" type="int" summary="the work area of the monitor Polo shows on it"/>
+      <arg name="area_y" type="int"/>
+      <arg name="area_width" type="int" summary="0 when it shows none"/>
+      <arg name="area_height" type="int"/>
     </event>
 
-    <event name="outputs_done" since="11"/>
+    <event name="outputs_done" since="11">
+      <description summary="the end of get_outputs">
+        monitors: how many monitors Polo lays windows out on. Mirrored
+        screens show one.
+      </description>
+      <arg name="monitors" type="uint"/>
+    </event>
   </interface>
 </protocol>

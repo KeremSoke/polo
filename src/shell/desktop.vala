@@ -426,74 +426,101 @@ namespace Polo.Shell {
             if (drm) {
                 success = light (monitors, backends);
             }
-            /* Enable destinations before disabling sources, so windows can relocate. */
-            for (int pass = 0; pass < 2; pass++) {
-                foreach (var o in monitors) {
-                    if (o.enabled != (pass == 0)) {
-                        continue;
+            var groups = new GLib.GenericArray<GLib.GenericArray<Polo.Output>> ();
+            foreach (var o in monitors) {
+                var head = backends[o];
+                if (!o.enabled || !head.get_enabled ()) {
+                    continue;
+                }
+                GLib.GenericArray<Polo.Output>? group = null;
+                foreach (var candidate in groups) {
+                    if (geometry (backends[candidate[0]]).equal (geometry (head))) {
+                        group = candidate;
+                        break;
                     }
-                    var head = backends[o];
-                    if (drm && !o.enabled) {
-                        try {
-                            head.apply (o.width, o.height, o.rate, o.scale, o.transform, o.x, o.y, o.enabled);
-                        } catch (GLib.Error e) {
-                            GLib.warning ("Output configuration failed: %s", e.message);
-                            success = false;
-                        }
-                    }
-                    var existing = outputs.lookup (head);
-                    if (!head.get_enabled ()) {
-                        if (existing != null) {
-                            release_head (head);
-                        }
-                        continue;
-                    }
-                    var rect = Marco.Rect ();
-                    head.get_geometry (out rect.x, out rect.y, out rect.width, out rect.height);
-                    var shown = mirrored_output (head, rect);
-                    if (shown != null) {
-                        if (existing != null && existing != shown) {
-                            release_head (head);
-                        }
-                        outputs.insert (head, shown);
-                        mirrors.add (head);
-                        shown.primary |= o.primary;
-                        head.set_background_color (BACKGROUND_RED, BACKGROUND_GREEN, BACKGROUND_BLUE);
-                        continue;
-                    }
+                }
+                if (group == null) {
+                    group = new GLib.GenericArray<Polo.Output> ();
+                    groups.add (group);
+                }
+                group.add (o);
+            }
+            var shown_by = new GLib.HashTable<Backend.Output, Policy.Output> (GLib.direct_hash, GLib.direct_equal);
+            var copies = new GLib.GenericSet<Backend.Output> (GLib.direct_hash, GLib.direct_equal);
+            var claimed = new GLib.GenericSet<Policy.Output> (GLib.direct_hash, GLib.direct_equal);
+            var committed = new GLib.GenericSet<Backend.Output> (GLib.direct_hash, GLib.direct_equal);
+            foreach (var o in monitors) {
+                committed.add (backends[o]);
+            }
+            outputs.foreach ((head, shown) => {
+                if (!committed.contains (head)) {
+                    shown_by.insert (head, shown);
+                    claimed.add (shown);
                     if (mirrors.contains (head)) {
-                        mirrors.remove (head);
-                        outputs.remove (head);
-                        existing = null;
+                        copies.add (head);
                     }
-                    if (existing == null) {
-                        existing = new Policy.Output (o.name, rect);
-                        existing.primary = o.primary;
-                        existing.scale = head.get_scale ();
-                        outputs.insert (head, existing);
-                        model.add_output (existing);
-                    } else {
-                        existing.primary = o.primary;
-                        existing.scale = head.get_scale ();
-                        model.reconfigure_output (existing, rect);
+                }
+            });
+            groups.sort ((a, b) => (int) has_primary (b) - (int) has_primary (a));
+            foreach (var group in groups) {
+                Policy.Output? shown = null;
+                Polo.Output owner = group[0];
+                for (int round = 0; round < 2 && shown == null; round++) {
+                    foreach (var o in group) {
+                        var was = outputs.lookup (backends[o]);
+                        if ((round == 1 || o.primary) && was != null && !claimed.contains (was)) {
+                            shown = was;
+                            owner = o;
+                            break;
+                        }
+                    }
+                }
+                bool primary = has_primary (group);
+                var owner_head = backends[owner];
+                var rect = geometry (owner_head);
+                if (shown == null) {
+                    shown = new Policy.Output (owner.name, rect);
+                    shown.primary = primary;
+                    shown.scale = owner_head.get_scale ();
+                    model.add_output (shown);
+                } else {
+                    shown.primary = primary;
+                    shown.scale = owner_head.get_scale ();
+                    model.reconfigure_output (shown, rect);
+                }
+                claimed.add (shown);
+                foreach (var o in group) {
+                    var head = backends[o];
+                    shown_by.insert (head, shown);
+                    if (o != owner) {
+                        copies.add (head);
                     }
                     head.set_background_color (BACKGROUND_RED, BACKGROUND_GREEN, BACKGROUND_BLUE);
                 }
             }
-            foreach (var head in heads) {
-                var shown = outputs.lookup (head);
-                if (!mirrors.contains (head) || shown == null) {
-                    continue;
+            foreach (var o in monitors) {
+                if (drm && !o.enabled) {
+                    try {
+                        backends[o].apply (o.width, o.height, o.rate, o.scale, o.transform, o.x, o.y, false);
+                    } catch (GLib.Error e) {
+                        GLib.warning ("Output configuration failed: %s", e.message);
+                        success = false;
+                    }
                 }
-                var rect = Marco.Rect ();
-                head.get_geometry (out rect.x, out rect.y, out rect.width, out rect.height);
-                if (!shown.rect.equal (rect)) {
-                    mirrors.remove (head);
-                    var own = new Policy.Output (head.get_name (), rect);
-                    own.scale = head.get_scale ();
-                    outputs.insert (head, own);
-                    model.add_output (own);
+            }
+            var gone = new GLib.GenericArray<Policy.Output> ();
+            outputs.foreach ((head, shown) => {
+                uint index;
+                if (!claimed.contains (shown) && !gone.find (shown, out index)) {
+                    gone.add (shown);
                 }
+            });
+            outputs.remove_all ();
+            mirrors.remove_all ();
+            shown_by.foreach ((head, shown) => outputs.insert (head, shown));
+            copies.foreach ((head) => mirrors.add (head));
+            foreach (var shown in gone) {
+                model.remove_output (shown);
             }
             if (drm && success && remember) {
                 store.remember (monitors);
@@ -503,6 +530,7 @@ namespace Polo.Shell {
                 image_scale = int.max (image_scale, output.scale);
             }
             decorations.set_image_scale (image_scale);
+            server.set_monitor_count (model.get_outputs ().length);
             layer_shell.arrange ();
             server.output_state_changed ();
             layout_changed ();
@@ -512,17 +540,19 @@ namespace Polo.Shell {
         private GLib.GenericSet<Backend.Output> mirrors =
             new GLib.GenericSet<Backend.Output> (GLib.direct_hash, GLib.direct_equal);
 
-        private Policy.Output? mirrored_output (Backend.Output head, Marco.Rect rect) {
-            foreach (var other in heads) {
-                if (other == head || !other.get_enabled () || mirrors.contains (other)) {
-                    continue;
-                }
-                var shown = outputs.lookup (other);
-                if (shown != null && shown.rect.equal (rect)) {
-                    return shown;
+        private static bool has_primary (GLib.GenericArray<Polo.Output> group) {
+            foreach (var o in group) {
+                if (o.primary) {
+                    return true;
                 }
             }
-            return null;
+            return false;
+        }
+
+        private static Marco.Rect geometry (Backend.Output head) {
+            var rect = Marco.Rect ();
+            head.get_geometry (out rect.x, out rect.y, out rect.width, out rect.height);
+            return rect;
         }
 
         private void release_head (Backend.Output head) {

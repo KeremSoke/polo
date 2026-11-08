@@ -116,10 +116,12 @@ dump(struct harness *h)
 
 		fprintf(stderr,
 			"  %s enabled %d %d,%d %dx%d scale %d primary %d %u "
-			"mHz\n",
+			"mHz, monitor %d,%d %dx%d\n",
 			o->name, o->enabled, o->x, o->y, o->width, o->height,
-			o->scale, o->primary, o->refresh);
+			o->scale, o->primary, o->refresh, o->area_x, o->area_y,
+			o->area_width, o->area_height);
 	}
+	fprintf(stderr, "  %u monitors\n", h->monitors);
 }
 
 static void
@@ -136,14 +138,33 @@ expect(struct harness *h, const char *name, int x, int y, int width, int height,
 		      o->height == height,
 	      "%s is at %d,%d %dx%d, not %d,%d %dx%d", name, o->x, o->y,
 	      o->width, o->height, x, y, width, height);
+	CHECK(o->area_x == x && o->area_y == y && o->area_width == width &&
+		      o->area_height == height,
+	      "%s shows a monitor at %d,%d %dx%d", name, o->area_x, o->area_y,
+	      o->area_width, o->area_height);
 	CHECK(o->primary == primary, "%s is %sprimary", name,
 	      o->primary ? "" : "not ");
+}
+
+static void
+expect_monitors(struct harness *h, unsigned monitors)
+{
+	harness_output_state(h, "");
+	if (h->monitors != monitors)
+		dump(h);
+	CHECK(h->monitors == monitors, "%u monitors, not %u", h->monitors,
+	      monitors);
 }
 
 static void
 expect_off(struct harness *h, const char *name)
 {
 	const struct harness_output_state *o = harness_output_state(h, name);
+
+	for (int i = 0; i < 100 && o && o->enabled; i++) {
+		pause_ms(10);
+		o = harness_output_state(h, name);
+	}
 
 	if (o && (o->enabled || o->primary))
 		dump(h);
@@ -396,6 +417,160 @@ popup_selects(int argc, char **argv)
 	unlink(log_path);
 }
 
+static int
+shown_selected(void)
+{
+	FILE *log = fopen(log_path, "r");
+	char buf[512];
+	int selected = 0;
+
+	CHECK(log, "cannot read %s", log_path);
+	while (fgets(buf, sizeof buf, log))
+		sscanf(buf, "show_switcher output %d", &selected);
+	fclose(log);
+	return selected;
+}
+
+static void
+choose(struct harness *h, int mode)
+{
+	clear_log();
+	tap(h, KEY_SWITCHVIDEOMODE);
+	for (int i = 0; i < 300 && shown_selected() == 0; i++) {
+		harness_roundtrip(h);
+		pause_ms(10);
+	}
+	int selected = shown_selected();
+
+	CHECK(selected > 0, "the popup did not show");
+	for (int i = 0; i < (mode - selected + 4) % 4; i++)
+		tap(h, KEY_RIGHT);
+	tap(h, KEY_ENTER);
+	wait_logged(h, "hide_switcher");
+}
+
+static void
+choose_and_settle(struct harness *h, int mode)
+{
+	choose(h, mode);
+	settle(h);
+}
+
+static void
+flap(struct harness *h, const char *name)
+{
+	harness_connect_output(h, name, false);
+	settle(h);
+	harness_connect_output(h, name, true);
+	settle(h);
+}
+
+static void
+monitor_drops_when_off(int argc, char **argv)
+{
+	static const int dell[][3] = { { 1920, 1080, 60000 },
+				       { 1920, 1080, 75000 },
+				       { 1280, 1024, 75025 } };
+	struct harness *h;
+
+	new_log();
+	h = harness_start(argc, argv);
+	wait_helper(h);
+	harness_add_output(h, "eDP-1", "BOE", 0x0a1b, 0, "Laptop", true, 344,
+			   194, laptop, 2);
+	harness_connect_output(h, "headless0", false);
+	harness_add_output(h, "HDMI-A-1", "DEL", 0x41d3, 777, "SE2722H", false,
+			   597, 336, dell, 3);
+	expect(h, "eDP-1", 0, 0, 1920, 1080, true);
+	expect(h, "HDMI-A-1", 1920, 0, 1920, 1080, false);
+	expect_monitors(h, 2);
+
+	choose_and_settle(h, 1);
+	clear_log();
+	tap(h, KEY_SWITCHVIDEOMODE);
+	for (int i = 0; i < 300 && shown_selected() == 0; i++) {
+		harness_roundtrip(h);
+		pause_ms(10);
+	}
+	harness_connect_output(h, "HDMI-A-1", false);
+	tap(h, KEY_ENTER);
+	settle(h);
+	expect(h, "eDP-1", 0, 0, 1920, 1080, true);
+	expect_monitors(h, 1);
+	harness_connect_output(h, "HDMI-A-1", true);
+	settle(h);
+	expect(h, "eDP-1", 0, 0, 1920, 1080, true);
+	expect_off(h, "HDMI-A-1");
+	expect_monitors(h, 1);
+
+	choose_and_settle(h, 2);
+	expect(h, "eDP-1", 0, 0, 1920, 1080, true);
+	expect(h, "HDMI-A-1", 0, 0, 1920, 1080, true);
+	expect_monitors(h, 1);
+	choose_and_settle(h, 3);
+	expect(h, "eDP-1", 0, 0, 1920, 1080, true);
+	expect(h, "HDMI-A-1", 1920, 0, 1920, 1080, false);
+	expect_monitors(h, 2);
+
+	choose_and_settle(h, 1);
+	choose_and_settle(h, 4);
+	expect_off(h, "eDP-1");
+	expect(h, "HDMI-A-1", 0, 0, 1920, 1080, true);
+	expect_monitors(h, 1);
+	flap(h, "HDMI-A-1");
+	expect_off(h, "eDP-1");
+	expect(h, "HDMI-A-1", 0, 0, 1920, 1080, true);
+	expect_monitors(h, 1);
+
+	choose_and_settle(h, 3);
+	expect(h, "eDP-1", 0, 0, 1920, 1080, true);
+	expect(h, "HDMI-A-1", 1920, 0, 1920, 1080, false);
+	expect_monitors(h, 2);
+	choose_and_settle(h, 2);
+	choose_and_settle(h, 3);
+	expect(h, "eDP-1", 0, 0, 1920, 1080, true);
+	expect(h, "HDMI-A-1", 1920, 0, 1920, 1080, false);
+	expect_monitors(h, 2);
+
+	harness_set_setting(h, "org.mate.polo.effects", "animation-duration-ms",
+			    "3000");
+	harness_set_setting(h, "org.mate.polo.effects", "open-animation",
+			    "'fade'");
+	struct harness_window *busy =
+		harness_window_create(h, 200, 150, "busy");
+
+	for (int i = 0; i < 10; i++) {
+		static const uint32_t burst[] = {
+			KEY_SWITCHVIDEOMODE, KEY_RIGHT,
+			KEY_ENTER, /* primary only */
+			KEY_SWITCHVIDEOMODE, KEY_RIGHT,
+			KEY_ENTER, /* extend */
+		};
+
+		for (size_t k = 0; k < sizeof burst / sizeof burst[0]; k++) {
+			polo_test_v1_key(h->test, burst[k],
+					 WL_KEYBOARD_KEY_STATE_PRESSED);
+			polo_test_v1_key(h->test, burst[k],
+					 WL_KEYBOARD_KEY_STATE_RELEASED);
+		}
+		harness_roundtrip(h);
+		pause_ms(30);
+	}
+	settle(h);
+	harness_window_destroy(busy);
+	expect(h, "eDP-1", 0, 0, 1920, 1080, true);
+	expect(h, "HDMI-A-1", 1920, 0, 1920, 1080, false);
+	expect_monitors(h, 2);
+
+	choose_and_settle(h, 4);
+	harness_connect_output(h, "HDMI-A-1", false);
+	settle(h);
+	expect(h, "eDP-1", 0, 0, 1920, 1080, true);
+	expect_monitors(h, 1);
+	CHECK(harness_stop(h) == 0, "polo did not exit cleanly");
+	unlink(log_path);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -404,6 +579,7 @@ main(int argc, char **argv)
 	setenv("POLO_TEST_MANAGED_OUTPUTS", "1", 1);
 	modes_cycle(argc, argv);
 	popup_selects(argc, argv);
+	monitor_drops_when_off(argc, argv);
 	/* Mode switches remake the renderer's output state; GL too. */
 	setenv("LIBGL_ALWAYS_SOFTWARE", "1", 1);
 	setenv("POLO_TEST_RENDERER", "--renderer=gl", 1);

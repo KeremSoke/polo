@@ -384,6 +384,10 @@ namespace Polo {
             [CCode (cname = "polo_backend_server_output_state_changed")]
             public void output_state_changed ();
 
+            /* How many monitors windows are laid out on, for tests. */
+            [CCode (cname = "polo_backend_server_set_monitor_count")]
+            public void set_monitor_count (uint count);
+
             [CCode (cname = "polo_backend_server_get_lock_state")]
             public LockState get_lock_state ();
 

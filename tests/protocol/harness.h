@@ -73,6 +73,7 @@ struct harness_output_state {
 	bool enabled, primary;
 	int x, y, width, height, scale;
 	uint32_t refresh;
+	int area_x, area_y, area_width, area_height;
 };
 
 struct harness {
@@ -136,6 +137,7 @@ struct harness {
 	struct harness_output_state output_states[16];
 	int n_output_states;
 	bool outputs_done;
+	unsigned monitors;
 	char config_dir[300];
 	/* Leave xdg_wm_base pings unanswered. */
 	bool ignore_pings;

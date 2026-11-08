@@ -81,7 +81,7 @@
  };
  
  struct headless_output {
-@@ -84,6 +90,9 @@
+@@ -84,8 +90,15 @@
  	struct headless_backend *backend;
  
  	struct weston_mode mode;
@@ -90,9 +90,38 @@
 +	int n_modes;
  	struct wl_event_source *finish_frame_timer;
  	weston_renderbuffer_t renderbuffer;
++	/* As the DRM backend does with a flip in flight, a monitor from
++	 * weston_headless_head_api turns off when its frame is done. */
++	bool disable_pending;
++	bool destroying;
  
-@@ -243,6 +252,11 @@
+ 	struct frame *frame;
+ 	struct weston_renderer_borders borders;
+@@ -140,6 +153,13 @@
+ {
+ 	struct headless_output *output = data;
  
++	if (output->disable_pending) {
++		/* The frame is done: nothing is in flight any more. */
++		output->disable_pending = false;
++		weston_output_schedule_repaint_reset(&output->base);
++		weston_output_disable(&output->base);
++		return 1;
++	}
+ 	weston_output_finish_frame_from_timer(&output->base);
+ 
+ 	return 1;
+@@ -241,8 +261,20 @@
+ 	if (!output->base.enabled)
+ 		return 0;
+ 
++	if (output->modes && !output->destroying &&
++	    output->base.repaint_status == REPAINT_AWAITING_COMPLETION) {
++		output->disable_pending = true;
++		return -1;
++	}
++	output->disable_pending = false;
++
  	b = output->backend;
  
 +	/* No frame will finish once the timer is gone, and a repaint left
@@ -103,7 +132,12 @@
  	wl_event_source_remove(output->finish_frame_timer);
  
  	switch (b->compositor->renderer->type) {
-@@ -275,6 +289,7 @@
+@@ -271,10 +303,12 @@
+ 
+ 	assert(output);
+ 
++	output->destroying = true;
+ 	headless_output_disable(&output->base);
  	weston_output_release(&output->base);
  
  	assert(!output->frame);
@@ -111,7 +145,7 @@
  	free(output);
  }
  
-@@ -487,6 +502,74 @@
+@@ -487,6 +521,74 @@
  	}
  }
  
@@ -186,7 +220,7 @@
  static int
  headless_output_set_size(struct weston_output *base,
  			 int width, int height)
-@@ -504,7 +587,27 @@
+@@ -504,7 +606,27 @@
  	/* Make sure we have scale set. */
  	assert(output->base.current_scale);
  
@@ -214,7 +248,7 @@
  		weston_head_set_monitor_strings(head, "weston", "headless",
  						NULL);
  
-@@ -512,17 +615,28 @@
+@@ -512,17 +634,28 @@
  		weston_head_set_physical_size(head, width, height);
  	}
  
@@ -252,7 +286,7 @@
  
  	output->base.start_repaint_loop = headless_output_start_repaint_loop;
  	output->base.repaint = headless_output_repaint;
-@@ -531,7 +645,8 @@
+@@ -531,7 +664,8 @@
  	output->base.set_dpms = headless_set_dpms;
  	output->base.gamma_size = 256;
  	output->base.set_gamma = headless_set_gamma;
@@ -262,7 +296,7 @@
  
  	return 0;
  }
-@@ -607,6 +722,11 @@
+@@ -607,6 +741,11 @@
  
  	assert(head);
  
@@ -274,7 +308,7 @@
  	weston_head_release(&head->base);
  	free(head);
  }
-@@ -664,6 +784,80 @@
+@@ -664,6 +803,80 @@
  	headless_head_create,
  };
  
@@ -355,7 +389,7 @@
  static struct headless_backend *
  headless_backend_create(struct weston_compositor *compositor,
  			struct weston_headless_backend_config *config)
-@@ -780,6 +974,14 @@
+@@ -780,6 +993,14 @@
  		goto err_input;
  	}
  

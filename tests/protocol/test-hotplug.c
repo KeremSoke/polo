@@ -82,6 +82,11 @@ expect_off(struct harness *h, const char *name)
 {
 	const struct harness_output_state *o = harness_output_state(h, name);
 
+	for (int i = 0; i < 100 && o && o->enabled; i++) {
+		nanosleep(&(struct timespec){ 0, 10000000L }, NULL);
+		o = harness_output_state(h, name);
+	}
+
 	if (o && o->enabled)
 		dump(h);
 	CHECK(!o || !o->enabled, "%s is still on", name);

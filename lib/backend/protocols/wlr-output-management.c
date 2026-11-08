@@ -872,6 +872,13 @@ on_output_removed(PoloBackendServer *server, PoloBackendOutput *output,
 }
 
 void
+polo_backend_server_set_monitor_count(PoloBackendServer *server, guint count)
+{
+	g_return_if_fail(POLO_BACKEND_IS_SERVER(server));
+	server->monitor_count = count;
+}
+
+void
 polo_backend_server_output_state_changed(PoloBackendServer *server)
 {
 	struct polo_output_management *om;

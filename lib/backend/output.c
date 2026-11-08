@@ -32,6 +32,11 @@ struct _PoloBackendOutput {
 	struct wl_listener post_latch;
 	struct weston_animation animation;
 	gboolean animating;
+
+	struct wl_listener turned_off;
+	guint relight_idle;
+	int relight_width, relight_height, relight_refresh, relight_scale;
+	int relight_transform, relight_x, relight_y;
 };
 
 enum {
@@ -119,6 +124,7 @@ polo_backend_output_new(PoloBackendServer *server, struct weston_output *output)
 	wl_list_init(&self->post_latch.link);
 	self->animation.frame = animation_frame;
 	wl_list_init(&self->animation.link);
+	wl_list_init(&self->turned_off.link);
 	self->head_destroy.notify = head_destroyed;
 	weston_head_add_destroy_listener(
 		weston_output_iterate_heads(output, NULL), &self->head_destroy);
@@ -139,6 +145,9 @@ polo_backend_output_destroy(PoloBackendOutput *self)
 
 	clear_background(self);
 	polo_backend_output_set_animating(self, FALSE);
+	wl_list_remove(&self->turned_off.link);
+	wl_list_init(&self->turned_off.link);
+	g_clear_handle_id(&self->relight_idle, g_source_remove);
 	wl_list_remove(&self->head_destroy.link);
 	self->output = NULL;
 	g_signal_emit(self, signals[SIGNAL_DESTROYED], 0);
@@ -367,7 +376,9 @@ polo_backend_output_get_internal(PoloBackendOutput *self)
 gboolean
 polo_backend_output_get_enabled(PoloBackendOutput *self)
 {
-	return self->output && self->output->enabled;
+	return self->output && self->output->enabled &&
+		(!self->output->destroying ||
+		 !wl_list_empty(&self->turned_off.link));
 }
 int
 polo_backend_output_get_transform(PoloBackendOutput *self)
@@ -400,6 +411,50 @@ polo_backend_output_get_mode(PoloBackendOutput *self, int index,
 	return FALSE;
 }
 
+static void
+place_views_again(struct weston_compositor *compositor)
+{
+	struct weston_layer *layer;
+	struct weston_view *view;
+
+	wl_list_for_each(layer, &compositor->layer_list, link)
+	{
+		wl_list_for_each(view, &layer->view_list.link, layer_link.link)
+			weston_view_geometry_dirty(view);
+	}
+	weston_compositor_schedule_repaint(compositor);
+}
+
+static gboolean
+relight(gpointer data)
+{
+	PoloBackendOutput *self = data;
+	g_autoptr(GError) error = NULL;
+
+	self->relight_idle = 0;
+	if (!polo_backend_output_apply(
+		    self, self->relight_width, self->relight_height,
+		    self->relight_refresh, self->relight_scale,
+		    self->relight_transform, self->relight_x, self->relight_y,
+		    TRUE, &error))
+		g_warning("Output configuration failed: %s", error->message);
+	g_signal_emit_by_name(self->server, "outputs-changed");
+	return G_SOURCE_REMOVE;
+}
+
+static void
+turned_off(struct wl_listener *listener, void *data)
+{
+	PoloBackendOutput *self = wl_container_of(listener, self, turned_off);
+
+	if (data != self->output)
+		return;
+	wl_list_remove(&self->turned_off.link);
+	wl_list_init(&self->turned_off.link);
+	if (!self->relight_idle)
+		self->relight_idle = g_idle_add(relight, self);
+}
+
 gboolean
 polo_backend_output_apply(PoloBackendOutput *self, int width, int height,
 			  int refresh, int scale, int transform, int x, int y,
@@ -410,9 +465,13 @@ polo_backend_output_apply(PoloBackendOutput *self, int width, int height,
 	if (!output)
 		goto invalid;
 	if (!enabled) {
+		wl_list_remove(&self->turned_off.link);
+		wl_list_init(&self->turned_off.link);
+		g_clear_handle_id(&self->relight_idle, g_source_remove);
 		clear_background(self);
 		polo_backend_output_set_animating(self, FALSE);
 		weston_output_disable(output);
+		place_views_again(output->compositor);
 		return TRUE;
 	}
 	if (scale < 1 || scale > 8 || transform < 0 || transform > 7)
@@ -430,6 +489,22 @@ polo_backend_output_apply(PoloBackendOutput *self, int width, int height,
 	}
 	if (!chosen)
 		goto invalid;
+	if (output->enabled && output->destroying) {
+		self->relight_width = width;
+		self->relight_height = height;
+		self->relight_refresh = refresh;
+		self->relight_scale = scale;
+		self->relight_transform = transform;
+		self->relight_x = x;
+		self->relight_y = y;
+		if (wl_list_empty(&self->turned_off.link)) {
+			self->turned_off.notify = turned_off;
+			wl_signal_add(
+				&output->compositor->output_destroyed_signal,
+				&self->turned_off);
+		}
+		return TRUE;
+	}
 	if (output->enabled) {
 		if (output->current_mode != chosen &&
 		    weston_output_mode_set_native(output, chosen, scale) < 0)
@@ -468,6 +543,7 @@ polo_backend_output_apply(PoloBackendOutput *self, int width, int height,
 		output,
 		(struct weston_coord_global){ .c = weston_coord(x, y) });
 	polo_backend_output_set_animating(self, self->server->animating);
+	place_views_again(output->compositor);
 	return TRUE;
 invalid:
 	g_set_error(error, POLO_BACKEND_ERROR, POLO_BACKEND_ERROR_FAILED,
