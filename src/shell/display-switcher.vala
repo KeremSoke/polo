@@ -88,6 +88,12 @@ namespace Polo.Shell {
             }
             var shell_ui = server.get_shell_ui ();
             if (!can_switch () || !shell_ui.is_bound () || desktop.grab_active) {
+                Logging.scope (LogDomain.POLO).debug (
+                    "display popup not shown: %s",
+                    !desktop.manages_outputs ? "Polo does not lay out the screens" :
+                    !can_switch () ? "fewer than two screens" :
+                    !shell_ui.is_bound () ? "polo-shell-ui is not running" :
+                    "a grab is active (%s)".printf (desktop.describe_grab ()));
                 return;
             }
             var outputs = desktop.current_outputs ();

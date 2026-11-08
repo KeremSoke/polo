@@ -286,10 +286,12 @@ namespace Polo.Shell {
         /* ---- Outputs ---------------------------------------------------- */
 
         private void on_output_added (Backend.Output backend_output) {
+            Logging.scope (LogDomain.POLO).debug ("screen %s added", backend_output.get_name ());
             heads.add (backend_output);
         }
 
         private void on_output_removed (Backend.Output backend_output) {
+            Logging.scope (LogDomain.POLO).debug ("screen %s removed", backend_output.get_name ());
             heads.remove (backend_output);
             if (outputs.lookup (backend_output) != null) {
                 release_head (backend_output);
@@ -355,7 +357,23 @@ namespace Polo.Shell {
             return "%s\t%s\t%s\t%s".printf (o.name, o.vendor, o.product, o.serial);
         }
 
+        private string? committed_screens = null;
+
+        private string screens_state () {
+            var text = new GLib.StringBuilder ();
+            foreach (var head in heads) {
+                var o = describe (head);
+                text.append_printf ("%s/%s/%s/%s %d %d,%d %dx%d@%d %d %d;", o.name, o.vendor, o.product, o.serial,
+                                    (int) o.enabled, o.x, o.y, o.width, o.height, o.rate, o.scale, o.transform);
+            }
+            return text.str;
+        }
+
         private void apply_layout () {
+            if (laid_out && screens_state () == committed_screens) {
+                Logging.scope (LogDomain.POLO).debug ("screens unchanged, nothing to lay out");
+                return;
+            }
             var monitors = new GLib.GenericArray<Polo.Output> ();
             var backends = new GLib.HashTable<Polo.Output, Backend.Output> (GLib.direct_hash, GLib.direct_equal);
             foreach (var head in heads) {
@@ -375,6 +393,12 @@ namespace Polo.Shell {
                         added.add (o);
                     }
                 }
+                var names = new GLib.StringBuilder ();
+                foreach (var o in added) {
+                    names.append_printf (" %s", o.name);
+                }
+                Logging.scope (LogDomain.POLO).debug ("screens changed, new:%s; %s", names.str,
+                                                      laid_out ? "hotplug layout" : "start-up layout");
                 if (!laid_out) {
                     var xrandr = settings ("org.mate.SettingsDaemon.plugins.xrandr");
                     Outputs.Layout.arrange (monitors, store.saved, store.imported, scaling,
@@ -423,6 +447,7 @@ namespace Polo.Shell {
         private bool commit (GLib.GenericArray<Polo.Output> monitors,
                              GLib.HashTable<Polo.Output, Backend.Output> backends, bool remember) {
             bool success = true;
+            Logging.scope (LogDomain.POLO).debug ("commit wanted:%s", describe_wanted (monitors));
             if (drm) {
                 success = light (monitors, backends);
             }
@@ -530,7 +555,11 @@ namespace Polo.Shell {
                 image_scale = int.max (image_scale, output.scale);
             }
             decorations.set_image_scale (image_scale);
+            Logging.scope (LogDomain.POLO).debug ("commit %s; screens:%s; monitors:%s",
+                                                  success ? "done" : "failed", describe_heads (),
+                                                  describe_monitors ());
             server.set_monitor_count (model.get_outputs ().length);
+            committed_screens = screens_state ();
             layer_shell.arrange ();
             server.output_state_changed ();
             layout_changed ();
@@ -539,6 +568,46 @@ namespace Polo.Shell {
 
         private GLib.GenericSet<Backend.Output> mirrors =
             new GLib.GenericSet<Backend.Output> (GLib.direct_hash, GLib.direct_equal);
+
+        private static string describe_wanted (GLib.GenericArray<Polo.Output> monitors) {
+            var text = new GLib.StringBuilder ();
+            foreach (var o in monitors) {
+                if (o.enabled) {
+                    text.append_printf (" %s %d,%d %dx%d@%d scale %d%s", o.name, o.x, o.y, o.width, o.height,
+                                        o.rate, o.scale, o.primary ? " primary" : "");
+                } else {
+                    text.append_printf (" %s off", o.name);
+                }
+            }
+            return text.str;
+        }
+
+        private string describe_heads () {
+            var text = new GLib.StringBuilder ();
+            foreach (var head in heads) {
+                var rect = geometry (head);
+                text.append_printf (" %s %s %d,%d %dx%d%s", head.get_name (), head.get_enabled () ? "on" : "off",
+                                    rect.x, rect.y, rect.width, rect.height,
+                                    mirrors.contains (head) ? " (copy)" : "");
+            }
+            return text.str;
+        }
+
+        private string describe_monitors () {
+            var text = new GLib.StringBuilder ();
+            foreach (var output in model.get_outputs ()) {
+                var shown_on = new GLib.StringBuilder ();
+                outputs.foreach ((head, shown) => {
+                    if (shown == output) {
+                        shown_on.append_printf ("%s%s", shown_on.len > 0 ? "+" : "", head.get_name ());
+                    }
+                });
+                text.append_printf (" [%s %d,%d %dx%d%s on %s]", output.name, output.rect.x, output.rect.y,
+                                    output.rect.width, output.rect.height, output.primary ? " primary" : "",
+                                    shown_on.len > 0 ? shown_on.str : "nothing");
+            }
+            return text.str;
+        }
 
         private static bool has_primary (GLib.GenericArray<Polo.Output> group) {
             foreach (var o in group) {
@@ -592,6 +661,8 @@ namespace Polo.Shell {
 
         public bool apply_monitors (GLib.GenericArray<Polo.Output> wanted, bool remember) {
             if (!drm || wanted.length != heads.length) {
+                Logging.scope (LogDomain.POLO).debug ("not applied: %u screens wanted, %u present",
+                                                      wanted.length, heads.length);
                 return false;
             }
             var before = new GLib.GenericArray<Polo.Output> ();
@@ -609,11 +680,15 @@ namespace Polo.Shell {
                     }
                 }
                 if (match == null) {
+                    Logging.scope (LogDomain.POLO).debug ("not applied: nothing wanted for %s", current.name);
                     return false;
                 }
                 if (match.enabled) {
                     if (!has_mode (current, match.width, match.height, match.rate) ||
                         match.scale < 1 || match.scale > 8 || match.transform < 0 || match.transform > 7) {
+                        Logging.scope (LogDomain.POLO).debug ("not applied: %s has no %dx%d@%d scale %d",
+                                                              current.name, match.width, match.height,
+                                                              match.rate, match.scale);
                         return false;
                     }
                     any_enabled = true;
@@ -624,10 +699,12 @@ namespace Polo.Shell {
                 backends.insert (next, head);
             }
             if (!any_enabled) {
+                Logging.scope (LogDomain.POLO).debug ("not applied: every screen would be off");
                 return false;
             }
             Outputs.Layout.ensure_primary (after);
             if (!commit (after, backends, remember)) {
+                Logging.scope (LogDomain.POLO).debug ("commit failed, going back");
                 commit (before, backends, false);
                 return false;
             }
@@ -764,6 +841,36 @@ namespace Polo.Shell {
                 return move_resize.active || switcher.active || share_chooser.active || expo.active ||
                        cube.grabbing || display_switcher.active || workspace_switcher.active || frame_input.active;
             }
+        }
+
+        /* Which grab is active, for the log. */
+        public string describe_grab () {
+            string[] names = {};
+            if (move_resize.active) {
+                names += "move-resize";
+            }
+            if (switcher.active) {
+                names += "alt-tab";
+            }
+            if (share_chooser.active) {
+                names += "share-chooser";
+            }
+            if (expo.active) {
+                names += "expo";
+            }
+            if (cube.grabbing) {
+                names += "cube";
+            }
+            if (display_switcher.active) {
+                names += "display-switcher";
+            }
+            if (workspace_switcher.active) {
+                names += "workspace-switcher";
+            }
+            if (frame_input.active) {
+                names += "frame";
+            }
+            return names.length > 0 ? string.joinv (",", names) : "none";
         }
 
         private Input.MediaKeys? media_keys = null;
@@ -1430,10 +1537,17 @@ namespace Polo.Shell {
             var animation = window_animation ("close-animation", false);
             if (animation == null || !xdg.mapped || !model.is_showing (window) || closing.contains (window) ||
                 !effects.deformation_supported) {
+                Logging.scope (LogDomain.EFFECTS).debug (
+                    "no close animation for %s: %s", window.describe (),
+                    animation == null ? "none set" : !xdg.mapped ? "not mapped" :
+                    !model.is_showing (window) ? "not showing" : closing.contains (window) ? "already closing" :
+                    "renderer cannot (Pixman)");
                 return;
             }
             var effect = new Effects.WindowAnimationEffect (animation);
             if (!effects.allowed (effect)) {
+                Logging.scope (LogDomain.EFFECTS).debug ("no close animation for %s: effects not allowed now",
+                                                         window.describe ());
                 return;
             }
             var running = effects.effect_of (window) as Effects.WindowAnimationEffect;
@@ -1443,6 +1557,8 @@ namespace Polo.Shell {
             var ghosts = new Effects.GhostTarget (window, window.frame, backend_layer (window));
             xdg.close_into (ghosts);
             if (ghosts.empty) {
+                Logging.scope (LogDomain.EFFECTS).debug ("no close animation for %s: nothing left to show",
+                                                         window.describe ());
                 return;
             }
             closing.insert (window, ghosts);
