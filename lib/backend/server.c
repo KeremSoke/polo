@@ -197,6 +197,16 @@ head_enable(PoloBackendServer *server, struct weston_head *head)
 	g_signal_emit(server, signals[SIGNAL_OUTPUT_ADDED], 0, handle);
 }
 
+static void
+destroy_output(struct weston_output *output)
+{
+	struct weston_head *head;
+
+	while ((head = weston_output_iterate_heads(output, NULL)))
+		weston_head_detach(head);
+	weston_output_destroy(output);
+}
+
 void
 polo_backend_server_remove_output(PoloBackendServer *server,
 				  PoloBackendOutput *handle)
@@ -208,7 +218,7 @@ polo_backend_server_remove_output(PoloBackendServer *server,
 	g_signal_emit(server, signals[SIGNAL_OUTPUT_REMOVED], 0, handle);
 	polo_backend_output_destroy(handle);
 	g_object_unref(handle);
-	weston_output_destroy(output);
+	destroy_output(output);
 }
 
 static void
@@ -219,7 +229,7 @@ head_disable(PoloBackendServer *server, struct weston_head *head)
 	if (handle)
 		polo_backend_server_remove_output(server, handle);
 	else
-		weston_output_destroy(output);
+		destroy_output(output);
 }
 
 static void
