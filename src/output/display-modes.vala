@@ -135,6 +135,9 @@ namespace Polo.Outputs {
                     others.add (copy);
                 }
             }
+            if (new_primary == null || others.length == 0) {
+                return null;
+            }
             switch (mode) {
                 case DisplayMode.PRIMARY_ONLY:
                     Layout.use_preferred (new_primary, scaling);
