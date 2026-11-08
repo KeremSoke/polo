@@ -12,6 +12,8 @@
 #   POLO_NO_BUILD=1  run the build directory as it is, without compiling first
 #   POLO_BUS=user    use the login's D-Bus and systemd --user instead of a private bus
 #   POLO_IM=fcitx5   start fcitx5 for input methods
+#   POLO_DEBUG=1     also log Polo's debug messages (screens, effects, windows);
+#                    or a comma-separated list of scopes, such as polo,drm-backend
 
 set -uo pipefail
 
@@ -65,6 +67,13 @@ if [[ "${POLO_IM:-}" == fcitx5 ]]; then
     fi
 fi
 
+debug=()
+if [[ -n "${POLO_DEBUG:-}" && "${POLO_DEBUG}" != 0 ]]; then
+    scopes="$POLO_DEBUG"
+    [[ "$scopes" == 1 ]] && scopes=polo,polo-policy,polo-effects
+    debug=(--debug-scopes="$scopes")
+fi
+
 launcher=(dbus-run-session --)
 if [[ "${POLO_BUS:-private}" == user ]]; then
     launcher=()
@@ -86,6 +95,7 @@ cd "$SOURCE_DIR"
     --backend=drm \
     --debug-kill \
     --log="$run_dir/polo.log" \
+    ${debug[@]+"${debug[@]}"} \
     ${clients[@]+"${clients[@]}"} \
     </dev/null >>"$run_dir/apps.log" 2>&1
 status=$?
