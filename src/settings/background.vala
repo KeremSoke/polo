@@ -217,10 +217,10 @@ namespace Polo.Settings {
             if (filename == "") {
                 return null;
             }
-            if (!GLib.FileUtils.test (filename, GLib.FileTest.EXISTS)) {
+            if (!GLib.FileUtils.test (filename, GLib.FileTest.IS_REGULAR)) {
                 var fallback = settings.get_default_value ("picture-filename");
                 filename = fallback != null ? fallback.get_string () : "";
-                if (!GLib.FileUtils.test (filename, GLib.FileTest.EXISTS)) {
+                if (!GLib.FileUtils.test (filename, GLib.FileTest.IS_REGULAR)) {
                     return null;
                 }
             }
