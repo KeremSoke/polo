@@ -39,7 +39,8 @@ namespace Polo.Effects {
                              Polo.Marco.Rect new_rect, bool resizing,
                              double grab_u = 0.5, double grab_v = 0.0) {
             if (resizing ? !settings.get_boolean ("wobbly-resize") :
-                           !settings.get_boolean ("wobbly-move")) {
+                           !settings.get_boolean ("wobbly-move") ||
+                old_rect.width <= 0 || old_rect.height <= 0 || new_rect.width <= 0 || new_rect.height <= 0) {
                 prepared = false;
                 return false;
             }
