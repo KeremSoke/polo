@@ -1,0 +1,15 @@
+--- a/libweston/compositor.c
++++ b/libweston/compositor.c
+@@ -8299,6 +8299,12 @@
+ 
+ 	weston_presentation_feedback_discard_list(&output->feedback_list);
+ 
++	/* A backend may finish turning the output off instead of finishing a
++	 * frame (DRM, after a page flip), which would leave the repaint loop
++	 * waiting forever once the output is enabled again. */
++	output->repaint_status = REPAINT_NOT_SCHEDULED;
++	output->repaint_needed = false;
++
+ 	weston_compositor_reflow_outputs(compositor, output, -output->width);
+ 
+ 	wl_list_remove(&output->link);
