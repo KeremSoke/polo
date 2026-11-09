@@ -383,6 +383,10 @@ namespace Polo.Shell {
                     bounds.width -= thickness;
                     break;
                 default:
+                    Logging.scope (LogDomain.POLO).debug (
+                        "layer surface %s on %s: anchor %x, zone %d, edge %x reserves nothing",
+                        handle.get_namespace (), output.name, handle.anchor, handle.exclusive_zone,
+                        handle.exclusive_edge);
                     return;
             }
             strut.rect = r;
