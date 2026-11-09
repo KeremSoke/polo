@@ -35,6 +35,8 @@ struct _PoloBackendOutput {
 
 	struct wl_listener turned_off;
 	guint relight_idle;
+	guint finish_off;
+	guint finish_off_tries;
 	int relight_width, relight_height, relight_refresh, relight_scale;
 	int relight_transform, relight_x, relight_y;
 };
@@ -148,6 +150,7 @@ polo_backend_output_destroy(PoloBackendOutput *self)
 	wl_list_remove(&self->turned_off.link);
 	wl_list_init(&self->turned_off.link);
 	g_clear_handle_id(&self->relight_idle, g_source_remove);
+	g_clear_handle_id(&self->finish_off, g_source_remove);
 	wl_list_remove(&self->head_destroy.link);
 	self->output = NULL;
 	g_signal_emit(self, signals[SIGNAL_DESTROYED], 0);
@@ -451,8 +454,27 @@ turned_off(struct wl_listener *listener, void *data)
 		return;
 	wl_list_remove(&self->turned_off.link);
 	wl_list_init(&self->turned_off.link);
+	g_clear_handle_id(&self->finish_off, g_source_remove);
 	if (!self->relight_idle)
 		self->relight_idle = g_idle_add(relight, self);
+}
+
+static gboolean
+finish_turning_off(gpointer data)
+{
+	PoloBackendOutput *self = data;
+	struct weston_output *output = self->output;
+
+	if (!output || wl_list_empty(&self->turned_off.link)) {
+		self->finish_off = 0;
+		return G_SOURCE_REMOVE;
+	}
+	if (++self->finish_off_tries == 20)
+		polo_log_scope_warning(polo_backend_log_scope("polo"),
+				       "%s is still turning off after 2 s",
+				       self->name);
+	weston_output_disable(output);
+	return G_SOURCE_CONTINUE;
 }
 
 gboolean
@@ -468,6 +490,7 @@ polo_backend_output_apply(PoloBackendOutput *self, int width, int height,
 		wl_list_remove(&self->turned_off.link);
 		wl_list_init(&self->turned_off.link);
 		g_clear_handle_id(&self->relight_idle, g_source_remove);
+		g_clear_handle_id(&self->finish_off, g_source_remove);
 		clear_background(self);
 		polo_backend_output_set_animating(self, FALSE);
 		weston_output_disable(output);
@@ -503,6 +526,15 @@ polo_backend_output_apply(PoloBackendOutput *self, int width, int height,
 				&output->compositor->output_destroyed_signal,
 				&self->turned_off);
 		}
+		if (!self->finish_off) {
+			self->finish_off_tries = 0;
+			self->finish_off =
+				g_timeout_add(100, finish_turning_off, self);
+		}
+		polo_log_scope_debug(polo_backend_log_scope("polo"),
+				     "%s is still turning off; turning it on "
+				     "once it is off",
+				     self->name);
 		return TRUE;
 	}
 	if (output->enabled) {
