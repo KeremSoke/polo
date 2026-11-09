@@ -14,6 +14,13 @@ namespace Polo.Policy {
         NORMAL_ALL_WORKSPACES
     }
 
+    /* Marco keeps desktop windows out of every list a user sees. */
+    namespace TaskBar {
+        public bool lists (Window w) {
+            return w.window_type != Marco.WindowType.DESKTOP;
+        }
+    }
+
     namespace TabChain {
         private static bool in_normal_chain_type (Window w) {
             return w.window_type != Marco.WindowType.DOCK && w.window_type != Marco.WindowType.DESKTOP;

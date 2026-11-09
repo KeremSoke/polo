@@ -8,7 +8,8 @@
  * owns the protocol mechanics.
  *
  * Windows with SKIP_TASKBAR are listed too, as Marco lists them in
- * _NET_CLIENT_LIST; filtering is the panel's job. Requests behave as they
+ * _NET_CLIENT_LIST; filtering is the panel's job. The desktop window is
+ * not: a panel cannot tell it from a window. Requests behave as they
  * do for an X11 pager talking to Marco through libwnck: activation is a
  * pager activation, and libwnck switches to the window's workspace first;
  * unminimize is an activation too (wnck_window_unminimize ()).
@@ -168,7 +169,7 @@ namespace Polo.Protocols {
         private void sync () {
             var mapped = new GLib.HashTable<Window, bool> (GLib.direct_hash, GLib.direct_equal);
             foreach (var window in model.get_stack ()) {
-                if (!window.has_state (WindowState.MAPPED)) {
+                if (!window.has_state (WindowState.MAPPED) || !Policy.TaskBar.lists (window)) {
                     continue;
                 }
                 mapped.insert (window, true);

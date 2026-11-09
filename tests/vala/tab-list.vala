@@ -79,6 +79,13 @@ void test_docks_and_skip_taskbar () {
     assert (list (model, Policy.TabList.DOCKS) == "dialog panel");
 }
 
+void test_task_bar () {
+    var model = new_model ();
+    assert (Policy.TaskBar.lists (map (model, "app")));
+    assert (Policy.TaskBar.lists (map (model, "panel", 0, Marco.WindowType.DOCK)));
+    assert (!Policy.TaskBar.lists (map (model, "Desktop", 0, Marco.WindowType.DESKTOP)));
+}
+
 void test_group () {
     var model = new_model ();
     map (model, "one", 1);
@@ -124,6 +131,7 @@ int main (string[] args) {
     Test.init (ref args);
     Test.add_func ("/tab-list/normal", test_normal);
     Test.add_func ("/tab-list/docks", test_docks_and_skip_taskbar);
+    Test.add_func ("/tab-list/task-bar", test_task_bar);
     Test.add_func ("/tab-list/group", test_group);
     Test.add_func ("/tab-list/all-workspaces", test_all_workspaces);
     Test.add_func ("/tab-list/demands-attention", test_demands_attention);
