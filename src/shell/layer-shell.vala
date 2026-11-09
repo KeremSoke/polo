@@ -387,6 +387,10 @@ namespace Polo.Shell {
             }
             strut.rect = r;
 
+            Logging.scope (LogDomain.POLO).debug (
+                "layer surface %s on %s: anchor %x, zone %d, edge %x reserves %d,%d %dx%d",
+                handle.get_namespace (), output.name, handle.anchor, handle.exclusive_zone,
+                handle.exclusive_edge, r.x, r.y, r.width, r.height);
             struts.add (strut);
         }
 
