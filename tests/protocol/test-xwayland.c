@@ -2586,6 +2586,87 @@ test_off(int argc, char **argv)
 	}
 }
 
+static int
+changed_in(const uint32_t *empty, const uint32_t *now, int x, int y, int width,
+	   int height)
+{
+	int n = 0;
+
+	for (int row = y; row < y + height && row < cap_height; row++)
+		for (int col = x; col < x + width && col < cap_width; col++)
+			n += (empty[row * cap_width + col] & 0xffffff) !=
+				(now[row * cap_width + col] & 0xffffff);
+	return n;
+}
+
+static uint32_t *
+grab(struct harness *h)
+{
+	uint32_t *pixels = harness_capture(h, &cap_width, &cap_height);
+
+	CHECK(pixels, "cannot capture the screen");
+	return pixels;
+}
+
+static void
+test_close_animation(int argc, char **argv)
+{
+	char xauth[512];
+	int x = 0, y = 0;
+
+	setenv("POLO_XWAYLAND", "lazy", 1);
+	setenv("POLO_TEST_RENDERER", "--renderer=gl", 1);
+	struct harness *h = harness_start(argc, argv);
+
+	harness_set_setting(h, "org.mate.polo.effects", "open-animation",
+			    "'none'");
+	harness_set_setting(h, "org.mate.polo.effects", "close-animation",
+			    "'fade'");
+	harness_set_setting(h, "org.mate.polo.effects", "animation-duration-ms",
+			    "2000");
+	harness_move_pointer(h, 2, 2);
+	pause_ms(h, 100);
+
+	int display = x_display(h);
+
+	CHECK(display >= 0, "Polo did not take an X display");
+	find_xauth(h, xauth, sizeof xauth);
+	uint32_t *empty = grab(h);
+
+	start_log();
+	pid_t client = start_x_client(display, argv[2], true, xauth);
+
+	wait_for_line(h, "mapped");
+	pause_ms(h, 600);
+	uint32_t *shown = grab(h);
+
+	CHECK(white_pixels(shown, &x, &y) >= 300 * 200 * 9 / 10,
+	      "the X window is not on screen");
+	free(shown);
+
+	stop_client(client);
+	pause_ms(h, 400);
+	uint32_t *fading = grab(h);
+	int changed = changed_in(empty, fading, x, y, 300, 200);
+
+	free(fading);
+	CHECK(changed > 300 * 200 / 2,
+	      "a closed X window is not fading out where it was: %d of %d "
+	      "pixels differ from the empty screen",
+	      changed, 300 * 200);
+
+	pause_ms(h, 2400);
+	uint32_t *after = grab(h);
+
+	changed = changed_in(empty, after, x, y, 300, 200);
+	free(after);
+	CHECK(changed == 0, "a closed X window left %d pixels behind", changed);
+
+	free(empty);
+	CHECK(harness_stop(h) == 0, "polo did not stop cleanly");
+	unsetenv("POLO_TEST_RENDERER");
+}
+
 int
 main(int argc, char **argv)
 {
@@ -2610,6 +2691,7 @@ main(int argc, char **argv)
 	test_hidpi(argc, argv);
 	test_primary(argc, argv);
 	test_keyboard_grab(argc, argv);
+	test_close_animation(argc, argv);
 
 	setenv("POLO_XWAYLAND", "lazy", 1);
 	struct harness *h = harness_start(argc, argv);

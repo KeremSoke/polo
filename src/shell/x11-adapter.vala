@@ -58,6 +58,7 @@ namespace Polo.Shell {
             xwindow.configure_requested.disconnect (on_configure_requested);
             xwindow.set_intercept_configure (false);
             if (mapped) {
+                desktop.animate_close (this);
                 stop_following_model ();
                 withdraw ();
             }
