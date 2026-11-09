@@ -12,6 +12,7 @@
 
 #include <poll.h>
 #include <stdarg.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -143,6 +144,16 @@ main(int argc, char **argv)
 	free(client_id);
 
 	fd.fd = IceConnectionNumber(SmcGetIceConnection(conn));
+	if (strncmp(argv[2], "stall-", 6) == 0) {
+		unsigned char header[8] = { 1, 0, 0, 0 };
+		uint32_t units =
+			strcmp(argv[2], "stall-huge") == 0 ? 0xc0001 : 4;
+
+		memcpy(header + 4, &units, sizeof units);
+		if (write(fd.fd, header, sizeof header) != sizeof header)
+			return 1;
+		record("stalled");
+	}
 	fd.events = POLLIN;
 	while (running && poll(&fd, 1, -1) > 0) {
 		if (IceProcessMessages(SmcGetIceConnection(conn), NULL, NULL) !=

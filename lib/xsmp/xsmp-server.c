@@ -8,6 +8,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/ioctl.h>
+#include <sys/socket.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -26,6 +28,8 @@
 #define ICE_MAGIC_COOKIE_AUTH_NAME "MIT-MAGIC-COOKIE-1"
 #define ICE_MAGIC_COOKIE_LEN 16
 #define ICE_PROTOCOL_TIMEOUT_SECONDS 5
+#define ICE_MESSAGE_MAX (64 * 1024)
+#define ICE_MESSAGE_WAIT_MS 200
 
 struct _PoloXsmpServer {
 	GObject parent_instance;
@@ -114,11 +118,60 @@ ice_protocol_timeout(gpointer data)
 }
 
 static gboolean
+ice_message_complete(IceConn ice)
+{
+	int fd = IceConnectionNumber(ice);
+	gint64 deadline = g_get_monotonic_time() + ICE_MESSAGE_WAIT_MS * 1000;
+	gint64 left;
+	unsigned char header[8];
+	guint32 units;
+	guint64 size;
+	int queued;
+	ssize_t got;
+
+	for (;;) {
+		got = recv(fd, header, sizeof header, MSG_PEEK | MSG_DONTWAIT);
+		if (got <= 0)
+			return got == 0 || (errno != EAGAIN && errno != EINTR);
+		if (got == sizeof header) {
+			memcpy(&units, header + 4, sizeof units);
+			if (ice->swap)
+				units = GUINT32_SWAP_LE_BE(units);
+			size = sizeof header + (guint64)units * 8;
+			if (size > ICE_MESSAGE_MAX) {
+				g_warning("XSMP: a client sent a message of "
+					  "%" G_GUINT64_FORMAT
+					  " bytes; disconnecting it",
+					  size);
+				return FALSE;
+			}
+			if (ioctl(fd, FIONREAD, &queued) < 0 ||
+			    (guint64)queued >= size)
+				return TRUE;
+		}
+		left = (deadline - g_get_monotonic_time()) / 1000;
+		if (left <= 0) {
+			g_warning("XSMP: a client left a message unfinished; "
+				  "disconnecting it");
+			return FALSE;
+		}
+		g_usleep(MIN(left, 5) * 1000);
+	}
+}
+
+static gboolean
 pending_ice_ready(GIOChannel *source, GIOCondition condition, gpointer data)
 {
 	IceConn ice = data;
 	IceWatch *watch = ice->context;
 
+	if (!ice_message_complete(ice)) {
+		watch->watch_id = 0;
+		ice->context = NULL;
+		ice_watch_free(watch);
+		disconnect_ice(ice);
+		return G_SOURCE_REMOVE;
+	}
 	switch (IceProcessMessages(ice, NULL, NULL)) {
 	case IceProcessMessagesSuccess:
 		return G_SOURCE_CONTINUE;
@@ -199,6 +252,12 @@ client_ready(GIOChannel *source, GIOCondition condition, gpointer data)
 	PoloXsmpClient *client = g_object_ref(data);
 	gboolean keep = TRUE;
 
+	if (!ice_message_complete(client->ice)) {
+		client->watch_id = 0;
+		g_signal_emit(client, client_signals[CLIENT_DISCONNECTED], 0);
+		g_object_unref(client);
+		return G_SOURCE_REMOVE;
+	}
 	switch (IceProcessMessages(client->ice, NULL, NULL)) {
 	case IceProcessMessagesSuccess:
 		break;

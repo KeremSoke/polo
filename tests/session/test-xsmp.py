@@ -145,6 +145,18 @@ def interact_cancel(polo, client, tmp):
         session.stop()
 
 
+def stalled(polo, client, tmp, mode):
+    session, log = start(polo, client, tmp, mode)
+    try:
+        check(until(lambda: "stalled" in lines(log)), f"{mode}: the client never sent its message: {lines(log)}")
+        check(until(lambda: "XSMP: a client" in session.tail(40)),
+              f"{mode}: polo kept the client that left its message unfinished: {session.tail(40)}")
+        check(call(session.bus, "IsSessionRunning", reply="(b)") == (True,),
+              f"{mode}: the session manager stopped answering")
+    finally:
+        session.stop()
+
+
 def main():
     status = sm_session.on_private_bus("POLO_XSMP_BUS")
     if status is not None:
@@ -152,7 +164,9 @@ def main():
     if not shutil.which("glib-compile-schemas"):
         return 77
     polo, client = sys.argv[1], pathlib.Path(sys.argv[2]).resolve()
-    for run in (normal, interact_cancel):
+    runs = (normal, interact_cancel, lambda p, c, t: stalled(p, c, t, "stall-huge"),
+            lambda p, c, t: stalled(p, c, t, "stall-partial"))
+    for run in runs:
         tmp = pathlib.Path(tempfile.mkdtemp(prefix="polo-xsmp-"))
         (tmp / "schemas").mkdir()
         (tmp / "schemas" / "org.mate.session.gschema.xml").write_text(SCHEMA)
