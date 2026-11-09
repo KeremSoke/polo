@@ -1,0 +1,16 @@
+--- a/libweston/backend-drm/drm.c
++++ b/libweston/backend-drm/drm.c
+@@ -1346,11 +1346,10 @@
+ 	if (&drm_mode->base == output->base.current_mode)
+ 		return 0;
+ 
+-	output->base.current_mode->flags = 0;
++	output->base.current_mode->flags &= ~WL_OUTPUT_MODE_CURRENT;
+ 
+ 	output->base.current_mode = &drm_mode->base;
+-	output->base.current_mode->flags =
+-		WL_OUTPUT_MODE_CURRENT | WL_OUTPUT_MODE_PREFERRED;
++	output->base.current_mode->flags |= WL_OUTPUT_MODE_CURRENT;
+ 
+ 	if (output->page_flip_pending || output->atomic_complete_pending) {
+ 		output->mode_switch_pending = true;
