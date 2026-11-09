@@ -216,6 +216,10 @@ saved_layout_returns(int argc, char **argv)
 	expect(h, "eDP-1", 0, 0, 1920, 1080, 60000);
 	expect_off(h, "HDMI-A-1");
 	snprintf(path, sizeof path, "%s/mate/polo/monitors.xml", dir);
+	for (int i = 0; i < 500 && access(path, R_OK) != 0; i++) {
+		harness_roundtrip(h);
+		nanosleep(&(struct timespec){ 0, 10000000L }, NULL);
+	}
 	CHECK(access(path, R_OK) == 0, "the layout was not saved in %s", path);
 	CHECK(harness_stop(h) == 0, "polo did not exit cleanly");
 
