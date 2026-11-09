@@ -40,8 +40,22 @@ if [[ -z "${XDG_RUNTIME_DIR:-}" ]]; then
     fail "XDG_RUNTIME_DIR is not set; log in on the console instead of using su or sudo"
 fi
 
+apply_weston_patches() {
+    local weston="$SOURCE_DIR/subprojects/weston" patch file
+    [[ -d "$weston" ]] && command -v patch >/dev/null 2>&1 || return 0
+    while read -r patch; do
+        file="$SOURCE_DIR/subprojects/packagefiles/$patch"
+        (cd "$weston" && patch -p1 -R --dry-run -s -f <"$file" >/dev/null 2>&1) && continue
+        if (cd "$weston" && patch -p1 --dry-run -s -f <"$file" >/dev/null 2>&1); then
+            printf 'Applying %s\n' "$patch"
+            (cd "$weston" && patch -p1 -s -f <"$file") || fail "cannot apply $patch"
+        fi
+    done < <(sed -n 's|^ *\(weston/[^,]*\.patch\),\{0,1\}$|\1|p' "$SOURCE_DIR/subprojects/weston.wrap")
+}
+
 if [[ -d "$BUILD_DIR" ]]; then
     if [[ "${POLO_NO_BUILD:-0}" != 1 ]]; then
+        apply_weston_patches
         printf 'Building %s...\n' "$BUILD_DIR"
         meson compile -C "$BUILD_DIR" || fail "the build failed"
     fi
@@ -90,6 +104,7 @@ command -v dbus-run-session >/dev/null 2>&1 || [[ ${#launcher[@]} -eq 0 ]] ||
 printf 'Starting Polo. Logs: %s\n' "$run_dir"
 started=$(date +%s)
 cd "$SOURCE_DIR"
+export LIBC_FATAL_STDERR_=1
 "${launcher[@]}" "${polo[@]}" \
     --session \
     --backend=drm \
@@ -102,7 +117,8 @@ status=$?
 
 printf '\nPolo exited with status %d after %d seconds.\n' "$status" "$(($(date +%s) - started))"
 printf 'Logs: %s\n' "$run_dir"
-if [[ $status -ne 0 ]]; then
-    printf 'If it crashed, "coredumpctl list polo" shows the crash and "coredumpctl info" its stack.\n'
+if [[ $status -ne 0 && -x "$SOURCE_DIR/tools/polo-report.sh" ]]; then
+    printf 'Collecting a report for it (send the archive it saves)...\n'
+    "$SOURCE_DIR/tools/polo-report.sh" --after "$started"
 fi
 exit "$status"
