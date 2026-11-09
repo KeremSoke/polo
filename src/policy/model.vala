@@ -170,6 +170,9 @@ namespace Polo.Policy {
          */
         private void relocate (Window window, Marco.Rect old, Output destination) {
             var area = work_area_for (destination, window.workspace);
+            if (window.window_type == Marco.WindowType.DESKTOP || window.window_type == Marco.WindowType.DOCK) {
+                area = destination.rect;
+            }
             window.user_rect = translated (window.user_rect, old, destination.rect, area);
             window.saved_rect = translated (window.saved_rect, old, destination.rect, area);
             var client = translated (window.client_rect (), old, destination.rect, area);

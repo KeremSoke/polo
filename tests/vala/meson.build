@@ -46,6 +46,13 @@ constraints_fuzz_test = executable('test-constraints-fuzz', 'constraints-fuzz.va
 test('constraints-fuzz', constraints_fuzz_test, suite: 'unit-vala', protocol: 'tap',
   args: ['--tap'])
 
+desktop_window_test = executable('test-desktop-window', 'desktop-window.vala',
+  vala_args: vala_args + ['--pkg', 'polo-marco'],
+  c_args: vala_c_args,
+  dependencies: [polo_policy_dep],
+)
+test('desktop-window', desktop_window_test, suite: 'unit-vala', protocol: 'tap', args: ['--tap'])
+
 stack_test = executable('test-stack', 'stack.vala',
   vala_args: vala_args + ['--pkg', 'polo-marco'],
   c_args: vala_c_args,
