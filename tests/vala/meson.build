@@ -53,6 +53,13 @@ desktop_window_test = executable('test-desktop-window', 'desktop-window.vala',
 )
 test('desktop-window', desktop_window_test, suite: 'unit-vala', protocol: 'tap', args: ['--tap'])
 
+trust_rules_test = executable('test-trust-rules', 'trust-rules.vala',
+  vala_args: vala_args + ['--pkg', 'polo-marco', '--pkg', 'posix'],
+  c_args: vala_c_args,
+  dependencies: [polo_policy_dep],
+)
+test('trust-rules', trust_rules_test, suite: 'unit-vala', protocol: 'tap', args: ['--tap'])
+
 stack_test = executable('test-stack', 'stack.vala',
   vala_args: vala_args + ['--pkg', 'polo-marco'],
   c_args: vala_c_args,

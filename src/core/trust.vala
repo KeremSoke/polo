@@ -2,9 +2,11 @@
  * Copyright 2026 Kerem Soke
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
- * Which clients may see privileged globals. The C side
- * only asks; this file decides. The default is to allow and log every
- * privileged grant to an untrusted client.
+ * Which clients may see privileged globals. The C side only asks; this
+ * file decides. A privileged global is denied unless the client is one Polo
+ * started as trusted, descends from a helper Polo started, or runs a
+ * root-owned executable on the trusted list; a sandboxed client never sees
+ * one.
  */
 
 namespace Polo {
@@ -35,7 +37,17 @@ namespace Polo {
             "weston_debug_v1",
         };
 
-        public bool deny_by_default { get; set; default = false; }
+        public const string[] DEFAULT_EXECUTABLES = {
+            "/usr/libexec/xdg-desktop-portal-wlr",
+            "/usr/lib/xdg-desktop-portal-wlr",
+            "/usr/bin/xdg-desktop-portal-wlr"
+        };
+
+        public bool deny_by_default { get; set; default = true; }
+
+        public string[] trusted_executables { get; set; }
+
+        private int[] helpers = {};
 
         /* The only client that may see polo_shell_ui_v1. */
         public Backend.Client? shell_ui_client { get; set; default = null; }
@@ -44,6 +56,7 @@ namespace Polo {
         private GLib.HashTable<string, bool> logged;
 
         construct {
+            trusted_executables = DEFAULT_EXECUTABLES;
             privileged = new GLib.HashTable<string, bool> (GLib.str_hash, GLib.str_equal);
             foreach (unowned string name in PRIVILEGED) {
                 privileged.insert (name, true);
@@ -53,6 +66,29 @@ namespace Polo {
 
         public bool is_privileged (string interface_name) {
             return privileged.contains (interface_name);
+        }
+
+        public void add_helper (int pid) {
+            helpers += pid;
+        }
+
+        public void remove_helper (int pid) {
+            int[] kept = {};
+            foreach (int helper in helpers) {
+                if (helper != pid) {
+                    kept += helper;
+                }
+            }
+            helpers = kept;
+        }
+
+        private bool is_vouched_for (Backend.Client client) {
+            int pid = client.get_pid ();
+            if (Policy.TrustRules.executable_trusted (client.get_executable (), trusted_executables)) {
+                return true;
+            }
+            return pid > 1 && Policy.TrustRules.has_ancestor (pid, helpers) &&
+                   Policy.TrustRules.root_owned_file (client.get_executable ());
         }
 
         public bool filter (Backend.Client client, string interface_name) {
@@ -65,7 +101,11 @@ namespace Polo {
             if (client.get_sandbox_engine () != null) {
                 return !is_privileged (interface_name);
             }
-            if (!is_privileged (interface_name) || client.get_trusted ()) {
+            if (CommandLine.test_mode && (interface_name == "polo_test_v1" || interface_name == "weston_capture_v1")) {
+                return true;
+            }
+            if (!is_privileged (interface_name) || client.get_trusted () || client.get_pid () == Posix.getpid () ||
+                is_vouched_for (client)) {
                 return true;
             }
             if (interface_name == "ext_session_lock_manager_v1" && !CommandLine.test_mode) {

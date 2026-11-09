@@ -23,6 +23,7 @@ policy_sources = files(
   'policy/expo.vala',
   'policy/cube.vala',
   'policy/window-animation.vala',
+  'policy/trust-rules.vala',
 )
 policy_lib = static_library('polo-policy',
   policy_sources,
@@ -30,12 +31,12 @@ policy_lib = static_library('polo-policy',
   vala_header: 'polo-policy.h',
   vala_vapi: 'polo-policy.vapi',
   c_args: vala_c_args,
-  dependencies: [glib_dep, gobject_dep, polo_marco_dep],
+  dependencies: [glib_dep, gobject_dep, gio_dep, polo_marco_dep],
 )
 polo_policy_dep = declare_dependency(
   link_with: policy_lib,
   include_directories: include_directories('.'),
-  dependencies: [glib_dep, gobject_dep, polo_marco_dep],
+  dependencies: [glib_dep, gobject_dep, gio_dep, polo_marco_dep],
 )
 
 output_lib = static_library('polo-output',

@@ -548,8 +548,11 @@ harness_start(int argc, char **argv)
 		setenv("XDG_CONFIG_HOME", h->config_dir, 1);
 		/* POLO_TEST_DEBUG=scope,scope turns on Polo's debug output. */
 		const char *debug = getenv("POLO_TEST_DEBUG");
-		char debug_arg[256];
+		char debug_arg[256], exec_arg[1024];
 
+		snprintf(exec_arg, sizeof exec_arg, "--exec=%s",
+			 getenv("POLO_TEST_EXEC") ? getenv("POLO_TEST_EXEC")
+						  : "");
 		snprintf(debug_arg, sizeof debug_arg, "--debug-scopes=%s",
 			 debug ? debug : "");
 		execl(polo, polo, "--backend=headless",
@@ -568,6 +571,7 @@ harness_start(int argc, char **argv)
 			      : getenv("POLO_TEST_SCALE")
 			      ? getenv("POLO_TEST_SCALE")
 			      : "--scale=1",
+		      getenv("POLO_TEST_EXEC") ? exec_arg : "--scale=1",
 		      (char *)NULL);
 		_exit(127);
 	}
@@ -598,7 +602,8 @@ harness_start(int argc, char **argv)
 	CHECK(h->compositor && h->shm && h->wm_base && h->seat,
 	      "missing core globals");
 	CHECK(h->test != NULL, "polo_test_v1 not advertised");
-	CHECK(h->layer_shell != NULL, "zwlr_layer_shell_v1 not advertised");
+	CHECK(h->layer_shell != NULL || getenv("POLO_TEST_TRUST"),
+	      "zwlr_layer_shell_v1 not advertised");
 	CHECK(h->pointer && h->keyboard, "seat lacks pointer or keyboard");
 	return h;
 }

@@ -25,6 +25,8 @@ namespace Polo {
             new GLib.GenericSet<GLib.Subprocess> (GLib.direct_hash, GLib.direct_equal);
         private GLib.MainLoop? ending = null;
 
+        public Trust? trust { get; set; default = null; }
+
         public Spawn (Backend.Server server, Policy.ActivationTokens? activation_tokens = null) {
             this.server = server;
             this.activation_tokens = activation_tokens;
@@ -34,7 +36,21 @@ namespace Polo {
                                        string[]? env = null)
                 throws GLib.Error {
             unowned Backend.Client? client;
-            return start (argv, SpawnFlags.TRUSTED in flags, out client, cwd, SpawnFlags.X11 in flags, env);
+            var process = start (argv, SpawnFlags.TRUSTED in flags, out client, cwd, SpawnFlags.X11 in flags, env);
+            if (trust != null && argv.length > 0 && GLib.Path.get_basename (argv[0]) == Policy.Screenshot.WRAPPER) {
+                vouch_for_helper.begin (process);
+            }
+            return process;
+        }
+
+        private async void vouch_for_helper (GLib.Subprocess process) {
+            int pid = int.parse (process.get_identifier () ?? "-1");
+            trust.add_helper (pid);
+            try {
+                yield process.wait_async ();
+            } catch (GLib.Error e) {
+            }
+            trust.remove_helper (pid);
         }
 
         /* client: the trusted socket's server end, until its destroyed signal. */

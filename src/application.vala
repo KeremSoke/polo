@@ -208,6 +208,11 @@ namespace Polo {
             var lamp_targets = new Effects.LampTargets (model, desktop.layer_shell);
             lamp_targets.set_panel_button (foreign_toplevels.minimize_target);
             desktop.lamp_targets = lamp_targets;
+            trust.deny_by_default = !CommandLine.test_mode || GLib.Environment.get_variable ("POLO_TEST_TRUST") == "deny";
+            var session_settings = settings_if_installed ("org.mate.polo.session");
+            if (session_settings != null) {
+                trust.trusted_executables = session_settings.get_strv ("trusted-executables");
+            }
             server.set_global_filter (trust.filter);
             server.set_test_inspector (desktop.inspect);
             if (CommandLine.test_mode) {
@@ -301,6 +306,7 @@ namespace Polo {
             }
 
             spawn = new Spawn (server, desktop.activation_tokens);
+            spawn.trust = trust;
             desktop.set_command_launcher ((command) => {
                 spawn.launch_command (command);
             });
@@ -326,8 +332,7 @@ namespace Polo {
             if (CommandLine.exec != null) {
                 foreach (unowned string command in CommandLine.exec) {
                     try {
-                        spawn.launch_command (command, CommandLine.session ? SpawnFlags.TRUSTED
-                                                                           : SpawnFlags.NONE);
+                        spawn.launch_command (command, SpawnFlags.TRUSTED);
                     } catch (GLib.Error e) {
                         log.warning ("cannot run \"%s\": %s", command, e.message);
                     }
