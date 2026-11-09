@@ -23,4 +23,5 @@ diff_files =
   weston/0016-capture-api.patch,
   weston/0017-headless-test-outputs.patch,
   weston/0018-drm-zero-flip-timestamp.patch,
-  weston/0019-output-repaint-reset-on-disable.patch
+  weston/0019-output-repaint-reset-on-disable.patch,
+  weston/0020-drm-ignore-unexpected-flip.patch

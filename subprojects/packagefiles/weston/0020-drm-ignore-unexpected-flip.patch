@@ -1,0 +1,20 @@
+--- a/libweston/backend-drm/kms.c
++++ b/libweston/backend-drm/kms.c
+@@ -2513,7 +2513,16 @@
+ 
+ 	drm_debug(b, "[atomic][CRTC:%u] flip processing started\n", crtc_id);
+ 	assert(device->atomic_modeset);
+-	assert(output->atomic_complete_pending);
++	if (!output->atomic_complete_pending) {
++		weston_log("drm: page flip on CRTC %u (%s), which has none "
++			   "pending; ignored (repaint status %d, flips pending "
++			   "on the device %d, recovery %d)\n",
++			   crtc_id, output->base.name,
++			   output->base.repaint_status,
++			   device->atomic_completes_pending,
++			   device->recovery_status);
++		return;
++	}
+ 	output->atomic_complete_pending = false;
+ 
+ 	drm_output_update_complete(output, flags, sec, usec);
