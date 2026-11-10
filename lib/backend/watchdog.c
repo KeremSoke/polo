@@ -164,6 +164,8 @@ watch(void *data)
 		if (next <= now)
 			next = now + BEAT_MS;
 		sleep_until(next);
+		if (now_ms() - next > TRACE_MS)
+			sleep_until(now_ms() + 3 * BEAT_MS);
 	}
 	return NULL;
 }

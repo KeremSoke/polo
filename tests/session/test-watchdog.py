@@ -58,6 +58,20 @@ def wait_for(proc, path, count, timeout):
         time.sleep(0.05)
 
 
+def frozen_process(polo, runtime):
+    path = os.path.join(runtime, "frozen.log")
+    with open(path, "w") as log:
+        proc = start(polo, runtime, log, "1", "2")
+        time.sleep(2)
+        proc.send_signal(signal.SIGSTOP)
+        time.sleep(5)
+        proc.send_signal(signal.SIGCONT)
+        time.sleep(2)
+        alive = proc.poll() is None
+        status = stop(proc)
+    return text(path), alive, status
+
+
 def stop(proc):
     if proc.poll() is None:
         proc.send_signal(signal.SIGTERM)
@@ -111,6 +125,10 @@ def main():
         check(alive and status == 0, "POLO_WATCHDOG_SECONDS=0 still ended Polo (%s)" % status)
         check("watchdog: logging stalls only" in log, "POLO_WATCHDOG_SECONDS=0 did not say it only logs")
         check("the main loop is here:" in log, "POLO_WATCHDOG_SECONDS=0 stopped the stack trace")
+
+        log, alive, status = frozen_process(polo, runtime)
+        check(alive and status == 0, "a process frozen as a whole (hibernation) was aborted on waking: %s" % status)
+        check("aborting\n" not in log, "the watchdog blamed a frozen process on the main loop")
 
         log, alive, status = run(polo, runtime, "off", "1200", None, 1, 15)
         check(alive and status == 0, "Polo without the watchdog ended with %s" % status)
