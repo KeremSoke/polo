@@ -161,10 +161,17 @@ keyboard_enter(void *data, struct wl_keyboard *k, uint32_t serial,
 	       struct wl_surface *surface, struct wl_array *keys)
 {
 	struct harness *h = data;
+	uint32_t *key;
 
 	h->keyboard_focus = surface;
 	h->keyboard_enters++;
 	h->last_keyboard_serial = serial;
+	h->n_enter_keys = 0;
+	wl_array_for_each(key, keys)
+	{
+		if (h->n_enter_keys < 32)
+			h->enter_keys[h->n_enter_keys++] = *key;
+	}
 }
 
 static void

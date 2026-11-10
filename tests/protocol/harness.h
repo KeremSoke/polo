@@ -118,6 +118,8 @@ struct harness {
 	bool last_key_pressed;
 	struct wl_surface *last_key_surface;
 	int keyboard_enters;
+	uint32_t enter_keys[32];
+	int n_enter_keys;
 	int keymaps;
 	uint32_t mods_locked;
 	uint32_t mods_depressed, mods_latched;

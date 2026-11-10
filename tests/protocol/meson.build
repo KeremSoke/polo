@@ -81,7 +81,7 @@ protocol_test_env.set('POLO_SHELL_UI', '')
 foreach name : ['ssd', 'frame-input', 'shade', 'frame-scale', 'output-replug', 'decor-live', 'pixel-buffer-gl', 'cursor-no-theme', 'windows', 'interactive', 'outputs', 'managed-outputs', 'debug-kill', 'layer-shell', 'xdg-output', 'foreign-toplevel',
               'ext-foreign-toplevel-list', 'popups',
               'xfce-private', 'ext-workspace', 'focus', 'activation', 'keybindings', 'monitor-keybindings', 'edge-resistance', 'global-keybindings',
-              'window-keybindings', 'keyboard-move-resize', 'mouse-actions', 'keyboard-config', 'tiling', 'decoration', 'primary-selection', 'text-input', 'idle-inhibit', 'idle-notify', 'session-lock', 'output-management', 'shortcuts-inhibit', 'cursor-shape', 'pointer-gestures', 'xdg-foreign', 'security-context', 'trust', 'system-bell', 'locate-pointer', 'accessx', 'data-control', 'gamma-control', 'image-copy-capture', 'wallpaper', 'custom-shortcuts', 'lamp-target', 'explicit-sync', 'blank-wake']
+              'window-keybindings', 'keyboard-move-resize', 'mouse-actions', 'keyboard-config', 'tiling', 'decoration', 'primary-selection', 'text-input', 'idle-inhibit', 'idle-notify', 'session-lock', 'output-management', 'shortcuts-inhibit', 'cursor-shape', 'pointer-gestures', 'xdg-foreign', 'security-context', 'trust', 'system-bell', 'locate-pointer', 'accessx', 'data-control', 'gamma-control', 'image-copy-capture', 'wallpaper', 'custom-shortcuts', 'lamp-target', 'explicit-sync', 'held-keys', 'blank-wake']
   test_deps = {'cursor-shape': [dependency('xcursor')], 'wallpaper': [dependency('cairo')]}
   exe = executable('test-' + name, 'test-' + name + '.c',
     dependencies: [harness_dep] + test_deps.get(name, []))
@@ -176,6 +176,13 @@ if get_option('shell-ui')
       env: protocol_test_env,
       suite: 'protocol',
       timeout: 180,
+    )
+    test('held-keys-x', executable('test-held-keys-x', 'test-held-keys-x.c', dependencies: harness_dep),
+      args: [polo_exe, x_test_client.full_path()],
+      depends: [x_test_client],
+      env: protocol_test_env,
+      suite: 'protocol',
+      timeout: 60,
     )
     test('xwm-fuzz', executable('test-xwm-fuzz', 'test-xwm-fuzz.c', dependencies: harness_dep),
       args: [polo_exe, x_prop_fuzz.full_path()],

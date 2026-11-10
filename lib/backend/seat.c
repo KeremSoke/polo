@@ -408,6 +408,21 @@ take_consumed(PoloBackendSeat *self, guint32 keycode)
 	return FALSE;
 }
 
+static void
+forget_held_key(struct weston_keyboard *keyboard, guint32 key)
+{
+	guint32 *k, *end;
+
+	end = (guint32 *)((char *)keyboard->keys.data + keyboard->keys.size);
+	for (k = keyboard->keys.data; k < end; k++) {
+		if (*k == key) {
+			*k = *--end;
+			break;
+		}
+	}
+	keyboard->keys.size = (char *)end - (char *)keyboard->keys.data;
+}
+
 static gboolean
 keyboard_focus_is_xserver(PoloBackendSeat *self,
 			  struct weston_keyboard *keyboard)
@@ -697,6 +712,7 @@ filter_key(struct weston_keyboard_grab *grab,
 			if (self->n_consumed_keys < 16)
 				self->consumed_keys[self->n_consumed_keys++] =
 					event->key;
+			forget_held_key(keyboard, event->key);
 			return;
 		}
 		if (!ev.pressed && take_consumed(self, event->key))
