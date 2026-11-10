@@ -48,7 +48,8 @@ void test_descendants () {
     int me = (int) Posix.getpid ();
     GLib.Subprocess child;
     try {
-        child = new GLib.Subprocess.newv ({ "sleep", "30" }, GLib.SubprocessFlags.NONE);
+        child = new GLib.Subprocess.newv ({ "sleep", "10" },
+                                          GLib.SubprocessFlags.STDOUT_SILENCE | GLib.SubprocessFlags.STDERR_SILENCE);
     } catch (GLib.Error e) {
         error ("%s", e.message);
     }
@@ -63,6 +64,11 @@ void test_descendants () {
     assert (!TrustRules.has_ancestor (1, { me }));
     assert (!TrustRules.has_ancestor (-5, { me }));
     child.force_exit ();
+    try {
+        child.wait ();
+    } catch (GLib.Error e) {
+        error ("%s", e.message);
+    }
 }
 
 int main (string[] args) {
