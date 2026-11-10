@@ -126,6 +126,12 @@ def main():
         check("watchdog: logging stalls only" in log, "POLO_WATCHDOG_SECONDS=0 did not say it only logs")
         check("the main loop is here:" in log, "POLO_WATCHDOG_SECONDS=0 stopped the stack trace")
 
+        log, alive, status = run(polo, runtime, "kernel", "k6000", "2", 1, 20)
+        check(alive and status == 0, "a main loop waiting in the kernel was aborted: %s" % status)
+        check("waiting in the kernel" in log, "a main loop in a kernel wait was not reported as such")
+        check("aborting\n" not in log, "the watchdog aborted a main loop that could not exit")
+        check("test: main loop unblocked" in log, "the kernel wait did not finish")
+
         log, alive, status = frozen_process(polo, runtime)
         check(alive and status == 0, "a process frozen as a whole (hibernation) was aborted on waking: %s" % status)
         check("aborting\n" not in log, "the watchdog blamed a frozen process on the main loop")

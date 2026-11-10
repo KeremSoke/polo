@@ -15,6 +15,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/syscall.h>
+#include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -34,6 +36,7 @@ static struct {
 	gint64 last_beat_ms;
 	gint64 previous_beat_ms;
 	int trace_signal;
+	pid_t tid;
 } watchdog;
 
 static gint64
@@ -104,6 +107,42 @@ traced(void)
 	return result;
 }
 
+static gboolean
+main_thread_in_kernel(char *wchan, size_t size)
+{
+	char path[64], *stat = NULL, *close_paren, *contents = NULL;
+	gboolean waiting = FALSE;
+
+	snprintf(path, sizeof path, "/proc/self/task/%d/stat", watchdog.tid);
+	if (!g_file_get_contents(path, &stat, NULL, NULL))
+		return FALSE;
+	close_paren = strrchr(stat, ')');
+	waiting = close_paren && close_paren[1] == ' ' && close_paren[2] == 'D';
+	g_free(stat);
+
+	snprintf(wchan, size, "?");
+	snprintf(path, sizeof path, "/proc/self/task/%d/wchan", watchdog.tid);
+	if (waiting && g_file_get_contents(path, &contents, NULL, NULL)) {
+		snprintf(wchan, size, "%s", contents[0] ? contents : "?");
+		g_free(contents);
+	}
+	return waiting;
+}
+
+void
+polo_backend_watchdog_test_block_in_kernel(guint msec)
+{
+	struct timespec ts = { msec / 1000, (msec % 1000) * 1000000L };
+	pid_t child = vfork();
+
+	if (child == 0) {
+		nanosleep(&ts, NULL);
+		_exit(0);
+	}
+	if (child > 0)
+		waitpid(child, NULL, 0);
+}
+
 static void
 sleep_until(gint64 deadline_ms)
 {
@@ -118,8 +157,8 @@ sleep_until(gint64 deadline_ms)
 static void *
 watch(void *data)
 {
-	gint64 traced_beat = -1;
-	char line[160];
+	gint64 traced_beat = -1, last_note = G_MININT64 / 2;
+	char line[400], wchan[64];
 
 	(void)data;
 	for (;;) {
@@ -141,6 +180,26 @@ watch(void *data)
 		}
 		if (watchdog.abort_ms && lag >= (gint64)watchdog.abort_ms) {
 			if (traced()) {
+				sleep_until(now_ms() + 1000);
+				continue;
+			}
+			if (main_thread_in_kernel(wchan, sizeof wchan)) {
+				if (now - last_note >=
+				    (gint64)watchdog.abort_ms) {
+					last_note = now;
+					snprintf(
+						line, sizeof line,
+						"polo: watchdog: the main loop "
+						"is "
+						"waiting in the kernel (%s) "
+						"for "
+						"%" G_GINT64_FORMAT
+						" ms, probably on the GPU; not "
+						"aborting, which could not end "
+						"it\n",
+						wchan, lag);
+					say_at(line);
+				}
 				sleep_until(now_ms() + 1000);
 				continue;
 			}
@@ -202,6 +261,7 @@ polo_backend_watchdog_start(gboolean by_default)
 		seconds ? (guint)strtoul(seconds, NULL, 10) * 1000 : 15000;
 	watchdog.fd = polo_backend_log_fd();
 	watchdog.main_thread = pthread_self();
+	watchdog.tid = (pid_t)syscall(SYS_gettid);
 	watchdog.trace_signal = SIGRTMIN + 4;
 	watchdog.previous_beat_ms = now_ms();
 	watchdog.last_beat_ms = watchdog.previous_beat_ms;

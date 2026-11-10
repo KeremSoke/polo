@@ -61,6 +61,10 @@ namespace Polo {
         [CCode (cname = "polo_backend_watchdog_start")]
         public void start_watchdog (bool by_default);
 
+        /* Tests only: blocks this thread in the kernel (state D). */
+        [CCode (cname = "polo_backend_watchdog_test_block_in_kernel")]
+        public void block_in_kernel_for_tests (uint msec);
+
         [CCode (cname = "PoloBackendError", cprefix = "POLO_BACKEND_ERROR_")]
         public errordomain Error {
             FAILED,

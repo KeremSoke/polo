@@ -73,6 +73,7 @@ namespace Polo {
     public class Application : GLib.Object {
         private GLib.MainLoop loop;
         private ulong[] test_stalls = {};
+        private bool[] test_stall_in_kernel = {};
         private Backend.Server? server;
         private Effects.Engine? effects_engine;
         private Shell.Desktop? desktop;
@@ -465,7 +466,8 @@ namespace Polo {
                 return;
             }
             foreach (unowned string stall in stalls.split (",")) {
-                test_stalls += ulong.parse (stall);
+                test_stall_in_kernel += stall.has_prefix ("k");
+                test_stalls += ulong.parse (stall.has_prefix ("k") ? stall.substring (1) : stall);
             }
             block_after_a_second (0);
         }
@@ -477,7 +479,11 @@ namespace Polo {
             GLib.Timeout.add (1000, () => {
                 ulong ms = test_stalls[index];
                 Logging.scope (LogDomain.POLO).info ("test: blocking the main loop for %lu ms", ms);
-                GLib.Thread.usleep (ms * 1000);
+                if (test_stall_in_kernel[index]) {
+                    Backend.block_in_kernel_for_tests ((uint) ms);
+                } else {
+                    GLib.Thread.usleep (ms * 1000);
+                }
                 Logging.scope (LogDomain.POLO).info ("test: main loop unblocked");
                 block_after_a_second (index + 1);
                 return GLib.Source.REMOVE;

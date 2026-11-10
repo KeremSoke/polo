@@ -69,6 +69,10 @@ polo_backend_log_fd(void);
 void
 polo_backend_watchdog_start(gboolean by_default);
 
+/* Tests only: blocks the calling thread in the kernel (state D) for @msec. */
+void
+polo_backend_watchdog_test_block_in_kernel(guint msec);
+
 /* Return the scope called @name, creating it if needed. Never NULL. */
 PoloLogScope *
 polo_backend_log_scope(const char *name);
