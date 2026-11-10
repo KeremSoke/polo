@@ -63,6 +63,12 @@ polo_backend_log_init(const char *log_file, const char *debug_scopes,
 void
 polo_backend_log_shutdown(void);
 
+int
+polo_backend_log_fd(void);
+
+void
+polo_backend_watchdog_start(gboolean by_default);
+
 /* Return the scope called @name, creating it if needed. Never NULL. */
 PoloLogScope *
 polo_backend_log_scope(const char *name);

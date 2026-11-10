@@ -15,6 +15,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 
 #include <libweston/libweston.h>
 #include <libweston/weston-log.h>
@@ -145,6 +146,12 @@ polo_backend_log_init(const char *log_file, const char *debug_scopes,
 	g_strfreev(names);
 
 	return TRUE;
+}
+
+int
+polo_backend_log_fd(void)
+{
+	return polo_log.file ? fileno(polo_log.file) : STDERR_FILENO;
 }
 
 void

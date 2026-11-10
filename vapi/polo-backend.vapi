@@ -56,6 +56,11 @@ namespace Polo {
             public unowned Polo.LogScope scope (string name);
         }
 
+        /* Logs main-loop stalls, aborts after POLO_WATCHDOG_SECONDS (15 when unset, 0 never)
+         * without progress. Without by_default, only when that variable is set. */
+        [CCode (cname = "polo_backend_watchdog_start")]
+        public void start_watchdog (bool by_default);
+
         [CCode (cname = "PoloBackendError", cprefix = "POLO_BACKEND_ERROR_")]
         public errordomain Error {
             FAILED,

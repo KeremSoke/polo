@@ -72,6 +72,7 @@ namespace Polo {
 
     public class Application : GLib.Object {
         private GLib.MainLoop loop;
+        private ulong[] test_stalls = {};
         private Backend.Server? server;
         private Effects.Engine? effects_engine;
         private Shell.Desktop? desktop;
@@ -174,6 +175,10 @@ namespace Polo {
                 apply_test_settings ();
             }
             loop = new GLib.MainLoop (null, false);
+            Backend.start_watchdog (config.kind == Backend.Kind.DRM && !CommandLine.test_mode);
+            if (CommandLine.test_mode) {
+                block_main_loop_for_tests ();
+            }
             server = new Backend.Server ();
             model = new Policy.Model (CommandLine.test_mode ? test_prefs () : MarcoPrefs.defaults ());
             effects_engine = new Effects.Engine (settings_if_installed ("org.mate.interface"),
@@ -449,6 +454,31 @@ namespace Polo {
          */
         private static bool memory_settings () {
             return GLib.Environment.get_variable ("GSETTINGS_BACKEND") == "memory";
+        }
+
+        private void block_main_loop_for_tests () {
+            string? stalls = GLib.Environment.get_variable ("POLO_TEST_STALL_MS");
+            if (stalls == null) {
+                return;
+            }
+            foreach (unowned string stall in stalls.split (",")) {
+                test_stalls += ulong.parse (stall);
+            }
+            block_after_a_second (0);
+        }
+
+        private void block_after_a_second (int index) {
+            if (index >= test_stalls.length) {
+                return;
+            }
+            GLib.Timeout.add (1000, () => {
+                ulong ms = test_stalls[index];
+                Logging.scope (LogDomain.POLO).info ("test: blocking the main loop for %lu ms", ms);
+                GLib.Thread.usleep (ms * 1000);
+                Logging.scope (LogDomain.POLO).info ("test: main loop unblocked");
+                block_after_a_second (index + 1);
+                return GLib.Source.REMOVE;
+            });
         }
 
         private void apply_test_settings () {
