@@ -253,3 +253,10 @@ window_animation_test = executable('test-window-animation', 'window-animation.va
   dependencies: [polo_policy_dep, cc.find_library('m')],
 )
 test('window-animation', window_animation_test, suite: 'unit-vala', protocol: 'tap', args: ['--tap'])
+
+rate_limit_test = executable('test-rate-limit', 'rate-limit.vala',
+  vala_args: vala_args + ['--pkg', 'polo-marco'],
+  c_args: vala_c_args,
+  dependencies: [polo_policy_dep],
+)
+test('rate-limit', rate_limit_test, suite: 'unit-vala', protocol: 'tap', args: ['--tap'])

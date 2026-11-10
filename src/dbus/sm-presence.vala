@@ -142,6 +142,9 @@ namespace Polo.Dbus {
         private bool on_set (string property, GLib.Variant value) {
             switch (property) {
                 case "status":
+                    if (value.get_uint32 () > PresenceStatus.IDLE) {
+                        return false;
+                    }
                     set_status (value.get_uint32 ());
                     return true;
                 case "status-text":
@@ -157,6 +160,11 @@ namespace Polo.Dbus {
                 case "SetStatus":
                     uint next;
                     parameters.get ("(u)", out next);
+                    if (next > PresenceStatus.IDLE) {
+                        invocation.return_dbus_error ("org.freedesktop.DBus.Error.InvalidArgs",
+                                                      "Unknown status %u".printf (next));
+                        return;
+                    }
                     set_status (next);
                     invocation.return_value (null);
                     break;

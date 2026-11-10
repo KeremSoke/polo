@@ -122,6 +122,21 @@ def restore_run(polo, fake_ui):
         check(s.apply(s.serial(), [{"name": ("s", o["name"]), "enabled": ("b", False)} for o in outputs], False) ==
               INTERFACE + ".Error.Failed", "every output off was accepted")
         check(s.second_x() == target, "a refused configuration moved the output")
+        check(s.apply(s.serial(), [{"name": ("s", second["name"]), "x": ("i", 2147483647)}], False) ==
+              INTERFACE + ".Error.Invalid", "a coordinate of 2^31-1 was accepted")
+        check(s.apply(s.serial(), [{"name": ("s", second["name"]), "y": ("i", -40000)}], False) ==
+              INTERFACE + ".Error.Invalid", "a coordinate of -40000 was accepted")
+        check(s.apply(s.serial(), [{"name": ("s", o["name"])} for o in outputs] + [{"name": ("s", first["name"])}],
+                      False) == INTERFACE + ".Error.Invalid", "more requests than outputs were accepted")
+        check(s.second_x() == target, "a refused coordinate moved the output")
+        for lines in (["x" * 2000], ["nonsense"] * 1000):
+            try:
+                answer = s.bus.call_sync(NAME, PATH, "org.mate.Polo.ScreenShare1", "Choose",
+                                         GLib.Variant("(as)", (lines,)), GLib.VariantType("(s)"),
+                                         Gio.DBusCallFlags.NONE, 5000, None).unpack()[0]
+            except GLib.Error as e:
+                answer = f"error: {e.message}"
+            check(answer == "", f"Choose with {len(lines)} unusable line(s) answered {answer!r}")
 
         moved = target + 200
         check(s.apply(s.serial(), [{"name": ("s", second["name"]), "x": ("i", moved)}], True) is None,

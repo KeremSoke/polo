@@ -111,6 +111,17 @@ def inhibitors(bus, signals):
           "Uninhibit took an unknown cookie")
     call(bus, "Uninhibit", GLib.Variant("(u)", (cookie,)))
     check(signals.wait("InhibitorRemoved", (listed[0],)), "InhibitorRemoved was not sent")
+    for args, what in ((("a", 0, "r", 32), "an unknown flag"), (("a" * 1025, 0, "r", 8), "a 1025 byte app id"),
+                       (("a", 0, "r" * 4097, 8), "a 4097 byte reason")):
+        check(error_of(bus, "Inhibit", GLib.Variant("(susu)", args), "(u)") == ERROR + "GeneralError",
+              f"Inhibit with {what} was accepted")
+    cookies = [call(bus, "Inhibit", GLib.Variant("(susu)", ("polo-test", 0, "many", 8)), "(u)")[0]
+               for _ in range(64)]
+    check(error_of(bus, "Inhibit", GLib.Variant("(susu)", ("polo-test", 0, "one more", 8)), "(u)") ==
+          ERROR + "GeneralError", "a connection held more than 64 inhibitors")
+    for held in cookies:
+        call(bus, "Uninhibit", GLib.Variant("(u)", (held,)))
+    call(bus, "Uninhibit", GLib.Variant("(u)", (call(bus, "Inhibit", GLib.Variant("(susu)", ("polo-test", 0, "again", 8)), "(u)")[0],)))
     check(call(bus, "IsInhibited", GLib.Variant("(u)", (8,)), "(b)") == (False,),
           "idle is still inhibited after Uninhibit")
 
@@ -214,6 +225,9 @@ def presence(bus):
     check(client_error(bus, path, interface, "SetStatusText", GLib.Variant("(s)", ("x" * 141,))) ==
           interface + ".GeneralError", "a status text over 140 bytes was accepted")
     check(get("status-text") == "away", "a refused status text replaced the old one")
+    check(client_error(bus, path, interface, "SetStatus", GLib.Variant("(u)", (4,))) ==
+          "org.freedesktop.DBus.Error.InvalidArgs", "an unknown status was accepted")
+    check(get("status") == 2, "an unknown status changed the status")
     client_call(bus, path, properties, "Set",
                 GLib.Variant("(ssv)", (interface, "status", GLib.Variant("u", 0))))
     check(wait("StatusChanged", (0,)) and get("status") == 0, "setting the status property")

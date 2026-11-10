@@ -293,9 +293,11 @@ def gtk_application(s):
 def autostart_entries(tmp):
     env_file = tmp / "qt-scale-factor"
     init = tmp / "setenv.sh"
-    init.write_text("#!/bin/sh\nexec gdbus call --session --dest org.gnome.SessionManager "
-                    "--object-path /org/gnome/SessionManager "
-                    "--method org.gnome.SessionManager.Setenv QT_SCALE_FACTOR 2\n")
+    errors = tmp / "setenv-errors"
+    setenv = ("gdbus call --session --dest org.gnome.SessionManager "
+              "--object-path /org/gnome/SessionManager --method org.gnome.SessionManager.Setenv")
+    init.write_text(f"#!/bin/sh\n{setenv} 'BAD=NAME' x 2>> {errors}\n{setenv} 1BAD x 2>> {errors}\n"
+                    f"{setenv} '' x 2>> {errors}\n{setenv} QT_SCALE_FACTOR 2\n")
     init.chmod(0o755)
     app = tmp / "read-env.sh"
     app.write_text(f'#!/bin/sh\necho "$QT_SCALE_FACTOR" > {env_file}\nexec sleep 30\n')
@@ -315,6 +317,9 @@ def autostart_entries(tmp):
 def xsettings_setenv(s, env_file):
     check(until(lambda: env_file.exists() and env_file.read_text().strip() == "2", 20),
           "Setenv in the Initialization phase did not reach a later app")
+    errors = env_file.with_name("setenv-errors")
+    check(errors.exists() and errors.read_text().count("Invalid environment variable") == 3,
+          "Setenv took a name that is empty, starts with a digit or holds '='")
     check(s.error("Setenv", GLib.Variant("(ss)", ("QT_FONT_DPI", "96"))) == NAME + ".NotInInitialization",
           "Setenv was accepted after Initialization")
 

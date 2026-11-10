@@ -12,6 +12,8 @@ namespace Polo.Dbus {
         public const string INTERFACE = "org.mate.Polo.ScreenShare1";
         private const string RESOURCE = "/org/mate/polo/dbus/org.mate.Polo.ScreenShare1.xml";
         private const string CHOOSER = "polo-share-chooser";
+        private const int MAX_SOURCES = 256;
+        private const int MAX_SOURCE_LINE = 1024;
         private const string[] PORTAL_PATHS = {
             "/usr/libexec/xdg-desktop-portal-wlr",
             "/usr/lib/xdg-desktop-portal-wlr",
@@ -46,7 +48,15 @@ namespace Polo.Dbus {
                 invocation.return_gerror (new GLib.DBusError.UNKNOWN_METHOD ("no method %s", method));
                 return;
             }
-            string[] sources = parameters.get_child_value (0).dup_strv ();
+            string[] sources = {};
+            foreach (unowned string line in parameters.get_child_value (0).get_strv ()) {
+                if (sources.length >= MAX_SOURCES) {
+                    break;
+                }
+                if (line.length <= MAX_SOURCE_LINE) {
+                    sources += line;
+                }
+            }
             chooser.choose (sources, (line) => {
                 invocation.return_value (new GLib.Variant ("(s)", line ?? ""));
             });

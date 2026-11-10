@@ -49,6 +49,14 @@ namespace Polo.Dbus {
         private const string LOCKDOWN_SCHEMA = "org.mate.lockdown";
         private const string ERROR_PREFIX = "org.gnome.SessionManager.";
         private const string CHECK_ACCELERATED = "mate-session-check-accelerated";
+        private const int MAX_NAME = 1024;
+        private const int MAX_REASON = 4096;
+        private const int MAX_ENV_NAME = 256;
+        private const int MAX_ENV_VALUE = 32768;
+        private const uint MAX_PER_SENDER = 64;
+        private const uint ALL_INHIBIT_FLAGS = 31;
+        private Policy.RateLimit shutdown_limit = new Policy.RateLimit (5, 10000000);
+        private Policy.RateLimit logout_limit = new Policy.RateLimit (5, 10000000);
 
         private ManagerPhase _phase = ManagerPhase.STARTUP;
         public ManagerPhase phase { get { return _phase; } }
@@ -252,6 +260,10 @@ namespace Polo.Dbus {
                               "Setenv interface is only available during the Initialization phase");
                         return;
                     }
+                    if (!valid_env_name (variable) || value.length > MAX_ENV_VALUE) {
+                        fail (invocation, "GeneralError", "Invalid environment variable");
+                        return;
+                    }
                     SessionEnv.setenv (variable, value);
                     invocation.return_value (null);
                     break;
@@ -343,7 +355,9 @@ namespace Polo.Dbus {
                         return;
                     }
                     invocation.return_value (null);
-                    shutdown_dialog_requested ();
+                    if (shutdown_limit.allow ()) {
+                        shutdown_dialog_requested ();
+                    }
                     break;
                 }
                 case "CanShutdown":
@@ -363,7 +377,9 @@ namespace Polo.Dbus {
                         return;
                     }
                     invocation.return_value (null);
-                    logout_requested ((LogoutMode) mode);
+                    if ((LogoutMode) mode != LogoutMode.NORMAL || logout_limit.allow ()) {
+                        logout_requested ((LogoutMode) mode);
+                    }
                     break;
                 }
                 case "RequestShutdown":
@@ -389,6 +405,36 @@ namespace Polo.Dbus {
                     break;
                 }
             }
+        }
+
+        private static bool valid_env_name (string name) {
+            if (name == "" || name.length > MAX_ENV_NAME || name[0].isdigit ()) {
+                return false;
+            }
+            for (int i = 0; i < name.length; i++) {
+                if (!name[i].isalnum () && name[i] != '_') {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        private uint held_by (string sender, bool inhibitor) {
+            uint count = 0;
+            if (inhibitor) {
+                foreach (unowned Inhibitor other in inhibitors.get_values ()) {
+                    if (other.bus_name == sender) {
+                        count++;
+                    }
+                }
+            } else {
+                foreach (unowned Client other in clients.get_values ()) {
+                    if (other.bus_name == sender) {
+                        count++;
+                    }
+                }
+            }
+            return count;
         }
 
         private bool running_or_fail (GLib.DBusMethodInvocation invocation, string interface_name) {
@@ -420,6 +466,10 @@ namespace Polo.Dbus {
                                             owned GLib.DBusMethodInvocation invocation) {
             if (phase >= ManagerPhase.QUERY_END_SESSION) {
                 fail (invocation, "NotInRunning", "Unable to register client");
+                return;
+            }
+            if (app_id.length > MAX_NAME || startup_id.length > MAX_NAME || held_by (sender, false) >= MAX_PER_SENDER) {
+                fail (invocation, "GeneralError", "Unable to register client");
                 return;
             }
             string id = startup_id;
@@ -484,8 +534,12 @@ namespace Polo.Dbus {
                 fail (invocation, "GeneralError", "Reason not specified");
                 return;
             }
-            if (flags == 0) {
+            if (flags == 0 || (flags & ~ALL_INHIBIT_FLAGS) != 0) {
                 fail (invocation, "GeneralError", "Invalid inhibit flags");
+                return;
+            }
+            if (app_id.length > MAX_NAME || reason.length > MAX_REASON || held_by (sender, true) >= MAX_PER_SENDER) {
+                fail (invocation, "GeneralError", "Unable to inhibit");
                 return;
             }
             var inhibitor = new Inhibitor (app_id, xid, reason, flags, sender, unique_cookie ());

@@ -12,6 +12,7 @@ namespace Polo.Dbus {
         public const string INTERFACE = "org.mate.Polo.Outputs1";
         private const string RESOURCE = "/org/mate/polo/dbus/org.mate.Polo.Outputs1.xml";
         private const int CONFIRMATION_SECONDS = 30;
+        private const int MAX_COORDINATE = 32767;
         private const uint FIRST_DIALOG = 0x50000000;
         private const int RESPONSE_OK = -5;
         private const int RESPONSE_ACCEPT = -3;
@@ -132,6 +133,9 @@ namespace Polo.Dbus {
 
         private GLib.GenericArray<Polo.Output>? wanted (GLib.Variant requests) {
             var outputs = desktop.current_outputs ();
+            if (requests.n_children () > outputs.length) {
+                return null;
+            }
             foreach (var request in requests) {
                 var dict = new GLib.VariantDict (request);
                 string name;
@@ -150,6 +154,10 @@ namespace Polo.Dbus {
                     !read_int (dict, "height", ref target.height) || !read_int (dict, "refresh", ref target.rate) ||
                     !read_int (dict, "scale", ref target.scale) ||
                     !read_int (dict, "transform", ref target.transform)) {
+                    return null;
+                }
+                if (target.x < -MAX_COORDINATE || target.x > MAX_COORDINATE || target.y < -MAX_COORDINATE ||
+                    target.y > MAX_COORDINATE) {
                     return null;
                 }
                 if (target.primary) {
@@ -213,8 +221,7 @@ namespace Polo.Dbus {
                 return;
             }
             if (!shell_ui.is_bound ()) {
-                Logging.scope (LogDomain.POLO).info ("no polo-shell-ui to confirm the display; keeping it");
-                desktop.remember_current ();
+                Logging.scope (LogDomain.POLO).info ("no polo-shell-ui to confirm the display; not saving it");
                 return;
             }
             previous = before;
