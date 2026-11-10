@@ -10,12 +10,35 @@
 
 #include "polo-marco.h"
 
+#define MAX_HINT 32767
+
+static int
+bounded(int value)
+{
+	return CLAMP(value, 0, MAX_HINT);
+}
+
+static int
+bounded_max(int value)
+{
+	return value > MAX_HINT ? G_MAXINT : MAX(value, 0);
+}
+
 void
 polo_marco_normalize_size_hints(PoloSizeHints *hints)
 {
 	double minr, maxr;
 	int minw, minh, maxw, maxh;
 	int basew, baseh, winc, hinc;
+
+	hints->min_width = bounded(hints->min_width);
+	hints->min_height = bounded(hints->min_height);
+	hints->base_width = bounded(hints->base_width);
+	hints->base_height = bounded(hints->base_height);
+	hints->width_inc = bounded(hints->width_inc);
+	hints->height_inc = bounded(hints->height_inc);
+	hints->max_width = bounded_max(hints->max_width);
+	hints->max_height = bounded_max(hints->max_height);
 
 	if (hints->flags & POLO_SIZE_HINT_P_BASE_SIZE)
 		;

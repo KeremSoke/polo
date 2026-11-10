@@ -21,6 +21,7 @@ if get_option('xwayland')
   x_send = executable('x-send', 'xwm/x-send.c', dependencies: dependency('xcb'))
   x_clip = executable('x-clip', 'xwm/x-clip.c', dependencies: dependency('xcb'))
   x_dnd = executable('x-dnd', 'xwm/x-dnd.c', dependencies: dependency('xcb'))
+  x_prop_fuzz = executable('x-prop-fuzz', 'xwm/x-prop-fuzz.c', dependencies: dependency('xcb'))
 endif
 vapi_test_env = environment()
 vapi_test_env.set('WESTON_MODULE_MAP', weston_module_map)

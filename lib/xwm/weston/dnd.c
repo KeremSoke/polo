@@ -208,8 +208,13 @@ handle_enter(struct weston_wm *wm, xcb_client_message_event_t *client_message)
 					 wm->atom.xdnd_type_list, XCB_ATOM_ANY,
 					 0, 2048),
 			NULL);
-		types = reply ? xcb_get_property_value(reply) : NULL;
-		length = reply ? reply->value_len : 0;
+		if (reply && reply->format == 32) {
+			types = xcb_get_property_value(reply);
+			length = reply->value_len;
+		} else {
+			types = NULL;
+			length = 0;
+		}
 	} else {
 		types = &client_message->data.data32[2];
 		length = 3;
@@ -433,7 +438,7 @@ bridge_enter(void *data, struct weston_data_source *source,
 		xcb_get_property(wm->conn, 0, info.id, wm->atom.xdnd_aware,
 				 XCB_ATOM_ATOM, 0, 1),
 		NULL);
-	if (reply && reply->value_len == 1)
+	if (reply && reply->format == 32 && reply->value_len == 1)
 		version = *(uint32_t *)xcb_get_property_value(reply);
 	free(reply);
 	if (version < 3)

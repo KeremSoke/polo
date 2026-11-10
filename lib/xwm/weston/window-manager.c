@@ -577,6 +577,8 @@ weston_wm_window_read_properties(struct weston_wm_window *window)
 					xcb_get_property_value_length(reply));
 			break;
 		case XCB_ATOM_WINDOW:
+			if (reply->format != 32 || reply->value_len < 1)
+				break;
 			xid = xcb_get_property_value(reply);
 			if (!wm_lookup_window(wm, *xid, p))
 				weston_log("XCB_ATOM_WINDOW contains window"
@@ -584,10 +586,14 @@ weston_wm_window_read_properties(struct weston_wm_window *window)
 			break;
 		case XCB_ATOM_CARDINAL:
 		case XCB_ATOM_ATOM:
+			if (reply->format != 32 || reply->value_len < 1)
+				break;
 			atom = xcb_get_property_value(reply);
 			*(xcb_atom_t *) p = *atom;
 			break;
 		case TYPE_WM_PROTOCOLS:
+			if (reply->format != 32)
+				break;
 			atom = xcb_get_property_value(reply);
 			for (uint32_t j = 0; j < reply->value_len; j++)
 				if (atom[j] == wm->atom.wm_delete_window) {
@@ -600,6 +606,8 @@ weston_wm_window_read_properties(struct weston_wm_window *window)
 			/* WM_NORMAL_HINTS can be either 15 or 18 CARD32s */
 			memset(&window->size_hints, 0,
 			       sizeof(window->size_hints));
+			if (reply->format != 32)
+				break;
 			memcpy(&window->size_hints,
 			       xcb_get_property_value(reply),
 			       MIN(sizeof(window->size_hints),
@@ -609,6 +617,8 @@ weston_wm_window_read_properties(struct weston_wm_window *window)
 			window->fullscreen = 0;
 			window->maximized_vert = 0;
 			window->maximized_horz = 0;
+			if (reply->format != 32)
+				break;
 			atom = xcb_get_property_value(reply);
 			for (uint32_t j = 0; j < reply->value_len; j++) {
 				if (atom[j] == wm->atom.net_wm_state_fullscreen)
@@ -620,9 +630,13 @@ weston_wm_window_read_properties(struct weston_wm_window *window)
 			}
 			break;
 		case TYPE_MOTIF_WM_HINTS:
+			memset(&window->motif_hints, 0, sizeof window->motif_hints);
+			if (reply->format != 32)
+				break;
 			memcpy(&window->motif_hints,
 			       xcb_get_property_value(reply),
-			       sizeof window->motif_hints);
+			       MIN(sizeof window->motif_hints,
+			           reply->value_len * 4));
 			if (window->motif_hints.flags & MWM_HINTS_DECORATIONS) {
 				if (window->motif_hints.decorations & MWM_DECOR_ALL)
 					/* MWM_DECOR_ALL means all except the other values listed. */
@@ -1666,6 +1680,15 @@ weston_wm_window_create(struct weston_wm *wm,
 }
 
 static void
+forget_transient_for(void *element, void *data)
+{
+	struct weston_wm_window *other = element;
+
+	if (other->transient_for == data)
+		other->transient_for = NULL;
+}
+
+void
 weston_wm_window_destroy(struct weston_wm_window *window)
 {
 	struct weston_wm *wm = window->wm;
@@ -1701,6 +1724,8 @@ weston_wm_window_destroy(struct weston_wm_window *window)
 	free(window->machine);
 
 	hash_table_remove(window->wm->window_hash, window->id);
+	hash_table_for_each(window->wm->window_hash, forget_transient_for,
+			    window);
 	free(window);
 }
 
@@ -3866,13 +3891,17 @@ polo_wm_window_set_frame_inset(struct weston_wm_window *window, int left, int ri
 		weston_wm_window_set_pending_state(window);
 }
 
+#define POLO_MAX_CARDINALS (1u << 21)
+#define POLO_MAX_ATOMS 256
+
 static xcb_get_property_reply_t *
-read_list(struct weston_wm *wm, uint32_t xid, const char *property)
+read_list(struct weston_wm *wm, uint32_t xid, const char *property,
+	  uint32_t max_units)
 {
 	xcb_get_property_reply_t *reply = xcb_get_property_reply(
 		wm->conn,
 		xcb_get_property(wm->conn, 0, xid, intern(wm, property),
-				 XCB_ATOM_ANY, 0, UINT32_MAX / 4),
+				 XCB_ATOM_ANY, 0, max_units),
 		NULL);
 
 	if (reply && (reply->format != 32 || reply->value_len == 0)) {
@@ -3885,7 +3914,8 @@ read_list(struct weston_wm *wm, uint32_t xid, const char *property)
 uint32_t *
 polo_wm_get_cardinals(struct weston_wm *wm, uint32_t xid, const char *property, int *n)
 {
-	xcb_get_property_reply_t *reply = read_list(wm, xid, property);
+	xcb_get_property_reply_t *reply =
+		read_list(wm, xid, property, POLO_MAX_CARDINALS);
 	uint32_t *values = NULL;
 
 	*n = 0;
@@ -3900,7 +3930,8 @@ polo_wm_get_cardinals(struct weston_wm *wm, uint32_t xid, const char *property, 
 char **
 polo_wm_get_atom_names(struct weston_wm *wm, uint32_t xid, const char *property, int *n)
 {
-	xcb_get_property_reply_t *reply = read_list(wm, xid, property);
+	xcb_get_property_reply_t *reply =
+		read_list(wm, xid, property, POLO_MAX_ATOMS);
 	char **names;
 
 	*n = 0;

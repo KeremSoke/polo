@@ -79,6 +79,27 @@ void test_struts () {
     assert (X11Props.parse_struts ({}, { 1, 2 }, { 1 }, screen, outputs).length == 0);
 }
 
+void test_strut_abuse () {
+    var outputs = new GLib.GenericArray<Output> ();
+    outputs.add (new Output ("A", Marco.Rect () { width = 1000, height = 800 }));
+    var screen = Marco.Rect () { width = 1000, height = 800 };
+    uint32 max = uint32.MAX;
+    assert (X11Props.parse_struts ({}, {}, { max, max, max, max }, screen, outputs).length == 0);
+    assert (X11Props.parse_struts ({}, { max, 0, 0, 0, 0, 10, 0, 0, 0, 0, 0, 0 }, {}, screen, outputs).length == 0);
+    assert (X11Props.parse_struts ({}, { 0x80000000u, 0x7fffffff, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, {}, screen,
+                                   outputs).length == 0);
+    assert (X11Props.parse_struts ({}, { 10, 0, 0, 0, 500, 100, 0, 0, 0, 0, 0, 0 }, {}, screen, outputs).length == 0);
+    assert (X11Props.parse_struts ({}, { 10, 0, 0, 0, 0, max, 0, 0, 0, 0, 0, 0 }, {}, screen, outputs).length == 0);
+    assert (X11Props.parse_struts ({ max, 0, 1000, 24 }, {}, {}, screen, outputs).length == 0);
+    var whole = X11Props.parse_struts ({}, { 1000, 1000, 800, 800, 0, 799, 0, 799, 0, 999, 0, 999 }, {}, screen,
+                                       outputs);
+    assert (whole.length == 4);
+    var huge_but_legal = X11Props.parse_struts ({}, {}, { 1 << 20, 0, 0, 0 }, screen, outputs);
+    assert (huge_but_legal.length == 1);
+    var one_more = X11Props.parse_struts ({}, {}, { (1 << 20) + 1, 0, 0, 0 }, screen, outputs);
+    assert (one_more.length == 0);
+}
+
 void test_state_after () {
     assert (X11Props.state_after (1, false) && X11Props.state_after (1, true));
     assert (!X11Props.state_after (0, true) && !X11Props.state_after (0, false));
@@ -127,6 +148,7 @@ public static int main (string[] args) {
     GLib.Test.add_func ("/x11-props/long-title", test_long_title);
     GLib.Test.add_func ("/x11-props/group", test_group);
     GLib.Test.add_func ("/x11-props/struts", test_struts);
+    GLib.Test.add_func ("/x11-props/strut-abuse", test_strut_abuse);
     GLib.Test.add_func ("/x11-props/state-after", test_state_after);
     GLib.Test.add_func ("/x11-props/motif", test_motif);
     return GLib.Test.run ();

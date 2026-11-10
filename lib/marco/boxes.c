@@ -145,7 +145,9 @@ int
 polo_marco_rect_area (const PoloRect *rect)
 {
   g_return_val_if_fail (rect != NULL, 0);
-  return rect->width * rect->height;
+  gint64 area = (gint64) rect->width * rect->height;
+
+  return area > G_MAXINT ? G_MAXINT : (int) area;
 }
 
 gboolean
@@ -826,7 +828,7 @@ polo_marco_rect_clamp_to_fit_into_region (const GList         *spanning_rects,
 {
   const GList *temp;
   const PoloRect *best_rect = NULL;
-  int                  best_overlap = 0;
+  gint64               best_overlap = 0;
 
   /* First, find best rectangle from spanning_rects to which we can clamp
    * rect to fit into.
@@ -834,7 +836,7 @@ polo_marco_rect_clamp_to_fit_into_region (const GList         *spanning_rects,
   for (temp = spanning_rects; temp; temp = temp->next)
     {
       PoloRect *compare_rect = temp->data;
-      int            maximal_overlap_amount_for_compare;
+      gint64         maximal_overlap_amount_for_compare;
 
       /* If x is fixed and the entire width of rect doesn't fit in compare,
        * skip this rectangle.
@@ -859,7 +861,7 @@ polo_marco_rect_clamp_to_fit_into_region (const GList         *spanning_rects,
 
       /* Determine maximal overlap amount */
       maximal_overlap_amount_for_compare =
-        MIN (rect->width,  compare_rect->width) *
+        (gint64) MIN (rect->width,  compare_rect->width) *
         MIN (rect->height, compare_rect->height);
 
       /* See if this is the best rect so far */
@@ -895,7 +897,7 @@ polo_marco_rect_clip_to_region (const GList         *spanning_rects,
 {
   const GList *temp;
   const PoloRect *best_rect = NULL;
-  int                  best_overlap = 0;
+  gint64               best_overlap = 0;
 
   /* First, find best rectangle from spanning_rects to which we will clip
    * rect into.
@@ -904,7 +906,7 @@ polo_marco_rect_clip_to_region (const GList         *spanning_rects,
     {
       PoloRect *compare_rect = temp->data;
       PoloRect  overlap;
-      int            maximal_overlap_amount_for_compare;
+      gint64         maximal_overlap_amount_for_compare;
 
       /* If x is fixed and the entire width of rect doesn't fit in compare,
        * skip the rectangle.
@@ -972,7 +974,7 @@ polo_marco_rect_shove_into_region (const GList         *spanning_rects,
 {
   const GList *temp;
   const PoloRect *best_rect = NULL;
-  int                  best_overlap = 0;
+  gint64               best_overlap = 0;
   int                  shortest_distance = G_MAXINT;
 
   /* First, find best rectangle from spanning_rects to which we will shove
@@ -982,7 +984,7 @@ polo_marco_rect_shove_into_region (const GList         *spanning_rects,
   for (temp = spanning_rects; temp; temp = temp->next)
     {
       PoloRect *compare_rect = temp->data;
-      int            maximal_overlap_amount_for_compare;
+      gint64         maximal_overlap_amount_for_compare;
       int            dist_to_compare;
 
       /* If x is fixed and the entire width of rect doesn't fit in compare,
@@ -1003,7 +1005,7 @@ polo_marco_rect_shove_into_region (const GList         *spanning_rects,
 
       /* Determine maximal overlap amount between rect & compare_rect */
       maximal_overlap_amount_for_compare =
-        MIN (rect->width,  compare_rect->width) *
+        (gint64) MIN (rect->width,  compare_rect->width) *
         MIN (rect->height, compare_rect->height);
 
       /* Determine distance necessary to put rect into compare_rect */

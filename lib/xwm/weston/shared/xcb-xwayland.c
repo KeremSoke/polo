@@ -40,7 +40,7 @@ get_atom_name(xcb_connection_t *c, xcb_atom_t atom)
 {
 	xcb_get_atom_name_cookie_t cookie;
 	xcb_get_atom_name_reply_t *reply;
-	xcb_generic_error_t *e;
+	xcb_generic_error_t *e = NULL;
 	static char buffer[64];
 
 	if (atom == XCB_ATOM_NONE)
@@ -58,6 +58,7 @@ get_atom_name(xcb_connection_t *c, xcb_atom_t atom)
 	}
 
 	free(reply);
+	free(e);
 
 	return buffer;
 }

@@ -361,7 +361,7 @@ weston_wm_get_selection_targets(struct weston_wm *wm, xcb_atom_t selection)
 
 	wl_array_init(&source->base.mime_types);
 	value = xcb_get_property_value(reply);
-	for (i = 0; i < reply->value_len; i++) {
+	for (i = 0; reply->format == 32 && i < reply->value_len; i++) {
 		const char *name = value[i] == wm->atom.utf8_string
 			? UTF8_MIME : get_atom_name(wm->conn, value[i]);
 		char **existing;

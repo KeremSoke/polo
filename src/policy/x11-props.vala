@@ -84,6 +84,17 @@ namespace Polo.Policy {
             border_only = named && decorations == MWM_DECOR_BORDER;
         }
 
+        private const uint32 STRUT_LIMIT = 1 << 20;
+
+        private bool within_limit (uint32[] values) {
+            foreach (uint32 value in values) {
+                if (value > STRUT_LIMIT) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
         /*
          * meta_window_update_struts (): _NET_WM_STRUT_PARTIAL, or _NET_WM_STRUT with
          * the whole screen edge. strut_area (_GNOME_WM_STRUT_AREA) comes first.
@@ -91,7 +102,7 @@ namespace Polo.Policy {
         public Marco.Strut[] parse_struts (uint32[] strut_area, uint32[] partial, uint32[] simple,
                                            Marco.Rect screen, GLib.GenericArray<Output> outputs) {
             Marco.Strut[] struts = {};
-            if (strut_area.length == 4) {
+            if (strut_area.length == 4 && within_limit (strut_area)) {
                 var area = Marco.Rect () {
                     x = (int) strut_area[0], y = (int) strut_area[1],
                     width = (int) strut_area[2], height = (int) strut_area[3]
@@ -134,12 +145,14 @@ namespace Polo.Policy {
             }
             Marco.Side[] sides = { Marco.Side.LEFT, Marco.Side.RIGHT, Marco.Side.TOP, Marco.Side.BOTTOM };
             for (int i = 0; i < 4; i++) {
-                int thickness = (int) values[i];
-                if (thickness == 0) {
+                bool has_range = values.length == 12;
+                if (values[i] == 0 || values[i] > STRUT_LIMIT ||
+                    (has_range && (values[4 + i * 2] > STRUT_LIMIT || values[5 + i * 2] > STRUT_LIMIT ||
+                                   values[5 + i * 2] < values[4 + i * 2]))) {
                     continue;
                 }
+                int thickness = (int) values[i];
                 var rect = screen;
-                bool has_range = values.length == 12;
                 int begin = has_range ? (int) values[4 + i * 2] : 0;
                 int end = has_range ? (int) values[5 + i * 2] : 0;
                 if (sides[i] == Marco.Side.RIGHT) {
