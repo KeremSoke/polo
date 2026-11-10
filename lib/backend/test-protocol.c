@@ -369,6 +369,18 @@ test_connect_output(struct wl_client *client, struct wl_resource *resource,
 }
 
 static void
+test_set_session_active(struct wl_client *client, struct wl_resource *resource,
+			uint32_t active)
+{
+	PoloBackendServer *server = wl_resource_get_user_data(resource);
+
+	server->compositor->session_active = active != 0;
+	wl_signal_emit(&server->compositor->session_signal, server->compositor);
+	if (active)
+		weston_compositor_damage_all(server->compositor);
+}
+
+static void
 test_remove_output(struct wl_client *client, struct wl_resource *resource,
 		   const char *name)
 {
@@ -742,6 +754,7 @@ static const struct polo_test_v1_interface test_implementation = {
 	.add_output = test_add_output,
 	.connect_output = test_connect_output,
 	.remove_output = test_remove_output,
+	.set_session_active = test_set_session_active,
 	.get_outputs = test_get_outputs,
 	.pointer_axis = test_pointer_axis,
 	.get_pointer_position = test_get_pointer_position,
@@ -802,7 +815,7 @@ polo_backend_test_protocol_init(PoloBackendServer *server, GError **error)
 		server->compositor, &server->screenshot_authority,
 		authorize_screenshot);
 	server->test_global =
-		wl_global_create(server->display, &polo_test_v1_interface, 11,
+		wl_global_create(server->display, &polo_test_v1_interface, 12,
 				 server, test_bind);
 	if (!server->test_global) {
 		g_set_error(error, POLO_BACKEND_ERROR,

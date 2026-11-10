@@ -295,6 +295,9 @@ harness_add_output(struct harness *h, const char *name, const char *vendor,
 void
 harness_connect_output(struct harness *h, const char *name, bool connected);
 
+void
+harness_set_session_active(struct harness *h, bool active);
+
 /* The monitor and its connector go, as a dock or an MST hub unplugged. */
 void
 harness_remove_output(struct harness *h, const char *name);

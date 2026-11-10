@@ -14,7 +14,7 @@
     tests check policy decisions rather than libweston internals.
   </description>
 
-  <interface name="polo_test_v1" version="11">
+  <interface name="polo_test_v1" version="12">
     <request name="destroy" type="destructor"/>
 
     <request name="get_window_info">
@@ -313,5 +313,13 @@
       </description>
       <arg name="monitors" type="uint"/>
     </event>
+    <request name="set_session_active" since="12">
+      <description summary="leave or come back to this session's VT">
+        What the launcher does on a VT switch: the session goes inactive or
+        active again and its listeners hear of it.
+      </description>
+      <arg name="active" type="uint"/>
+    </request>
+
   </interface>
 </protocol>

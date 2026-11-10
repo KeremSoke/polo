@@ -186,6 +186,13 @@ if get_option('shell-ui')
       suite: 'protocol',
       timeout: 180,
     )
+    test('lock-threats', executable('test-lock-threats', 'test-lock-threats.c', dependencies: harness_dep),
+      args: [polo_exe, x_test_client.full_path()],
+      depends: [x_test_client],
+      env: protocol_test_env,
+      suite: 'protocol',
+      timeout: 90,
+    )
     test('held-keys-x', executable('test-held-keys-x', 'test-held-keys-x.c', dependencies: harness_dep),
       args: [polo_exe, x_test_client.full_path()],
       depends: [x_test_client],
