@@ -120,6 +120,22 @@ if get_option('test-protocol')
   subdir('protocol')
 endif
 
+# What a build made for users offers: registered only without the test and
+# debug options, which add globals and bindings on purpose.
+if not get_option('test-protocol') and not get_option('debug-protocol') and not get_option('debug-kill')
+  list_globals = executable('list-globals', 'protocol/list-globals.c', dependencies: dependency('wayland-client'))
+  release_env = environment()
+  release_env.set('WESTON_MODULE_MAP', weston_module_map)
+  release_env.set('GSETTINGS_BACKEND', 'memory')
+  release_env.set('GSETTINGS_SCHEMA_DIR', meson.project_build_root() / 'data')
+  test('release-surfaces', python,
+    args: [files('protocol/test-release-surfaces.py'), polo_exe, list_globals],
+    env: release_env,
+    suite: ['protocol', 'release'],
+    timeout: 60,
+  )
+endif
+
 if get_option('test-protocol')
   test('end-session', python,
     args: [files('session/test-end-session.py'), polo_exe, fake_shell_ui],

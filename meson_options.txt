@@ -7,7 +7,9 @@ option('tests', type: 'boolean', value: true,
 option('test-protocol', type: 'boolean', value: false,
        description: 'Build the polo_test_v1 protocol (test builds only, never in releases)')
 option('debug-protocol', type: 'boolean', value: false,
-       description: 'Allow the weston-debug protocol (never in releases)')
+       description: 'Offer the weston-debug protocol to trusted clients (never in releases)')
+option('debug-kill', type: 'boolean', value: false,
+       description: 'Let --debug-kill bind Ctrl+Alt+Backspace to end Polo at once (development builds, never in releases)')
 option('systemd', type: 'boolean', value: true,
        description: 'systemd --user integration (polo-session.target, environment import)')
 option('xdg-desktop-portal-wlr', type: 'string', value: '',

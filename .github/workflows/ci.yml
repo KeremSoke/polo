@@ -44,9 +44,9 @@ jobs:
       matrix:
         include:
           - name: strict
-            setup: -Dstrict=true -Dtest-protocol=true
+            setup: -Dstrict=true -Dtest-protocol=true -Ddebug-kill=true
           - name: sanitizers
-            setup: -Dstrict=true -Dtest-protocol=true -Db_sanitize=address,undefined -Db_lundef=false
+            setup: -Dstrict=true -Dtest-protocol=true -Ddebug-kill=true -Db_sanitize=address,undefined -Db_lundef=false
     steps:
       - name: Install dependencies
         run: dnf -y install $FEDORA_DEPS $FEDORA_TEST_DEPS
@@ -95,6 +95,9 @@ jobs:
         run: meson setup build
       - name: Build
         run: ninja -C build
+      # Nothing for tests or debugging is offered in what users build.
+      - name: Release surfaces
+        run: meson test -C build --suite release --print-errorlogs
 
   # The protocol fuzzers replay their committed corpora once: a crash,
   # leak or hang on any of them fails the job.

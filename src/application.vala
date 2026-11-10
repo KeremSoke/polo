@@ -217,7 +217,7 @@ namespace Polo {
             trust.deny_by_default = !CommandLine.test_mode ||
                                     GLib.Environment.get_variable ("POLO_TEST_TRUST") == "deny";
             var session_settings = settings_if_installed ("org.mate.polo.session");
-            if (session_settings != null) {
+            if (session_settings != null && session_settings.settings_schema.has_key ("trusted-executables")) {
                 trust.trusted_executables = session_settings.get_strv ("trusted-executables");
                 session_settings.changed["trusted-executables"].connect (() => {
                     trust.trusted_executables = session_settings.get_strv ("trusted-executables");

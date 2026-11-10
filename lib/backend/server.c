@@ -18,6 +18,7 @@
 #include <libweston/backend-headless.h>
 #include <libweston/backend-wayland.h>
 #include <libweston/windowed-output-api.h>
+#include <libweston/weston-log.h>
 
 #include "polo-backend-private.h"
 
@@ -626,6 +627,9 @@ polo_backend_server_start(PoloBackendServer *server,
 		return FALSE;
 	}
 	server->compositor->exit = compositor_exit;
+#ifdef POLO_HAVE_DEBUG_PROTOCOL
+	weston_compositor_enable_debug_protocol(server->compositor);
+#endif
 	polo_backend_drm_install_bindings(server, config->debug_kill);
 
 	for (i = 0; i < POLO_BACKEND_N_LAYERS; i++) {

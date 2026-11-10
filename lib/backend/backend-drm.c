@@ -22,22 +22,31 @@ device_removed(struct weston_compositor *compositor,
 		weston_compositor_get_user_data(compositor), device);
 }
 
+#ifdef POLO_HAVE_DEBUG_KILL
 static void
 emergency_exit(struct weston_keyboard *keyboard, const struct timespec *time,
 	       uint32_t key, void *data)
 {
 	weston_compositor_exit(keyboard->seat->compositor);
 }
+#endif
 
 void
 polo_backend_drm_install_bindings(PoloBackendServer *server,
 				  gboolean debug_kill)
 {
 	/* The DRM backend installs Ctrl+Alt+F1..F12 through libseat itself */
+#ifdef POLO_HAVE_DEBUG_KILL
 	if (debug_kill)
 		weston_compositor_add_key_binding(
 			server->compositor, KEY_BACKSPACE,
 			MODIFIER_CTRL | MODIFIER_ALT, emergency_exit, server);
+#else
+	if (debug_kill)
+		polo_log_scope_warning(polo_backend_log_scope("polo"),
+				       "--debug-kill: this build has no "
+				       "emergency exit (-Ddebug-kill=false)");
+#endif
 }
 
 struct weston_backend *
