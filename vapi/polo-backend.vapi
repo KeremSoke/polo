@@ -61,6 +61,9 @@ namespace Polo {
         [CCode (cname = "polo_backend_watchdog_start")]
         public void start_watchdog (bool by_default);
 
+        [CCode (cname = "polo_backend_stats_effects")]
+        public void stats_effects (int64 duration_usec, uint vertices);
+
         /* Tests only: blocks this thread in the kernel (state D). */
         [CCode (cname = "polo_backend_watchdog_test_block_in_kernel")]
         public void block_in_kernel_for_tests (uint msec);
@@ -353,6 +356,10 @@ namespace Polo {
             /* Start-up output and seat signals may fire before this returns. */
             [CCode (cname = "polo_backend_server_start")]
             public bool start (Config config) throws GLib.Error;
+
+            /* Frame, input and effect timings in the log every interval. After start (). */
+            [CCode (cname = "polo_backend_stats_start")]
+            public void start_stats (uint interval_msec);
 
             [CCode (cname = "polo_backend_server_attach")]
             public void attach (GLib.MainContext? context);

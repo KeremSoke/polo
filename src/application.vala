@@ -25,6 +25,7 @@ namespace Polo {
         public static string[]? exec = null;
         public static bool test_mode = false;
         public static bool debug_kill = false;
+        public static bool stats = false;
         public static string? xwayland = null;
         public static bool session = false;
 
@@ -33,6 +34,8 @@ namespace Polo {
               "Run as the MATE session: eager XWayland, trusted components, the Polo dconf profile", null },
             { "debug-kill", 0, 0, GLib.OptionArg.NONE, ref debug_kill,
               "Enable Ctrl+Alt+Backspace emergency exit", null },
+            { "stats", 0, 0, GLib.OptionArg.NONE, ref stats,
+              "Log frame, input and effect timings every 10 s (POLO_STATS_INTERVAL_MS changes it)", null },
             { "xwayland", 0, 0, GLib.OptionArg.STRING, ref xwayland,
               "off, lazy (start with the first X client) or eager (default: lazy)", "MODE" },
             { "version", 0, 0, GLib.OptionArg.NONE, ref version,
@@ -73,6 +76,19 @@ namespace Polo {
     public class Application : GLib.Object {
         private GLib.MainLoop loop;
         private ulong[] test_stalls = {};
+        private bool stats_on = false;
+
+        private void tick_effects (int64 usec) {
+            if (!stats_on) {
+                effects_engine.tick (usec);
+                return;
+            }
+            int64 start = GLib.get_monotonic_time ();
+            effects_engine.tick (usec);
+            if (effects_engine.animating) {
+                Backend.stats_effects (GLib.get_monotonic_time () - start, effects_engine.deformed_vertices ());
+            }
+        }
         private bool[] test_stall_in_kernel = {};
         private Backend.Server? server;
         private Effects.Engine? effects_engine;
@@ -188,7 +204,7 @@ namespace Polo {
             model.notify["prefs"].connect (() => {
                 effects_engine.set_reduced_resources (model.prefs.reduced_resources);
             });
-            server.frame.connect ((output, usec) => effects_engine.tick (usec));
+            server.frame.connect ((output, usec) => tick_effects (usec));
             if (!CommandLine.test_mode) {
                 marco_prefs = new Settings.MarcoPrefsReader (model);
             }
@@ -239,6 +255,12 @@ namespace Polo {
                 return 1;
             }
             server.attach (GLib.MainContext.default ());
+            if (CommandLine.stats || GLib.Environment.get_variable ("POLO_STATS_INTERVAL_MS") != null) {
+                uint64 interval = 10000;
+                uint64.try_parse (GLib.Environment.get_variable ("POLO_STATS_INTERVAL_MS") ?? "", out interval);
+                server.start_stats ((uint) (interval > 0 ? interval : 10000));
+                stats_on = true;
+            }
             effects_engine.deformation_supported = server.supports_deformation ();
 #if POLO_HAVE_XWAYLAND
             start_xwayland ();

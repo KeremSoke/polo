@@ -215,6 +215,9 @@ polo_backend_output_set_animating(PoloBackendOutput *output,
 				  gboolean animating);
 
 void
+polo_backend_stats_input(const struct timespec *event_time);
+
+void
 polo_backend_server_emit_frame(PoloBackendServer *server,
 			       PoloBackendOutput *output, gint64 usec);
 

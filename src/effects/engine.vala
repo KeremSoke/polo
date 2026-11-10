@@ -169,6 +169,16 @@ namespace Polo.Effects {
             update_animating ();
         }
 
+        public uint deformed_vertices () {
+            uint total = 0;
+            foreach (unowned Entry entry in running.get_values ()) {
+                if (entry.effect.deforms && entry.target.grid != null) {
+                    total += entry.target.grid.cols * entry.target.grid.rows;
+                }
+            }
+            return total;
+        }
+
         public void tick (int64 usec) {
             if (running.size () == 0 || usec <= last_usec) {
                 return;

@@ -10,6 +10,7 @@ backend_sources = files(
   'keymap.c',
   'log.c',
   'loop-source.c',
+  'stats.c',
   'watchdog.c',
   'output.c',
   'pixel-buffer.c',

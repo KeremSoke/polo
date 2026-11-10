@@ -555,7 +555,7 @@ harness_start(int argc, char **argv)
 		setenv("XDG_CONFIG_HOME", h->config_dir, 1);
 		/* POLO_TEST_DEBUG=scope,scope turns on Polo's debug output. */
 		const char *debug = getenv("POLO_TEST_DEBUG");
-		char debug_arg[256], exec_arg[1024];
+		char debug_arg[256], exec_arg[1024], log_arg[512];
 		const char *scale_arg = getenv("POLO_TEST_SCALE")
 			? getenv("POLO_TEST_SCALE")
 			: "--scale=1";
@@ -565,6 +565,10 @@ harness_start(int argc, char **argv)
 						  : "");
 		snprintf(debug_arg, sizeof debug_arg, "--debug-scopes=%s",
 			 debug ? debug : "");
+		/* POLO_TEST_LOG=PATH: Polo's log goes to that file. */
+		snprintf(log_arg, sizeof log_arg, "--log=%s",
+			 getenv("POLO_TEST_LOG") ? getenv("POLO_TEST_LOG")
+						 : "");
 		execl(polo, polo, "--backend=headless",
 		      getenv("POLO_TEST_RENDERER")
 			      ? getenv("POLO_TEST_RENDERER")
@@ -579,6 +583,7 @@ harness_start(int argc, char **argv)
 						      : "--outputs=1",
 		      getenv("POLO_TEST_KILL") ? "--debug-kill" : scale_arg,
 		      getenv("POLO_TEST_EXEC") ? exec_arg : scale_arg,
+		      getenv("POLO_TEST_LOG") ? log_arg : scale_arg,
 		      (char *)NULL);
 		_exit(127);
 	}

@@ -69,6 +69,9 @@ polo_backend_log_fd(void);
 void
 polo_backend_watchdog_start(gboolean by_default);
 
+void
+polo_backend_stats_effects(gint64 duration_usec, guint vertices);
+
 /* Tests only: blocks the calling thread in the kernel (state D) for @msec. */
 void
 polo_backend_watchdog_test_block_in_kernel(guint msec);
@@ -260,6 +263,11 @@ polo_backend_server_start(PoloBackendServer *server,
 /* Dispatch Wayland events from @context. */
 void
 polo_backend_server_attach(PoloBackendServer *server, GMainContext *context);
+
+/* polo --stats: log frame, input and effect timings every @interval_msec.
+ * Call after polo_backend_server_start (). */
+void
+polo_backend_stats_start(PoloBackendServer *server, guint interval_msec);
 
 /*
  * Destroy clients, the compositor and the display. Emits "destroyed" on

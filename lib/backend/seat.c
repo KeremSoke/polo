@@ -199,6 +199,7 @@ filter_grab_motion(struct weston_pointer_grab *grab,
 	struct weston_pointer *pointer = grab->pointer;
 	PoloBackendSeat *self = seat_from_pointer(pointer);
 
+	polo_backend_stats_input(&event->base.ts);
 	self->default_interface->motion(grab, event);
 
 	g_signal_emit(self, signals[SIGNAL_MOTION], 0, pointer->pos.c.x,
@@ -212,6 +213,7 @@ static void
 filter_grab_button(struct weston_pointer_grab *grab,
 		   const struct weston_pointer_button_event *event)
 {
+	polo_backend_stats_input(&event->base.ts);
 	struct weston_pointer *pointer = grab->pointer;
 	PoloBackendSeat *self = seat_from_pointer(pointer);
 
@@ -668,6 +670,7 @@ filter_key(struct weston_keyboard_grab *grab,
 
 	if (!self)
 		return;
+	polo_backend_stats_input(&event->base.ts);
 	if (event->key_state == WL_KEYBOARD_KEY_STATE_PRESSED)
 		self->last_press_usec = g_get_monotonic_time();
 	if (locked_key(self, grab, event))
