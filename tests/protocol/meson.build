@@ -73,6 +73,8 @@ protocol_test_env = environment()
 protocol_test_env.set('WESTON_MODULE_MAP', weston_module_map)
 # Polo reads MATE settings (scaling, cursor); never the developer's dconf.
 protocol_test_env.set('GSETTINGS_BACKEND', 'memory')
+# Polo's own schemas, as built, for tests that set its settings.
+protocol_test_env.set('GSETTINGS_SCHEMA_DIR', meson.project_build_root() / 'data')
 # No helper unless a test names one.
 protocol_test_env.set('POLO_SHELL_UI', '')
 
@@ -174,6 +176,13 @@ if get_option('shell-ui')
       env: protocol_test_env,
       suite: 'protocol',
       timeout: 180,
+    )
+    test('xwm-fuzz', executable('test-xwm-fuzz', 'test-xwm-fuzz.c', dependencies: harness_dep),
+      args: [polo_exe, x_prop_fuzz.full_path()],
+      depends: [x_prop_fuzz],
+      env: protocol_test_env,
+      suite: 'protocol',
+      timeout: 600,
     )
     polo_input = executable('polo-input', '../xwayland/polo-input.c', dependencies: harness_dep)
     test('x-oracle', python,

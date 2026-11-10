@@ -11,6 +11,7 @@
 #include <errno.h>
 #include <execinfo.h>
 #include <pthread.h>
+#include <sched.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -129,18 +130,25 @@ main_thread_in_kernel(char *wchan, size_t size)
 	return waiting;
 }
 
+static int
+sleeper(void *data)
+{
+	nanosleep(data, NULL);
+	_exit(0);
+}
+
 void
 polo_backend_watchdog_test_block_in_kernel(guint msec)
 {
 	struct timespec ts = { msec / 1000, (msec % 1000) * 1000000L };
-	pid_t child = vfork();
+	size_t size = 64 * 1024;
+	char *stack = g_malloc(size);
+	pid_t child = clone(sleeper, stack + size,
+			    CLONE_VM | CLONE_VFORK | SIGCHLD, &ts);
 
-	if (child == 0) {
-		nanosleep(&ts, NULL);
-		_exit(0);
-	}
 	if (child > 0)
 		waitpid(child, NULL, 0);
+	g_free(stack);
 }
 
 static void

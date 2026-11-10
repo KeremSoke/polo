@@ -29,6 +29,11 @@ main(int argc, char **argv)
 	struct harness *h = harness_start(argc, argv);
 	struct harness_window *window;
 
+	if (harness_get_setting(h, "org.mate.power-manager",
+				"sleep-display-ac")[0] == '\0') {
+		CHECK(harness_stop(h) == 0, "polo did not stop cleanly");
+		return 77;
+	}
 	harness_set_setting(h, "org.mate.power-manager", "sleep-display-ac",
 			    "2");
 	harness_set_setting(h, "org.mate.power-manager",
