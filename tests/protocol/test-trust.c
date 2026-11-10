@@ -124,6 +124,51 @@ read_listing(const char *path, struct listing *l)
 	fclose(file);
 }
 
+static bool
+sees_privileged(struct harness *h)
+{
+	struct listing l;
+
+	list_globals(h->display, &l);
+	return has(&l, "zwlr_layer_shell_v1") &&
+		has(&l, "ext_image_copy_capture_manager_v1");
+}
+
+static void
+check_listed_executables(struct harness *h)
+{
+	char self[512], value[600];
+	ssize_t n = readlink("/proc/self/exe", self, sizeof self - 1);
+
+	CHECK(n > 0, "cannot find this test's executable");
+	self[n] = '\0';
+
+	CHECK(!sees_privileged(h),
+	      "an unlisted client sees privileged globals");
+
+	snprintf(value, sizeof value, "['/usr/bin/true']");
+	harness_set_setting(h, "org.mate.polo.session", "trusted-executables",
+			    value);
+	CHECK(!sees_privileged(h),
+	      "a client whose path is not listed is trusted");
+
+	snprintf(value, sizeof value, "['%s']", self);
+	harness_set_setting(h, "org.mate.polo.session", "trusted-executables",
+			    value);
+	if (geteuid() == 0)
+		CHECK(sees_privileged(h),
+		      "a root-owned listed executable is not trusted");
+	else
+		CHECK(!sees_privileged(h),
+		      "a listed executable the user owns is trusted");
+
+	snprintf(value, sizeof value, "['%s-renamed']", self);
+	harness_set_setting(h, "org.mate.polo.session", "trusted-executables",
+			    value);
+	CHECK(!sees_privileged(h),
+	      "a path that only starts like ours is trusted");
+}
+
 int
 main(int argc, char **argv)
 {
@@ -159,6 +204,7 @@ main(int argc, char **argv)
 		      ORDINARY[i]);
 
 	unlink(path);
+	check_listed_executables(h);
 	CHECK(harness_stop(h) == 0, "polo did not stop cleanly");
 	return 0;
 }

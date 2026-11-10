@@ -218,6 +218,9 @@ namespace Polo {
             var session_settings = settings_if_installed ("org.mate.polo.session");
             if (session_settings != null) {
                 trust.trusted_executables = session_settings.get_strv ("trusted-executables");
+                session_settings.changed["trusted-executables"].connect (() => {
+                    trust.trusted_executables = session_settings.get_strv ("trusted-executables");
+                });
             }
             server.set_global_filter (trust.filter);
             server.set_test_inspector (desktop.inspect);
