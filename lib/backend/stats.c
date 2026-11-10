@@ -5,7 +5,8 @@
  * polo --stats: where the time goes, summed up in the log every interval.
  * Per output: repaint start to presentation, presentation to the next repaint
  * start (frame callbacks go out at presentation), missed vblanks, damaged
- * share of the output, and how often the top view was on a hardware plane.
+ * share of the output, and how often the top view was on a hardware plane,
+ * and which programs committed the most frames.
  * For input: event to Polo handling it, and event to the presentation of the
  * first frame repainted after it. For effects: simulation time per frame and
  * deformed vertices. Off, every hook returns at once.
@@ -35,6 +36,8 @@ struct stats_output {
 	struct wl_listener latch;
 	struct wl_listener frame;
 	struct wl_listener destroy;
+	int (*start_repaint_loop)(struct weston_output *output);
+	gint64 saved_present;
 	gint64 pending_start;
 	gint64 pending_input;
 	gint64 last_present;
@@ -60,7 +63,15 @@ static struct {
 	guint64 vertices_sum;
 	guint vertices_max;
 	guint effect_frames;
+	struct wl_listener surface_created;
+	GHashTable *commits;
 } stats;
+
+struct watched_surface {
+	struct weston_surface *surface;
+	struct wl_listener commit;
+	struct wl_listener destroy;
+};
 
 static gint64
 timespec_usec(const struct timespec *ts)
@@ -165,9 +176,13 @@ output_latched(struct wl_listener *listener, void *data)
 {
 	struct stats_output *o = wl_container_of(listener, o, latch);
 	gint64 now = presentation_now();
-	gint64 present = timespec_usec(&o->output->frame_time);
+	gboolean fresh =
+		!(o->output->frame_flags & WP_PRESENTATION_FEEDBACK_INVALID);
+	gint64 present = fresh ? timespec_usec(&o->output->frame_time)
+			       : o->saved_present;
 	gint64 period = refresh_period_usec(o->output);
 
+	o->saved_present = 0;
 	if (o->pending_start && present >= o->pending_start) {
 		gint64 took = present - o->pending_start;
 
@@ -178,7 +193,7 @@ output_latched(struct wl_listener *listener, void *data)
 			series_add(&o->input_frame, present - o->pending_input);
 		o->frames++;
 	}
-	if (present > o->last_present && now >= present &&
+	if (fresh && present > o->last_present && now >= present &&
 	    now - present < G_USEC_PER_SEC)
 		series_add(&o->present_repaint, now - present);
 	o->last_present = present;
@@ -186,6 +201,22 @@ output_latched(struct wl_listener *listener, void *data)
 	o->pending_start = now;
 	o->pending_input = stats.input_waiting;
 	stats.input_waiting = 0;
+}
+
+static int
+start_repaint_loop(struct weston_output *output)
+{
+	struct stats_output *o;
+
+	wl_list_for_each(o, &stats.outputs, link)
+	{
+		if (o->output != output)
+			continue;
+		if (!(output->frame_flags & WP_PRESENTATION_FEEDBACK_INVALID))
+			o->saved_present = timespec_usec(&output->frame_time);
+		return o->start_repaint_loop(output);
+	}
+	return 0;
 }
 
 static void
@@ -221,6 +252,7 @@ output_destroyed(struct wl_listener *listener, void *data)
 	wl_list_remove(&o->latch.link);
 	wl_list_remove(&o->frame.link);
 	wl_list_remove(&o->destroy.link);
+	o->output->start_repaint_loop = o->start_repaint_loop;
 	wl_list_remove(&o->link);
 	g_free(o);
 }
@@ -237,7 +269,86 @@ watch_output(struct weston_output *output)
 	wl_signal_add(&output->frame_signal, &o->frame);
 	o->destroy.notify = output_destroyed;
 	wl_signal_add(&output->destroy_signal, &o->destroy);
+	o->start_repaint_loop = output->start_repaint_loop;
+	if (o->start_repaint_loop)
+		output->start_repaint_loop = start_repaint_loop;
 	wl_list_insert(&stats.outputs, &o->link);
+}
+
+static void
+surface_committed(struct wl_listener *listener, void *data)
+{
+	struct watched_surface *w = wl_container_of(listener, w, commit);
+	const char *name = "compositor";
+	char *base;
+
+	if (w->surface->resource) {
+		PoloBackendClient *client = polo_backend_server_get_client(
+			stats.server,
+			wl_resource_get_client(w->surface->resource));
+		const char *exe = polo_backend_client_get_executable(client);
+
+		if (exe)
+			name = exe;
+	}
+	base = g_path_get_basename(name);
+	g_hash_table_insert(
+		stats.commits, base,
+		GUINT_TO_POINTER(GPOINTER_TO_UINT(g_hash_table_lookup(
+					 stats.commits, base)) +
+				 1));
+}
+
+static void
+surface_destroyed(struct wl_listener *listener, void *data)
+{
+	struct watched_surface *w = wl_container_of(listener, w, destroy);
+
+	wl_list_remove(&w->commit.link);
+	wl_list_remove(&w->destroy.link);
+	g_free(w);
+}
+
+static void
+surface_created(struct wl_listener *listener, void *data)
+{
+	struct watched_surface *w = g_new0(struct watched_surface, 1);
+
+	w->surface = data;
+	w->commit.notify = surface_committed;
+	wl_signal_add(&w->surface->commit_signal, &w->commit);
+	w->destroy.notify = surface_destroyed;
+	wl_signal_add(&w->surface->destroy_signal, &w->destroy);
+}
+
+static gint
+by_count(gconstpointer a, gconstpointer b)
+{
+	guint x = GPOINTER_TO_UINT(
+		g_hash_table_lookup(stats.commits, *(char **)a));
+	guint y = GPOINTER_TO_UINT(
+		g_hash_table_lookup(stats.commits, *(char **)b));
+
+	return x < y ? 1 : x > y ? -1 : 0;
+}
+
+static void
+print_commits(GString *line)
+{
+	guint n;
+	gpointer *names;
+
+	if (g_hash_table_size(stats.commits) == 0)
+		return;
+	names = g_hash_table_get_keys_as_array(stats.commits, &n);
+	qsort(names, n, sizeof names[0], by_count);
+	g_string_append(line, "; most commits:");
+	for (guint i = 0; i < n && i < 3; i++)
+		g_string_append_printf(line, " %s %u", (char *)names[i],
+				       GPOINTER_TO_UINT(g_hash_table_lookup(
+					       stats.commits, names[i])));
+	g_free(names);
+	g_hash_table_remove_all(stats.commits);
 }
 
 static void
@@ -278,7 +389,8 @@ report(gpointer data)
 	}
 
 	g_string_assign(line, "stats input and effects");
-	if (stats.input_handled.n == 0 && stats.effect_frames == 0) {
+	if (stats.input_handled.n == 0 && stats.effect_frames == 0 &&
+	    g_hash_table_size(stats.commits) == 0) {
 		g_string_free(line, TRUE);
 		return G_SOURCE_CONTINUE;
 	}
@@ -290,6 +402,7 @@ report(gpointer data)
 			(double)stats.vertices_sum / stats.effect_frames,
 			stats.vertices_max);
 	}
+	print_commits(line);
 	polo_log_scope_info(log, "%s", line->str);
 	stats.vertices_sum = 0;
 	stats.vertices_max = 0;
@@ -314,6 +427,11 @@ polo_backend_stats_start(PoloBackendServer *server, guint interval_msec)
 	stats.output_created.notify = output_created;
 	wl_signal_add(&server->compositor->output_created_signal,
 		      &stats.output_created);
+	stats.commits =
+		g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
+	stats.surface_created.notify = surface_created;
+	wl_signal_add(&server->compositor->create_surface_signal,
+		      &stats.surface_created);
 	g_timeout_add(MAX(interval_msec, 100u), report, NULL);
 	polo_log_scope_info(polo_backend_log_scope("polo"),
 			    "stats: a summary every %u ms",

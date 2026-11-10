@@ -72,6 +72,11 @@ main(int argc, char **argv)
 		harness_wait_frame(h, b->surface);
 		nanosleep(&tick, NULL);
 	}
+	/* Idle, then single frames: each restarts the repaint loop. */
+	for (int i = 0; i < 3; i++) {
+		usleep(700 * 1000);
+		harness_wait_frame(h, a->surface);
+	}
 	usleep(600 * 1000);
 	harness_roundtrip(h);
 
@@ -96,6 +101,19 @@ main(int argc, char **argv)
 	      output_line);
 	CHECK(strstr(output_line, "damage "), "no damage share: %.300s",
 	      output_line);
+	for (const char *at = strstr(text, "repaint to presentation p50 "); at;
+	     at = strstr(at + 1, "repaint to presentation p50 ")) {
+		double p50, p95, max;
+
+		CHECK(sscanf(at,
+			     "repaint to presentation p50 %lf p95 %lf max %lf",
+			     &p50, &p95, &max) == 3,
+		      "unreadable: %.120s", at);
+		CHECK(max < 100,
+		      "a frame after idle took %.1f ms to present: the restart "
+		      "of the repaint loop was taken for its presentation",
+		      max);
+	}
 	CHECK(strstr(output_line, "top view on a plane "),
 	      "no plane count: %.300s", output_line);
 	input_line = line_with(text, "stats input and effects");
@@ -104,6 +122,8 @@ main(int argc, char **argv)
 	CHECK(strstr(text, "input to frame p50"), "no input to frame timing");
 	CHECK(strstr(text, "effect simulation p50"),
 	      "the open animation was not timed");
+	CHECK(strstr(text, "most commits: test-stats "),
+	      "the committing program is not named");
 
 	harness_window_destroy(b);
 	harness_window_destroy(a);
