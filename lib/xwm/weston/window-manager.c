@@ -1312,7 +1312,15 @@ weston_wm_handle_map_request(struct weston_wm *wm, xcb_generic_event_t *event)
 	 * of the Wayland connection and the X11 client is repeatedly mapping
 	 * and unmapping, we will never have shsurf set on MapRequest.
 	 */
-	assert(!window->shsurf);
+	if (window->shsurf) {
+		wm_printf(wm, "XCB_MAP_REQUEST (window %d still paired with a "
+			      "surface: dropping that pairing)\n",
+			  window->id);
+		if (window->surface)
+			wl_list_remove(&window->surface_destroy_listener.link);
+		window->surface = NULL;
+		window->shsurf = NULL;
+	}
 
 	window->map_request_valid = true;
 	window->map_request = window->pos;
@@ -1385,15 +1393,14 @@ weston_wm_handle_unmap_notify(struct weston_wm *wm, xcb_generic_event_t *event)
 
 	polo_xwindow_unmapped(window->polo);
 
-	if (window->surface_id) {
-		/* Make sure we're not on the unpaired surface list or we
-		 * could be assigned a surface during surface creation that
-		 * was mapped before this unmap request.
-		 */
-		wl_list_remove(&window->link);
-		wl_list_init(&window->link);
-		window->surface_id = 0;
-	}
+	/* Off the unpaired list whichever way it was waiting (WL_SURFACE_ID
+	 * or xwayland_shell_v1's serial), or a surface from before this
+	 * unmap pairs with it later and the next MapRequest finds shsurf
+	 * set. */
+	wl_list_remove(&window->link);
+	wl_list_init(&window->link);
+	window->surface_id = 0;
+	window->surface_serial = 0;
 	if (wm->focus_window == window)
 		wm->focus_window = NULL;
 	if (window->surface)

@@ -280,6 +280,10 @@ main(int argc, char **argv)
 	      lit);
 	if (with_x) {
 		count(h, 0, WHITE, &seen, &lit);
+		for (int i = 0; i < 20 && seen <= 1000; i++) {
+			pause_ms(h, 100);
+			count(h, 0, WHITE, &seen, &lit);
+		}
 		CHECK(seen > 1000,
 		      "the X window did not show after unlocking (%d): the "
 		      "locked check above proves nothing",

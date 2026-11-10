@@ -11,7 +11,9 @@
  *   x-prop-fuzz LOG [SEED [ROUNDS]]
  *
  * The same SEED does the same thing. It writes "round N" lines to LOG and
- * "done" when finished, "lost" if the X connection went away.
+ * "done" when finished, "lost" if the X connection went away. SEED "maps"
+ * instead maps and unmaps windows back to back, faster than Xwayland pairs
+ * them with their Wayland surfaces.
  */
 
 #include <stdint.h>
@@ -342,6 +344,29 @@ churn_window(void)
 	}
 }
 
+static int
+map_storm(FILE *out, unsigned long rounds)
+{
+	for (unsigned long round = 1; round <= rounds; round++) {
+		xcb_window_t window = windows[round % WINDOWS];
+
+		xcb_map_window(conn, window);
+		xcb_unmap_window(conn, window);
+		xcb_map_window(conn, window);
+		if (round % 50 == 0) {
+			xcb_flush(conn);
+			drain();
+		}
+		if (xcb_connection_has_error(conn)) {
+			fprintf(out, "lost\n");
+			return 1;
+		}
+	}
+	free(xcb_get_input_focus_reply(conn, xcb_get_input_focus(conn), NULL));
+	fprintf(out, "done\n");
+	return 0;
+}
+
 int
 main(int argc, char **argv)
 {
@@ -366,6 +391,8 @@ main(int argc, char **argv)
 	for (int i = 0; i < WINDOWS; i++)
 		make_window(i);
 	xcb_flush(conn);
+	if (argc > 2 && strcmp(argv[2], "maps") == 0)
+		return map_storm(out, rounds);
 
 	for (unsigned long round = 1; round <= rounds; round++) {
 		uint32_t pick = below(100);

@@ -98,11 +98,15 @@ start_client(int display, const char *path, const char *xauth, int seed)
 		char name[16], number[16];
 
 		snprintf(name, sizeof name, ":%d", display);
-		snprintf(number, sizeof number, "%d", seed);
+		if (seed == 0)
+			snprintf(number, sizeof number, "maps");
+		else
+			snprintf(number, sizeof number, "%d", seed);
 		setenv("DISPLAY", name, 1);
 		setenv("HOME", "/nonexistent", 1);
 		setenv("XAUTHORITY", xauth, 1);
-		execl(path, path, log_path, number, ROUNDS, NULL);
+		execl(path, path, log_path, number, seed == 0 ? "600" : ROUNDS,
+		      NULL);
 		_exit(127);
 	}
 	return client;
@@ -154,6 +158,9 @@ main(int argc, char **argv)
 	CHECK(argc >= 3, "usage: %s POLO X-PROP-FUZZ", argv[0]);
 	if (system("command -v Xwayland >/dev/null") != 0)
 		return 77;
+	/* Seed 0: windows mapped and unmapped faster than Xwayland pairs them
+	 * with their Wayland surfaces. */
+	run_seed(argc, argv, 0);
 	for (int seed = 1; seed <= SEEDS; seed++)
 		run_seed(argc, argv, seed);
 	return 0;
