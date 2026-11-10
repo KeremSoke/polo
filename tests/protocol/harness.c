@@ -549,6 +549,9 @@ harness_start(int argc, char **argv)
 		/* POLO_TEST_DEBUG=scope,scope turns on Polo's debug output. */
 		const char *debug = getenv("POLO_TEST_DEBUG");
 		char debug_arg[256], exec_arg[1024];
+		const char *scale_arg = getenv("POLO_TEST_SCALE")
+			? getenv("POLO_TEST_SCALE")
+			: "--scale=1";
 
 		snprintf(exec_arg, sizeof exec_arg, "--exec=%s",
 			 getenv("POLO_TEST_EXEC") ? getenv("POLO_TEST_EXEC")
@@ -567,11 +570,8 @@ harness_start(int argc, char **argv)
 		      debug_arg,
 		      getenv("POLO_TEST_TWO_OUTPUTS") ? "--outputs=2"
 						      : "--outputs=1",
-		      getenv("POLO_TEST_KILL") ? "--debug-kill"
-			      : getenv("POLO_TEST_SCALE")
-			      ? getenv("POLO_TEST_SCALE")
-			      : "--scale=1",
-		      getenv("POLO_TEST_EXEC") ? exec_arg : "--scale=1",
+		      getenv("POLO_TEST_KILL") ? "--debug-kill" : scale_arg,
+		      getenv("POLO_TEST_EXEC") ? exec_arg : scale_arg,
 		      (char *)NULL);
 		_exit(127);
 	}

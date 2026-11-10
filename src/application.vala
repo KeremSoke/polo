@@ -208,7 +208,8 @@ namespace Polo {
             var lamp_targets = new Effects.LampTargets (model, desktop.layer_shell);
             lamp_targets.set_panel_button (foreign_toplevels.minimize_target);
             desktop.lamp_targets = lamp_targets;
-            trust.deny_by_default = !CommandLine.test_mode || GLib.Environment.get_variable ("POLO_TEST_TRUST") == "deny";
+            trust.deny_by_default = !CommandLine.test_mode ||
+                                    GLib.Environment.get_variable ("POLO_TEST_TRUST") == "deny";
             var session_settings = settings_if_installed ("org.mate.polo.session");
             if (session_settings != null) {
                 trust.trusted_executables = session_settings.get_strv ("trusted-executables");

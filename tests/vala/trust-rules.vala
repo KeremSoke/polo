@@ -26,6 +26,11 @@ void test_user_owned_file_is_refused () {
     } catch (GLib.FileError e) {
         error ("%s", e.message);
     }
+    if (Posix.getuid () != 0) {
+        assert (!TrustRules.root_owned_file (path));
+        assert (!TrustRules.executable_trusted (path, { path }));
+    }
+    GLib.FileUtils.chmod (path, 0666);
     assert (!TrustRules.root_owned_file (path));
     assert (!TrustRules.executable_trusted (path, { path }));
     GLib.FileUtils.unlink (path);
