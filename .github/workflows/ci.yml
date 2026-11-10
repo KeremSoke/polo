@@ -96,6 +96,41 @@ jobs:
       - name: Build
         run: ninja -C build
 
+  # The protocol fuzzers replay their committed corpora once: a crash,
+  # leak or hang on any of them fails the job.
+  fuzz-regression:
+    name: Fuzz regression
+    runs-on: ubuntu-latest
+    container: fedora:44
+    steps:
+      - name: Install dependencies
+        run: dnf -y install $FEDORA_DEPS clang compiler-rt
+      - uses: actions/checkout@v4
+      - name: Cache Weston checkout
+        uses: actions/cache@v4
+        with:
+          path: subprojects/weston
+          key: weston-${{ hashFiles('subprojects/weston.wrap', 'subprojects/packagefiles/weston/**') }}
+      - name: Configure
+        env:
+          CC: clang
+          CXX: clang++
+        run: >-
+          meson setup build -Dfuzz=true -Dshell-ui=false -Dxwayland=false
+          -Db_sanitize=address,undefined -Db_lundef=false
+      - name: Build
+        run: >-
+          ninja -C build tests/fuzz/fuzz-protocols
+          subprojects/weston/libweston/backend-headless/headless-backend.so
+      - name: Replay the corpora
+        run: meson test -C build --no-rebuild --suite fuzz --print-errorlogs
+      - name: Upload test log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: testlog-fuzz
+          path: build/meson-logs/
+
   lint:
     name: Lint and boundary
     runs-on: ubuntu-latest

@@ -54,6 +54,9 @@ backend_sources = files(
 )
 backend_deps = [glib_dep, gobject_dep, libweston_dep, dependency('libdisplay-info'), dependency('xcursor'), dependency('wayland-client'), dependency('xkbcommon'), dependency('xkbregistry'), dependency('libinput'), dependency('pixman-1')]
 backend_c_args = []
+if get_option('fuzz')
+  backend_c_args += '-fsanitize=fuzzer-no-link'
+endif
 
 if get_option('test-protocol')
   polo_test_xml = meson.project_source_root() / 'protocol' / 'polo-test-v1.xml'

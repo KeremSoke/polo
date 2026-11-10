@@ -6,7 +6,8 @@
 Rules:
   1  Vala code uses only the allowed packages and never names libweston,
      Wayland, X or xkb namespaces.
-  2  Only lib/backend/ and lib/xwm/ include libweston or wayland-server.
+  2  Only lib/backend/, lib/xwm/ and the backend fuzzers in tests/fuzz/ include
+     libweston or wayland-server.
   3  lib/marco/, lib/fx/ and lib/bg/ include only libc, glib.h, cairo,
      pango and their own headers (they stay pure); lib/bg/ may also use
      gdk-pixbuf (image decoding) and time.h (slideshow start times), and
@@ -118,13 +119,13 @@ def check(root):
                     add(4, rel, n, "the policy library must not use polo-backend")
 
     for path, rel in files(root, ["*.c", "*.h"]):
-        in_backend = rel.startswith(("lib/backend/", "lib/xwm/"))
+        in_backend = rel.startswith(("lib/backend/", "lib/xwm/", "tests/fuzz/"))
         pure = rel.startswith(("lib/marco/", "lib/fx/", "lib/bg/"))
         extra_ok = BG_EXTRA if rel.startswith("lib/bg/") else \
             MARCO_EXTRA if rel.startswith("lib/marco/") else None
         for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
             if not in_backend and LIBWESTON_INCLUDE_RE.match(line):
-                add(2, rel, n, "only lib/backend/ and lib/xwm/ may include libweston or wayland-server")
+                add(2, rel, n, "only lib/backend/, lib/xwm/ and tests/fuzz/ may include libweston or wayland-server")
             if pure:
                 m = INCLUDE_RE.match(line)
                 if not m:

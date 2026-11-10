@@ -3,6 +3,9 @@ python = find_program('python3')
 subdir('c')
 subdir('vala')
 subdir('policy')
+if get_option('fuzz')
+  subdir('fuzz')
+endif
 
 # VAPI coverage: always --fatal-warnings, and the
 # generated C must agree with the headers (vala_c_args).
