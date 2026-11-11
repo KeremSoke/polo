@@ -93,6 +93,14 @@ foreach name : ['ssd', 'frame-input', 'shade', 'frame-scale', 'output-replug', '
   )
 endforeach
 
+# A screen reader's keyboard monitor, on a bus of its own.
+test('keyboard-monitor', executable('test-keyboard-monitor', 'test-keyboard-monitor.c', dependencies: harness_dep),
+  args: [polo_exe, files('fake-orca.py')],
+  env: protocol_test_env,
+  suite: 'protocol',
+  timeout: 90,
+)
+
 if get_option('debug-kill')
   test('debug-kill', executable('test-debug-kill', 'test-debug-kill.c', dependencies: harness_dep),
     args: [polo_exe],
