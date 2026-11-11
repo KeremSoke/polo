@@ -28,6 +28,8 @@
 #define LATE_MS 300
 #define TRACE_MS 1000
 #define KERNEL_CHECK_MS 250
+#define CONFIRM_MS 1000
+#define THRASHING 10.0
 #define FRAMES 64
 
 static struct {
@@ -44,6 +46,8 @@ static struct {
 	GPollFunc poll;
 	int trace_signal;
 	pid_t tid;
+	void *frames[FRAMES];
+	volatile sig_atomic_t n_frames;
 } watchdog;
 
 static gint64
@@ -88,14 +92,47 @@ say_at(const char *text)
 static void
 on_trace_signal(int signal_number)
 {
-	void *frames[FRAMES];
 	int saved = errno;
-	int n = backtrace(frames, FRAMES);
 
 	(void)signal_number;
-	say("polo: watchdog: the main loop is here:\n");
-	backtrace_symbols_fd(frames, n, watchdog.fd);
+	watchdog.n_frames = backtrace(watchdog.frames, FRAMES);
 	errno = saved;
+}
+
+static void
+trace_main_loop(void)
+{
+	struct timespec step = { 0, 10 * 1000000L };
+
+	watchdog.n_frames = -1;
+	pthread_kill(watchdog.main_thread, watchdog.trace_signal);
+	for (int i = 0; i < 50 && watchdog.n_frames < 0; i++)
+		nanosleep(&step, NULL);
+	if (watchdog.n_frames < 0) {
+		say("polo: watchdog: the main loop's stack could not be "
+		    "read\n");
+		return;
+	}
+	say("polo: watchdog: the main loop is here:\n");
+	backtrace_symbols_fd(watchdog.frames, watchdog.n_frames, watchdog.fd);
+}
+
+static double
+memory_pressure(void)
+{
+	const char *path = g_getenv("POLO_WATCHDOG_PRESSURE");
+	char *text = NULL;
+	const char *full;
+	double avg10 = 0;
+
+	if (!g_file_get_contents(path ? path : "/proc/pressure/memory", &text,
+				 NULL, NULL))
+		return 0;
+	full = strstr(text, "full avg10=");
+	if (full)
+		avg10 = g_ascii_strtod(full + strlen("full avg10="), NULL);
+	g_free(text);
+	return avg10;
 }
 
 static gboolean
@@ -171,6 +208,7 @@ static void *
 watch(void *data)
 {
 	gint64 traced_start = -1, last_note = G_MININT64 / 2;
+	gint64 last_memory_note = G_MININT64 / 2;
 	gint64 in_kernel_at = G_MININT64 / 2;
 	char line[400], wchan[64];
 
@@ -197,8 +235,7 @@ watch(void *data)
 				 "for %" G_GINT64_FORMAT " ms\n",
 				 lag);
 			say_at(line);
-			pthread_kill(watchdog.main_thread,
-				     watchdog.trace_signal);
+			trace_main_loop();
 			g_mutex_lock(&watchdog.lock);
 			continue;
 		}
@@ -226,17 +263,47 @@ watch(void *data)
 					say_at(line);
 				}
 			}
+			double pressure = memory_pressure();
+
+			if (pressure >= THRASHING) {
+				in_kernel_at = now_ms();
+				if (now - last_memory_note >=
+				    (gint64)watchdog.abort_ms) {
+					last_memory_note = now;
+					snprintf(line, sizeof line,
+						 "polo: watchdog: the system "
+						 "is short of memory (%.0f%% "
+						 "stalled); not aborting a "
+						 "main loop stuck for "
+						 "%" G_GINT64_FORMAT " ms\n",
+						 pressure, lag);
+					say_at(line);
+				}
+			}
 			if (now_ms() - in_kernel_at <
 			    (gint64)watchdog.abort_ms) {
 				g_mutex_lock(&watchdog.lock);
 				wait_until(now_ms() + KERNEL_CHECK_MS);
 				continue;
 			}
+			asleep_from = now_ms();
+			g_mutex_lock(&watchdog.lock);
+			wait_until(asleep_from + CONFIRM_MS);
+			if (now_ms() - asleep_from > 2 * CONFIRM_MS &&
+			    watchdog.working &&
+			    watchdog.work_start_ms == start) {
+				watchdog.work_start_ms = now_ms();
+				continue;
+			}
+			if (!watchdog.working ||
+			    watchdog.work_start_ms != start)
+				continue;
+			g_mutex_unlock(&watchdog.lock);
 			snprintf(line, sizeof line,
 				 "polo: watchdog: the main loop has been "
 				 "stuck for %" G_GINT64_FORMAT
 				 " ms; aborting\n",
-				 lag);
+				 now_ms() - start);
 			say_at(line);
 			abort();
 		}

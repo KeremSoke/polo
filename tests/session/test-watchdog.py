@@ -7,7 +7,9 @@ hook blocks.
   test-watchdog.py POLO
 
 A blocked main loop is logged, one blocked for over a second also logs where
-the main thread is, and one blocked past POLO_WATCHDOG_SECONDS aborts Polo.
+the main thread is, and one blocked past POLO_WATCHDOG_SECONDS aborts Polo,
+unless the system is short of memory (POLO_WATCHDOG_PRESSURE stands in for
+/proc/pressure/memory).
 """
 
 import os
@@ -36,8 +38,10 @@ def no_core():
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
 
 
-def start(polo, runtime, log, stalls, seconds):
+def start(polo, runtime, log, stalls, seconds, extra=None):
     env = dict(os.environ)
+    env.pop("POLO_WATCHDOG_PRESSURE", None)
+    env.update(extra or {})
     env.update(XDG_RUNTIME_DIR=runtime, POLO_SHELL_UI="", POLO_XWAYLAND="off",
                GSETTINGS_BACKEND="memory", POLO_TEST_STALL_MS=stalls)
     env.pop("POLO_WATCHDOG_SECONDS", None)
@@ -86,10 +90,10 @@ def stop(proc):
         return proc.wait()
 
 
-def run(polo, runtime, name, stalls, seconds, unblocked, timeout):
+def run(polo, runtime, name, stalls, seconds, unblocked, timeout, extra=None):
     path = os.path.join(runtime, name + ".log")
     with open(path, "w") as log:
-        proc = start(polo, runtime, log, stalls, seconds)
+        proc = start(polo, runtime, log, stalls, seconds, extra)
         wait_for(proc, path, unblocked, timeout)
         alive = proc.poll() is None
         status = stop(proc)
@@ -136,6 +140,16 @@ def main():
         check("waiting in the kernel" in log, "a main loop in a kernel wait was not reported as such", log)
         check("aborting\n" not in log, "the watchdog aborted a main loop that could not exit", log)
         check("test: main loop unblocked" in log, "the kernel wait did not finish", log)
+
+        pressure = os.path.join(runtime, "pressure")
+        with open(pressure, "w") as f:
+            f.write("some avg10=80.00 avg60=40.00 avg300=10.00 total=1\n"
+                    "full avg10=50.00 avg60=20.00 avg300=5.00 total=1\n")
+        log, alive, status = run(polo, runtime, "thrashing", "6000", "2", 1, 20,
+                                 {"POLO_WATCHDOG_PRESSURE": pressure})
+        check(alive and status == 0, "a main loop stuck while memory thrashed was aborted: %s" % status, log)
+        check("short of memory (50% stalled)" in log, "thrashing memory was not reported", log)
+        check("aborting\n" not in log, "the watchdog aborted while the system was short of memory", log)
 
         log, alive, status = frozen_process(polo, runtime)
         check(alive and status == 0,
