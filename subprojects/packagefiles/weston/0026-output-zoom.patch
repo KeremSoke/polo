@@ -1,0 +1,177 @@
+--- a/include/libweston/libweston.h
++++ b/include/libweston/libweston.h
+@@ -441,6 +441,15 @@
+ 	/** From output buffer to global coordinates. */
+ 	struct weston_matrix inverse_matrix;
+ 
++	/** Magnification. At a scale above 1 the output shows the part of its
++	 * own area of 1/scale its size that is centred on center, kept inside
++	 * the output, stretched over the whole output. Hardware planes are not
++	 * used meanwhile, so the cursor is magnified too. */
++	struct {
++		double scale;
++		struct weston_coord_global center;
++	} zoom;
++
+ 	struct wl_list animation_list;
+ 	struct weston_coord_global pos;
+ 	int32_t width, height;
+@@ -2931,6 +2940,13 @@
+ 			    uint32_t transform);
+ 
+ void
++weston_output_set_zoom(struct weston_output *output, double scale,
++		       struct weston_coord_global center);
++
++bool
++weston_output_zoom_active(const struct weston_output *output);
++
++void
+ weston_output_color_effect_inversion(struct weston_output *output);
+ 
+ void
+--- a/libweston/compositor.c
++++ b/libweston/compositor.c
+@@ -7725,9 +7725,80 @@
+ 				     output->width, output->height,
+ 				     output->current_scale);
+ 
++	if (weston_output_zoom_active(output)) {
++		struct weston_matrix zoom;
++		double scale = output->zoom.scale;
++		double width = output->width / scale;
++		double height = output->height / scale;
++		double left = output->pos.c.x;
++		double top = output->pos.c.y;
++		double x, y;
++
++		x = output->zoom.center.c.x - width / 2;
++		y = output->zoom.center.c.y - height / 2;
++		x = fmin(fmax(x, left), left + output->width - width);
++		y = fmin(fmax(y, top), top + output->height - height);
++
++		weston_matrix_init(&zoom);
++		weston_matrix_translate(&zoom, -x, -y, 0);
++		weston_matrix_scale(&zoom, scale, scale, 1);
++		weston_matrix_translate(&zoom, left, top, 0);
++		weston_matrix_multiply(&zoom, &output->matrix);
++		output->matrix = zoom;
++	}
++
+ 	weston_matrix_invert(&output->inverse_matrix, &output->matrix);
+ }
+ 
++/** Whether the output is magnified
++ *
++ * \param output The output.
++ * \return True while its zoom scale is above 1.
++ *
++ * \ingroup output
++ */
++WL_EXPORT bool
++weston_output_zoom_active(const struct weston_output *output)
++{
++	return output->zoom.scale > 1;
++}
++
++/** Magnify an output
++ *
++ * \param output The output.
++ * \param scale The magnification, clamped to 1–32; 1 turns zoom off.
++ * \param center The global point to centre on. The shown area is kept
++ * inside the output, so near its edges the point is off-centre.
++ *
++ * The output's matrices change, so rendering, damage and absolute input
++ * (touch, tablets) all follow; the output is damaged as a whole.
++ *
++ * \ingroup output
++ */
++WL_EXPORT void
++weston_output_set_zoom(struct weston_output *output, double scale,
++		       struct weston_coord_global center)
++{
++	if (!(scale >= 1))
++		scale = 1;
++	if (scale > 32)
++		scale = 32;
++	if (!isfinite(center.c.x) || !isfinite(center.c.y))
++		center = output->zoom.center;
++
++	if (scale == output->zoom.scale &&
++	    (scale == 1 || (center.c.x == output->zoom.center.c.x &&
++			    center.c.y == output->zoom.center.c.y)))
++		return;
++
++	output->zoom.scale = scale;
++	output->zoom.center = center;
++	if (!output->enabled)
++		return;
++	weston_output_update_matrix(output);
++	weston_output_damage(output);
++}
++
+ static void
+ weston_output_transform_scale_init(struct weston_output *output, uint32_t transform, uint32_t scale)
+ {
+@@ -8677,6 +8748,8 @@
+ 
+ 	output->shell_private = NULL;
+ 	output->pos.c = weston_coord(0, 0);
++	output->zoom.scale = 1;
++	output->zoom.center = output->pos;
+ 	output->compositor = compositor;
+ 	output->destroying = 0;
+ 	output->name = strdup(name);
+--- a/libweston/backend-drm/state-propose.c
++++ b/libweston/backend-drm/state-propose.c
+@@ -65,6 +65,14 @@
+ 	[DRM_OUTPUT_PROPOSE_STATE_PLANES_ONLY]	= "reused plane-only state",
+ };
+ 
++/* A magnified output shows everything, the cursor included, through the
++ * renderer. */
++static bool
++drm_output_planes_allowed(struct weston_output *output)
++{
++	return !output->disable_planes && !weston_output_zoom_active(output);
++}
++
+ static const char *
+ drm_propose_state_mode_to_string(enum drm_output_propose_state_mode mode)
+ {
+@@ -1182,7 +1190,7 @@
+ 		return NULL;
+ 	}
+ 
+-	if (output->state_cur->planes_enabled != !output_base->disable_planes) {
++	if (output->state_cur->planes_enabled != drm_output_planes_allowed(output_base)) {
+ 		debug_propose_fail(output, mode, "planes_enabled changed");
+ 		return NULL;
+ 	}
+@@ -1343,7 +1351,7 @@
+ 					   DRM_OUTPUT_STATE_CLEAR_PLANES);
+ 	state->mode = mode;
+ 	state->dpms = WESTON_DPMS_ON;
+-	state->planes_enabled = !output_base->disable_planes;
++	state->planes_enabled = drm_output_planes_allowed(output_base);
+ 
+ 	/* Start from the default background. Only PLANES_ONLY lowers solid
+ 	 * views into it, so without this the colour picked for a previous
+@@ -1692,7 +1700,7 @@
+ 	}
+ 
+ 	if (!state && !device->disable_client_buffer_scanout &&
+-	    !output_base->disable_planes && !output->is_virtual && b->gbm) {
++	    drm_output_planes_allowed(output_base) && !output->is_virtual && b->gbm) {
+ 		drm_debug(b, "\t[repaint] trying planes-only build state\n");
+ 		mode = DRM_OUTPUT_PROPOSE_STATE_PLANES_ONLY;
+ 		state = drm_output_propose_state(output_base, pending_state, mode);
+@@ -1712,7 +1720,7 @@
+ 	 * 1. If we didn't enter the last block (for some reason we can't use planes)
+ 	 * 2. If we entered but both the planes-only and the mixed modes didn't work */
+ 	if (!state) {
+-		if (output_base->disable_planes)
++		if (!drm_output_planes_allowed(output_base))
+ 			mode = DRM_OUTPUT_PROPOSE_STATE_RENDERER_ONLY;
+ 		else
+ 			mode = DRM_OUTPUT_PROPOSE_STATE_RENDERER_AND_CURSOR;
