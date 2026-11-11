@@ -739,4 +739,7 @@ void
 polo_backend_gpu_wedged(PoloBackendServer *server, const char *device,
 			const char *recovery);
 
+unsigned
+polo_backend_log_dump_ring(int fd);
+
 #endif /* POLO_BACKEND_PRIVATE_H */

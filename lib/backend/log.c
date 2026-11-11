@@ -40,14 +40,106 @@ static const struct {
 	{ "polo-protocol", "Polo-implemented Wayland protocols\n" },
 };
 
+#define RING_LINES 200
+#define RING_LINE_BYTES 512
+
 static struct {
 	struct weston_log_context *ctx;
 	struct weston_log_subscriber *subscriber;
 	struct weston_log_scope *log;
-	FILE *file;
+	FILE *file;   /* the log file itself, or stderr */
+	FILE *stream; /* what libweston writes to: the file plus the ring */
 	GHashTable *scopes;
 	int cached_tm_mday;
 } polo_log;
+
+static struct {
+	char lines[RING_LINES][RING_LINE_BYTES];
+	size_t lengths[RING_LINES];
+	unsigned next;   /* the line being written */
+	unsigned filled; /* complete lines kept, up to RING_LINES */
+} ring;
+
+static void
+ring_append(const char *buf, size_t size)
+{
+	for (size_t i = 0; i < size; i++) {
+		unsigned at = ring.next;
+
+		if (ring.lengths[at] < RING_LINE_BYTES)
+			ring.lines[at][ring.lengths[at]++] = buf[i];
+		if (buf[i] == '\n') {
+			ring.lines[at][RING_LINE_BYTES - 1] = '\n';
+			ring.next = (at + 1) % RING_LINES;
+			ring.lengths[ring.next] = 0;
+			if (ring.filled < RING_LINES)
+				ring.filled++;
+		}
+	}
+}
+
+static ssize_t
+stream_write(void *cookie, const char *buf, size_t size)
+{
+	FILE *file = cookie;
+
+	ring_append(buf, size);
+	return (ssize_t)fwrite(buf, 1, size, file);
+}
+
+static int
+stream_close(void *cookie)
+{
+	return 0;
+}
+
+static FILE *
+open_stream(FILE *file)
+{
+	cookie_io_functions_t io = { .write = stream_write,
+				     .close = stream_close };
+	FILE *stream = fopencookie(file, "w", io);
+
+	if (!stream)
+		return file;
+	if (file != stderr)
+		setvbuf(file, NULL, _IONBF, 0);
+	setvbuf(stream, NULL, _IOLBF, 0);
+	return stream;
+}
+
+static void
+write_all(int fd, const char *buf, size_t size)
+{
+	while (size > 0) {
+		ssize_t n = write(fd, buf, size);
+
+		if (n <= 0) {
+			if (n < 0 && errno == EINTR)
+				continue;
+			return;
+		}
+		buf += n;
+		size -= (size_t)n;
+	}
+}
+
+unsigned
+polo_backend_log_dump_ring(int fd)
+{
+	unsigned first = (ring.next + RING_LINES - ring.filled) % RING_LINES;
+
+	for (unsigned i = 0; i < ring.filled; i++) {
+		unsigned at = (first + i) % RING_LINES;
+		size_t length = ring.lengths[at];
+
+		write_all(fd, ring.lines[at], length);
+		if (length == RING_LINE_BYTES &&
+		    ring.lines[at][length - 1] != '\n')
+			write_all(fd, "\n", 1);
+	}
+	return ring.filled;
+}
 
 static int
 weston_vlog(const char *fmt, va_list ap)
@@ -119,6 +211,7 @@ polo_backend_log_init(const char *log_file, const char *debug_scopes,
 	}
 
 	polo_log.file = file;
+	polo_log.stream = open_stream(file);
 	polo_log.cached_tm_mday = -1;
 	polo_log.ctx = weston_log_ctx_create();
 	polo_log.scopes = g_hash_table_new_full(g_str_hash, g_str_equal, NULL,
@@ -131,7 +224,7 @@ polo_backend_log_init(const char *log_file, const char *debug_scopes,
 	for (i = 0; i < G_N_ELEMENTS(polo_scopes); i++)
 		scope_create(polo_scopes[i].name, polo_scopes[i].description);
 
-	polo_log.subscriber = weston_log_subscriber_create_log(file);
+	polo_log.subscriber = weston_log_subscriber_create_log(polo_log.stream);
 	weston_log_subscribe(polo_log.ctx, polo_log.subscriber, "log");
 
 	/* Unknown names stay pending until the scope is created, which is
@@ -168,6 +261,9 @@ polo_backend_log_shutdown(void)
 	weston_log_ctx_destroy(polo_log.ctx);
 	polo_log.ctx = NULL;
 
+	if (polo_log.stream && polo_log.stream != polo_log.file)
+		fclose(polo_log.stream);
+	polo_log.stream = NULL;
 	if (polo_log.file && polo_log.file != stderr)
 		fclose(polo_log.file);
 	polo_log.file = NULL;
