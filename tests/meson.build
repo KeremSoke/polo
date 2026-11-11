@@ -53,6 +53,13 @@ test('watchdog', python,
   timeout: 120,
 )
 
+test('crash-report', python,
+  args: [files('session/test-crash-report.py'), polo_exe],
+  env: vapi_test_env,
+  suite: 'session',
+  timeout: 120,
+)
+
 test('sm-abi', python,
   args: [files('session/test-sm-abi.py'), polo_exe, meson.project_source_root() / 'data' / 'dbus' / 'fixtures'],
   env: vapi_test_env,
