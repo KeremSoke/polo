@@ -2,10 +2,12 @@
  * Copyright 2026 Kerem Soke
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
- * The main loop beats every half second. Late beats are logged; a thread of
- * its own logs the main thread's stack once a beat is a second late, and
- * aborts Polo when the main loop has not moved for too long, so a frozen
- * session leaves a core instead of needing a reboot.
+ * The main loop's poll is wrapped: Polo is idle while it waits there and
+ * working from its return until the next wait. A stretch of work longer
+ * than LATE_MS is logged; a thread of its own logs the main thread's stack
+ * once a stretch passes TRACE_MS, and ends Polo when one lasts too long, so
+ * a frozen session leaves a core instead of needing a reboot. Waiting costs
+ * nothing: the thread sleeps until the loop starts working.
  */
 
 #include <errno.h>
@@ -23,9 +25,9 @@
 
 #include "polo-backend-private.h"
 
-#define BEAT_MS 500
 #define LATE_MS 300
 #define TRACE_MS 1000
+#define KERNEL_CHECK_MS 250
 #define FRAMES 64
 
 static struct {
@@ -34,8 +36,12 @@ static struct {
 	pthread_t thread;
 	guint abort_ms;
 	int fd;
-	gint64 last_beat_ms;
-	gint64 previous_beat_ms;
+	GMutex lock;
+	GCond wake;
+	gboolean working;
+	gboolean parked;
+	gint64 work_start_ms;
+	GPollFunc poll;
 	int trace_signal;
 	pid_t tid;
 } watchdog;
@@ -152,32 +158,40 @@ polo_backend_watchdog_test_block_in_kernel(guint msec)
 }
 
 static void
-sleep_until(gint64 deadline_ms)
+wait_until(gint64 deadline_ms)
 {
-	struct timespec ts = { deadline_ms / 1000,
-			       (deadline_ms % 1000) * 1000000 };
+	gint64 wait_us = (deadline_ms - now_ms()) * 1000;
 
-	while (clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &ts, NULL) ==
-	       EINTR)
-		;
+	if (wait_us > 0)
+		g_cond_wait_until(&watchdog.wake, &watchdog.lock,
+				  g_get_monotonic_time() + wait_us);
 }
 
 static void *
 watch(void *data)
 {
-	gint64 traced_beat = -1, last_note = G_MININT64 / 2;
+	gint64 traced_start = -1, last_note = G_MININT64 / 2;
+	gint64 in_kernel_at = G_MININT64 / 2;
 	char line[400], wchan[64];
 
 	(void)data;
+	g_mutex_lock(&watchdog.lock);
 	for (;;) {
-		gint64 beat = __atomic_load_n(&watchdog.last_beat_ms,
-					      __ATOMIC_ACQUIRE);
-		gint64 now = now_ms();
-		gint64 lag = now - beat;
-		gint64 next;
+		gint64 start, now, lag, next, asleep_from;
 
-		if (lag >= BEAT_MS + TRACE_MS && traced_beat != beat) {
-			traced_beat = beat;
+		if (!watchdog.working) {
+			watchdog.parked = TRUE;
+			g_cond_wait(&watchdog.wake, &watchdog.lock);
+			watchdog.parked = FALSE;
+			continue;
+		}
+		start = watchdog.work_start_ms;
+		now = now_ms();
+		lag = now - start;
+
+		if (lag >= TRACE_MS && traced_start != start) {
+			traced_start = start;
+			g_mutex_unlock(&watchdog.lock);
 			snprintf(line, sizeof line,
 				 "polo: watchdog: the main loop has not run "
 				 "for %" G_GINT64_FORMAT " ms\n",
@@ -185,30 +199,37 @@ watch(void *data)
 			say_at(line);
 			pthread_kill(watchdog.main_thread,
 				     watchdog.trace_signal);
+			g_mutex_lock(&watchdog.lock);
+			continue;
 		}
 		if (watchdog.abort_ms && lag >= (gint64)watchdog.abort_ms) {
+			g_mutex_unlock(&watchdog.lock);
 			if (traced()) {
-				sleep_until(now_ms() + 1000);
+				g_mutex_lock(&watchdog.lock);
+				wait_until(now_ms() + 1000);
 				continue;
 			}
 			if (main_thread_in_kernel(wchan, sizeof wchan)) {
+				in_kernel_at = now_ms();
 				if (now - last_note >=
 				    (gint64)watchdog.abort_ms) {
 					last_note = now;
 					snprintf(
 						line, sizeof line,
 						"polo: watchdog: the main loop "
-						"is "
-						"waiting in the kernel (%s) "
-						"for "
-						"%" G_GINT64_FORMAT
+						"is waiting in the kernel (%s) "
+						"for %" G_GINT64_FORMAT
 						" ms, probably on the GPU; not "
 						"aborting, which could not end "
 						"it\n",
 						wchan, lag);
 					say_at(line);
 				}
-				sleep_until(now_ms() + 1000);
+			}
+			if (now_ms() - in_kernel_at <
+			    (gint64)watchdog.abort_ms) {
+				g_mutex_lock(&watchdog.lock);
+				wait_until(now_ms() + KERNEL_CHECK_MS);
 				continue;
 			}
 			snprintf(line, sizeof line,
@@ -220,38 +241,50 @@ watch(void *data)
 			abort();
 		}
 
-		if (traced_beat != beat)
-			next = beat + BEAT_MS + TRACE_MS;
-		else if (watchdog.abort_ms)
-			next = beat + watchdog.abort_ms;
-		else
-			next = now + BEAT_MS;
-		if (watchdog.abort_ms)
-			next = MIN(next, beat + (gint64)watchdog.abort_ms);
-		if (next <= now)
-			next = now + BEAT_MS;
-		sleep_until(next);
-		if (now_ms() - next > TRACE_MS)
-			sleep_until(now_ms() + 3 * BEAT_MS);
+		next = traced_start != start ? start + TRACE_MS
+					     : start + watchdog.abort_ms;
+		if (!watchdog.abort_ms && traced_start == start) {
+			watchdog.parked = TRUE;
+			g_cond_wait(&watchdog.wake, &watchdog.lock);
+			watchdog.parked = FALSE;
+			continue;
+		}
+		asleep_from = now_ms();
+		if (next <= asleep_from)
+			next = asleep_from + 100;
+		wait_until(next);
+		if (now_ms() - MAX(next, asleep_from) > TRACE_MS &&
+		    watchdog.working && watchdog.work_start_ms == start)
+			watchdog.work_start_ms = now_ms();
 	}
 	return NULL;
 }
 
-static gboolean
-on_beat(gpointer data)
+static gint
+watched_poll(GPollFD *fds, guint n_fds, gint timeout)
 {
-	gint64 now = now_ms();
-	gint64 gap = now - watchdog.previous_beat_ms;
+	gint64 now = now_ms(), worked;
+	gint result;
 
-	(void)data;
-	if (gap > BEAT_MS + LATE_MS)
+	g_mutex_lock(&watchdog.lock);
+	worked = now - watchdog.work_start_ms;
+	watchdog.working = FALSE;
+	g_mutex_unlock(&watchdog.lock);
+	if (worked > LATE_MS)
 		polo_log_scope_warning(polo_backend_log_scope("polo"),
 				       "the main loop was blocked for at least "
 				       "%" G_GINT64_FORMAT " ms",
-				       gap - BEAT_MS);
-	watchdog.previous_beat_ms = now;
-	__atomic_store_n(&watchdog.last_beat_ms, now, __ATOMIC_RELEASE);
-	return G_SOURCE_CONTINUE;
+				       worked);
+
+	result = watchdog.poll(fds, n_fds, timeout);
+
+	g_mutex_lock(&watchdog.lock);
+	watchdog.working = TRUE;
+	watchdog.work_start_ms = now_ms();
+	if (watchdog.parked)
+		g_cond_signal(&watchdog.wake);
+	g_mutex_unlock(&watchdog.lock);
+	return result;
 }
 
 void
@@ -266,13 +299,15 @@ polo_backend_watchdog_start(gboolean by_default)
 		return;
 
 	watchdog.abort_ms =
-		seconds ? (guint)strtoul(seconds, NULL, 10) * 1000 : 15000;
+		seconds ? (guint)strtoul(seconds, NULL, 10) * 1000 : 0;
 	watchdog.fd = polo_backend_log_fd();
 	watchdog.main_thread = pthread_self();
 	watchdog.tid = (pid_t)syscall(SYS_gettid);
 	watchdog.trace_signal = SIGRTMIN + 4;
-	watchdog.previous_beat_ms = now_ms();
-	watchdog.last_beat_ms = watchdog.previous_beat_ms;
+	g_mutex_init(&watchdog.lock);
+	g_cond_init(&watchdog.wake);
+	watchdog.working = TRUE;
+	watchdog.work_start_ms = now_ms();
 
 	backtrace(frames, 1);
 	action.sa_handler = on_trace_signal;
@@ -290,7 +325,8 @@ polo_backend_watchdog_start(gboolean by_default)
 	}
 	pthread_sigmask(SIG_SETMASK, &old, NULL);
 	pthread_detach(watchdog.thread);
-	g_timeout_add_full(G_PRIORITY_HIGH, BEAT_MS, on_beat, NULL, NULL);
+	watchdog.poll = g_main_context_get_poll_func(NULL);
+	g_main_context_set_poll_func(NULL, watched_poll);
 	watchdog.running = TRUE;
 
 	if (watchdog.abort_ms)

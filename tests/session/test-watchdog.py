@@ -20,12 +20,16 @@ import tempfile
 import time
 
 failures = []
+shown = []
 
 
-def check(condition, message):
+def check(condition, message, log=None):
     if not condition:
         failures.append(message)
         print("FAIL:", message, file=sys.stderr)
+        if log is not None and log not in shown:
+            shown.append(log)
+            print("Polo's log:\n" + log, file=sys.stderr)
 
 
 def no_core():
@@ -105,41 +109,43 @@ def main():
         os.chmod(runtime, 0o700)
 
         log, alive, status = run(polo, runtime, "stalls", "1200,2600", "6", 2, 30)
-        check(alive, "Polo did not survive stalls shorter than its limit")
-        check(status == 0, "Polo exited with %s after SIGTERM" % status)
-        check("watchdog: aborting after 6 s without progress" in log, "the watchdog did not say it was on")
+        check(alive, "Polo did not survive stalls shorter than its limit", log)
+        check(status == 0, "Polo exited with %s after SIGTERM" % status, log)
+        check("watchdog: aborting after 6 s without progress" in log, "the watchdog did not say it was on", log)
         ms = blocked_ms(log)
-        check(len(ms) == 2 and ms[0] >= 700 and ms[1] >= 2100, "blocked times logged: %s" % ms)
+        check(any(1150 <= v <= 1700 for v in ms) and any(2550 <= v <= 3200 for v in ms),
+              "the 1.2 s and 2.6 s blocks were not measured: %s" % ms, log)
         check(log.count("watchdog: the main loop has not run for") == 1,
-              "the second-long stall was not reported exactly once")
+              "the second-long stall was not reported exactly once", log)
         check(re.search(r"the main loop is here:\n(.*\n)*.*g_usleep", log) is not None,
-              "the main thread's stack does not show where it was blocked")
-        check("aborting\n" not in log, "Polo aborted below its limit")
+              "the main thread's stack does not show where it was blocked", log)
+        check("aborting\n" not in log, "Polo aborted below its limit", log)
 
         log, alive, status = run(polo, runtime, "abort", "30000", "2", 1, 15)
-        check(status == -signal.SIGABRT, "a stuck main loop ended with %s, not SIGABRT" % status)
-        check(re.search(r"stuck for \d+ ms; aborting", log) is not None, "the abort was not logged")
-        check("test: main loop unblocked" not in log, "Polo waited out the whole stall")
+        check(status == -signal.SIGABRT, "a stuck main loop ended with %s, not SIGABRT" % status, log)
+        check(re.search(r"stuck for \d+ ms; aborting", log) is not None, "the abort was not logged", log)
+        check("test: main loop unblocked" not in log, "Polo waited out the whole stall", log)
 
         log, alive, status = run(polo, runtime, "log-only", "3000", "0", 1, 20)
-        check(alive and status == 0, "POLO_WATCHDOG_SECONDS=0 still ended Polo (%s)" % status)
-        check("watchdog: logging stalls only" in log, "POLO_WATCHDOG_SECONDS=0 did not say it only logs")
-        check("the main loop is here:" in log, "POLO_WATCHDOG_SECONDS=0 stopped the stack trace")
+        check(alive and status == 0, "POLO_WATCHDOG_SECONDS=0 still ended Polo (%s)" % status, log)
+        check("watchdog: logging stalls only" in log, "POLO_WATCHDOG_SECONDS=0 did not say it only logs", log)
+        check("the main loop is here:" in log, "POLO_WATCHDOG_SECONDS=0 stopped the stack trace", log)
 
         log, alive, status = run(polo, runtime, "kernel", "k6000", "2", 1, 20)
-        check(alive and status == 0, "a main loop waiting in the kernel was aborted: %s" % status)
-        check("waiting in the kernel" in log, "a main loop in a kernel wait was not reported as such")
-        check("aborting\n" not in log, "the watchdog aborted a main loop that could not exit")
-        check("test: main loop unblocked" in log, "the kernel wait did not finish")
+        check(alive and status == 0, "a main loop waiting in the kernel was aborted: %s" % status, log)
+        check("waiting in the kernel" in log, "a main loop in a kernel wait was not reported as such", log)
+        check("aborting\n" not in log, "the watchdog aborted a main loop that could not exit", log)
+        check("test: main loop unblocked" in log, "the kernel wait did not finish", log)
 
         log, alive, status = frozen_process(polo, runtime)
-        check(alive and status == 0, "a process frozen as a whole (hibernation) was aborted on waking: %s" % status)
-        check("aborting\n" not in log, "the watchdog blamed a frozen process on the main loop")
+        check(alive and status == 0,
+              "a process frozen as a whole (hibernation) was aborted on waking: %s" % status, log)
+        check("aborting\n" not in log, "the watchdog blamed a frozen process on the main loop", log)
 
         log, alive, status = run(polo, runtime, "off", "1200", None, 1, 15)
-        check(alive and status == 0, "Polo without the watchdog ended with %s" % status)
+        check(alive and status == 0, "Polo without the watchdog ended with %s" % status, log)
         check("watchdog:" not in log and not blocked_ms(log),
-              "test mode started the watchdog without POLO_WATCHDOG_SECONDS")
+              "test mode started the watchdog without POLO_WATCHDOG_SECONDS", log)
 
     if failures:
         return 1
