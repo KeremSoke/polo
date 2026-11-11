@@ -49,6 +49,7 @@ namespace PoloShellUi {
             window.opacity = 1.0;
             area.queue_draw ();
             window.show_all ();
+            A11y.announce (area, A11y.osd_words (kind, icon, text, value));
             restart_timers ();
         }
 

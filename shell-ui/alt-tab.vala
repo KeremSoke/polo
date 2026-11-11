@@ -589,6 +589,7 @@ namespace PoloShellUi {
                         current.workspace.queue_draw ();
                     }
                     label.set_markup (entry.markup);
+                    A11y.announce (label, label.get_text ());
                     if (entry.widget != null) {
                         entry.widget.selected = true;
                     }
