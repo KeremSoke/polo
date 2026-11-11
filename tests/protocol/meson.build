@@ -173,6 +173,16 @@ if get_option('shell-ui')
     timeout: 180,
     is_parallel: false,
   )
+  soak_env = shell_ui_gtk_env
+  soak_env.set('LIBGL_ALWAYS_SOFTWARE', '1')
+  # Two minutes in two logins; tools/soak.sh runs it for hours.
+  test('soak', executable('soak', '../soak/soak.c', dependencies: harness_dep),
+    args: [polo_exe, shell_ui_exe, '120', '60', '1'],
+    env: soak_env,
+    suite: 'soak',
+    timeout: 300,
+    is_parallel: false,
+  )
   test('alt-tab-hide', executable('test-alt-tab-hide', 'test-alt-tab-hide.c', dependencies: harness_dep),
     args: [polo_exe, shell_ui_exe],
     env: shell_ui_gtk_env,
