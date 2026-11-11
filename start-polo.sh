@@ -14,6 +14,7 @@
 #   POLO_IM=fcitx5   start fcitx5 for input methods
 #   POLO_DEBUG=1     also log Polo's debug messages (screens, effects, windows);
 #                    or a comma-separated list of scopes, such as polo,drm-backend
+#   POLO_WATCHDOG_SECONDS=N  abort a main loop stuck for N s (default 15; 0 only logs)
 
 set -uo pipefail
 
@@ -105,6 +106,7 @@ printf 'Starting Polo. Logs: %s\n' "$run_dir"
 started=$(date +%s)
 cd "$SOURCE_DIR"
 export LIBC_FATAL_STDERR_=1
+export POLO_WATCHDOG_SECONDS="${POLO_WATCHDOG_SECONDS:-15}"
 "${launcher[@]}" "${polo[@]}" \
     --session \
     --backend=drm \
