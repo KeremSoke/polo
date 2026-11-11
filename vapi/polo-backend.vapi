@@ -367,6 +367,15 @@ namespace Polo {
             [CCode (cname = "polo_backend_server_start")]
             public bool start (Config config) throws GLib.Error;
 
+            [CCode (cname = "polo_backend_server_set_zoom")]
+            public void set_zoom (double scale);
+
+            [CCode (cname = "polo_backend_server_get_zoom")]
+            public double get_zoom ();
+
+            [CCode (cname = "polo_backend_server_zoom_to")]
+            public void zoom_to (double x, double y);
+
             /* Frame, input and effect timings in the log every interval. After start (). */
             [CCode (cname = "polo_backend_stats_start")]
             public void start_stats (uint interval_msec);
@@ -551,6 +560,9 @@ namespace Polo {
 
             [CCode (cname = "polo_backend_output_set_background_color")]
             public void set_background_color (double red, double green, double blue);
+
+            [CCode (cname = "polo_backend_output_get_shown_area")]
+            public bool get_shown_area (out double x, out double y, out double width, out double height);
 
             public signal void destroyed ();
         }

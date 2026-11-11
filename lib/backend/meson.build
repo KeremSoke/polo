@@ -14,6 +14,7 @@ backend_sources = files(
   'gpu-reset.c',
   'stats.c',
   'watchdog.c',
+  'zoom.c',
   'output.c',
   'pixel-buffer.c',
   'protocols/protocol-util.c',

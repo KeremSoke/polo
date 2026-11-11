@@ -44,6 +44,7 @@ struct _PoloBackendServer {
 	gboolean started;
 	gboolean stopped;
 	struct polo_cursor *cursor;
+	struct polo_zoom *zoom;
 	struct polo_internal_client *internal_client; /* pixel-buffer.c */
 	char *cursor_theme;
 	int cursor_size;
@@ -462,6 +463,16 @@ polo_backend_gamma_control_init(PoloBackendServer *server, GError **error);
 
 void
 polo_backend_gamma_control_fini(PoloBackendServer *server);
+
+void
+polo_backend_zoom_init(PoloBackendServer *server);
+
+void
+polo_backend_zoom_fini(PoloBackendServer *server);
+
+void
+polo_backend_zoom_add_pointer(PoloBackendServer *server,
+			      struct weston_pointer *pointer);
 
 gboolean
 polo_backend_image_capture_init(PoloBackendServer *server, GError **error);

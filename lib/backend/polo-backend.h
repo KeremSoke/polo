@@ -459,6 +459,24 @@ polo_backend_output_set_background_color(PoloBackendOutput *output,
 					 double red, double green,
 					 double blue);
 
+gboolean
+polo_backend_output_get_shown_area(PoloBackendOutput *output, double *x,
+				   double *y, double *width, double *height);
+
+/* ---- Magnifier ---------------------------------------------------------- */
+
+/*
+ * Magnify every output by @scale (1 turns it off, at most 32). 
+ */
+void
+polo_backend_server_set_zoom(PoloBackendServer *server, double scale);
+
+double
+polo_backend_server_get_zoom(PoloBackendServer *server);
+
+void
+polo_backend_server_zoom_to(PoloBackendServer *server, double x, double y);
+
 /* ---- Input events and filters ------------------------------------------- */
 
 typedef enum {

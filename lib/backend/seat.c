@@ -956,6 +956,7 @@ wrap_pointer(PoloBackendSeat *self)
 		return;
 
 	polo_backend_cursor_add_pointer(self->server, pointer);
+	polo_backend_zoom_add_pointer(self->server, pointer);
 	self->wrapped_pointer = pointer;
 	polo_gestures_attach_pointer(self->gestures, pointer);
 	self->default_interface = pointer->default_grab.interface;
