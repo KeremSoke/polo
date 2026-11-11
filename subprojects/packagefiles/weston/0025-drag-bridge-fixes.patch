@@ -1,0 +1,54 @@
+--- a/libweston/data-device.c
++++ b/libweston/data-device.c
+@@ -287,7 +287,9 @@
+ 
+ 	if (offer->source->finished) {
+ 		offer->source->offer = NULL;
+-		offer->source->finished(offer->source);
++		/* Only a drop finishes; before it the drag goes on. */
++		if (!offer->source->seat)
++			offer->source->finished(offer->source);
+ 		goto out;
+ 	}
+ 
+@@ -495,10 +497,21 @@
+ 	drag->focus_resource = NULL;
+ }
+ 
++/* The bridge goes when Xwayland does, possibly in the middle of a drag. */
++static bool
++drag_still_bridged(struct weston_drag *drag)
++{
++	if (drag->bridged && !drag->bridge_compositor->drag_bridge) {
++		drag->bridged = false;
++		drag->focus = NULL;
++	}
++	return drag->bridged;
++}
++
+ static void
+ weston_drag_clear_focus(struct weston_drag *drag)
+ {
+-	if (drag->bridged) {
++	if (drag_still_bridged(drag)) {
+ 		struct weston_compositor *compositor = drag->bridge_compositor;
+ 
+ 		drag->bridged = false;
+@@ -661,7 +674,7 @@
+ 						     drag->base.offset);
+ 	}
+ 
+-	if (drag->base.bridged) {
++	if (drag_still_bridged(&drag->base)) {
+ 		struct weston_compositor *compositor =
+ 			drag->base.bridge_compositor;
+ 
+@@ -727,7 +740,7 @@
+ 	if (data_source &&
+ 	    pointer->grab_button == button_event->button &&
+ 	    state == WL_POINTER_BUTTON_STATE_RELEASED) {
+-		if (drag->base.bridged) {
++		if (drag_still_bridged(&drag->base)) {
+ 			struct weston_compositor *compositor =
+ 				drag->base.bridge_compositor;
+ 
