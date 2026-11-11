@@ -22,6 +22,8 @@
 
 #include "polo-backend-private.h"
 
+#define MAX_CLIENT_BUFFER (1024 * 1024)
+
 /* The first argument is stringified as the quark name; keep it intact. */
 /* clang-format off */
 G_DEFINE_QUARK(polo-backend-error-quark, polo_backend_error)
@@ -613,6 +615,11 @@ polo_backend_server_start(PoloBackendServer *server,
 	}
 
 	server->display = wl_display_create();
+#if WAYLAND_VERSION_MAJOR > 1 || WAYLAND_VERSION_MINOR >= 23
+	if (server->display)
+		wl_display_set_default_max_buffer_size(server->display,
+						       MAX_CLIENT_BUFFER);
+#endif
 	server->compositor = weston_compositor_create(
 		server->display, polo_backend_log_get_context(), server, NULL);
 	if (server->compositor) {
