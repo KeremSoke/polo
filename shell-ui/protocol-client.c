@@ -8,6 +8,7 @@
 #include <unistd.h>
 
 #include <cairo-gobject.h>
+#include <gobject/gvaluecollector.h>
 
 #include <gdk/gdkwayland.h>
 #include <wayland-client.h>
@@ -23,6 +24,9 @@ struct _PoloShellUiClient {
 	GdkDisplay *display;
 	struct wl_display *wl_display;
 	struct polo_shell_ui_v1 *shell_ui;
+	gboolean emitting;
+	GQueue held;
+	guint drain_id;
 };
 
 enum {
@@ -56,6 +60,77 @@ G_DEFINE_FINAL_TYPE(PoloShellUiClient, polo_shell_ui_client, G_TYPE_OBJECT)
 G_DEFINE_QUARK(polo - shell - ui - client - error - quark,
 	       polo_shell_ui_client_error)
 
+struct held_event {
+	guint signal_id;
+	gboolean broken;
+	guint n_values;
+	GValue values[];
+};
+
+static void
+deliver(PoloShellUiClient *self, struct held_event *event)
+{
+	self->emitting = TRUE;
+	if (!event->broken)
+		g_signal_emitv(event->values, event->signal_id, 0, NULL);
+	self->emitting = FALSE;
+	for (guint i = 0; i < event->n_values; i++)
+		g_value_unset(&event->values[i]);
+	g_free(event);
+}
+
+static gboolean
+drain(gpointer data)
+{
+	PoloShellUiClient *self = data;
+
+	if (!self->emitting)
+		deliver(self, g_queue_pop_head(&self->held));
+	if (!g_queue_is_empty(&self->held))
+		return G_SOURCE_CONTINUE;
+	self->drain_id = 0;
+	return G_SOURCE_REMOVE;
+}
+
+static void
+emit(PoloShellUiClient *self, guint signal_id, ...)
+{
+	struct held_event *event;
+	GSignalQuery query;
+	va_list args;
+
+	g_signal_query(signal_id, &query);
+	event = g_malloc0(sizeof *event +
+			  (query.n_params + 1) * sizeof(GValue));
+	event->signal_id = signal_id;
+	event->n_values = query.n_params + 1;
+	g_value_init_from_instance(&event->values[0], self);
+	va_start(args, signal_id);
+	for (guint i = 0; i < query.n_params; i++) {
+		char *error = NULL;
+
+		G_VALUE_COLLECT_INIT(&event->values[i + 1],
+				     query.param_types[i] &
+					     ~G_SIGNAL_TYPE_STATIC_SCOPE,
+				     args, 0, &error);
+		if (error) {
+			g_critical("%s: %s", query.signal_name, error);
+			g_free(error);
+			event->broken = TRUE;
+			event->n_values = i + 1;
+			break;
+		}
+	}
+	va_end(args);
+	if (!self->emitting && g_queue_is_empty(&self->held)) {
+		deliver(self, event);
+		return;
+	}
+	g_queue_push_tail(&self->held, event);
+	if (!self->drain_id)
+		self->drain_id = g_idle_add(drain, self);
+}
+
 static GdkMonitor *
 monitor_for(PoloShellUiClient *self, struct wl_output *output)
 {
@@ -77,8 +152,7 @@ static void
 switcher_entry(void *data, struct polo_shell_ui_v1 *shell_ui, uint32_t id,
 	       const char *title, const char *app_id, uint32_t flags)
 {
-	g_signal_emit(data, signals[SIGNAL_SWITCHER_ENTRY], 0, id, title,
-		      app_id, flags);
+	emit(data, signals[SIGNAL_SWITCHER_ENTRY], id, title, app_id, flags);
 }
 
 static void
@@ -108,7 +182,7 @@ switcher_thumbnail(void *data, struct polo_shell_ui_v1 *shell_ui, uint32_t id,
 		       (size_t)width * 4);
 	cairo_surface_mark_dirty(surface);
 	munmap(pixels, size);
-	g_signal_emit(data, signals[SIGNAL_SWITCHER_THUMBNAIL], 0, id, surface);
+	emit(data, signals[SIGNAL_SWITCHER_THUMBNAIL], id, surface);
 	cairo_surface_destroy(surface);
 }
 
@@ -116,7 +190,7 @@ static void
 switcher_icon_name(void *data, struct polo_shell_ui_v1 *shell_ui, uint32_t id,
 		   const char *name)
 {
-	g_signal_emit(data, signals[SIGNAL_SWITCHER_ICON_NAME], 0, id, name);
+	emit(data, signals[SIGNAL_SWITCHER_ICON_NAME], id, name);
 }
 
 static void
@@ -145,8 +219,7 @@ switcher_icon_pixels(void *data, struct polo_shell_ui_v1 *shell_ui, uint32_t id,
 		       (size_t)size * 4);
 	cairo_surface_mark_dirty(surface);
 	munmap(pixels, length);
-	g_signal_emit(data, signals[SIGNAL_SWITCHER_ICON_PIXELS], 0, id,
-		      surface);
+	emit(data, signals[SIGNAL_SWITCHER_ICON_PIXELS], id, surface);
 	cairo_surface_destroy(surface);
 }
 
@@ -155,37 +228,36 @@ show_switcher(void *data, struct polo_shell_ui_v1 *shell_ui,
 	      struct wl_output *output, uint32_t selected, uint32_t columns,
 	      uint32_t expand_to_fit, uint32_t icon_size)
 {
-	g_signal_emit(data, signals[SIGNAL_SHOW_SWITCHER], 0,
-		      monitor_for(data, output), selected, columns,
-		      expand_to_fit != 0, icon_size);
+	emit(data, signals[SIGNAL_SHOW_SWITCHER], monitor_for(data, output),
+	     selected, columns, expand_to_fit != 0, icon_size);
 }
 
 static void
 update_selected(void *data, struct polo_shell_ui_v1 *shell_ui,
 		uint32_t selected)
 {
-	g_signal_emit(data, signals[SIGNAL_UPDATE_SELECTED], 0, selected);
+	emit(data, signals[SIGNAL_UPDATE_SELECTED], selected);
 }
 
 static void
 hide_switcher(void *data, struct polo_shell_ui_v1 *shell_ui)
 {
-	g_signal_emit(data, signals[SIGNAL_HIDE_SWITCHER], 0);
+	emit(data, signals[SIGNAL_HIDE_SWITCHER]);
 }
 
 static void
 switcher_heading(void *data, struct polo_shell_ui_v1 *shell_ui,
 		 const char *text)
 {
-	g_signal_emit(data, signals[SIGNAL_SWITCHER_HEADING], 0, text);
+	emit(data, signals[SIGNAL_SWITCHER_HEADING], text);
 }
 
 static void
 workspace_switcher_entry(void *data, struct polo_shell_ui_v1 *shell_ui,
 			 uint32_t id, const char *title, uint32_t blank)
 {
-	g_signal_emit(data, signals[SIGNAL_WORKSPACE_SWITCHER_ENTRY], 0, id,
-		      title, blank != 0);
+	emit(data, signals[SIGNAL_WORKSPACE_SWITCHER_ENTRY], id, title,
+	     blank != 0);
 }
 
 static void
@@ -193,8 +265,8 @@ workspace_switcher_window(void *data, struct polo_shell_ui_v1 *shell_ui,
 			  uint32_t id, int32_t x, int32_t y, int32_t width,
 			  int32_t height, uint32_t focused, const char *app_id)
 {
-	g_signal_emit(data, signals[SIGNAL_WORKSPACE_SWITCHER_WINDOW], 0, id, x,
-		      y, width, height, focused != 0, app_id);
+	emit(data, signals[SIGNAL_WORKSPACE_SWITCHER_WINDOW], id, x, y, width,
+	     height, focused != 0, app_id);
 }
 
 static void
@@ -204,26 +276,23 @@ show_workspace_switcher(void *data, struct polo_shell_ui_v1 *shell_ui,
 			int32_t screen_height, int32_t output_width,
 			int32_t output_height, uint32_t icon_size)
 {
-	g_signal_emit(data, signals[SIGNAL_SHOW_WORKSPACE_SWITCHER], 0,
-		      monitor_for(data, output), selected, columns, active,
-		      screen_width, screen_height, output_width, output_height,
-		      icon_size);
+	emit(data, signals[SIGNAL_SHOW_WORKSPACE_SWITCHER],
+	     monitor_for(data, output), selected, columns, active, screen_width,
+	     screen_height, output_width, output_height, icon_size);
 }
 
 static void
 update_workspace_switcher(void *data, struct polo_shell_ui_v1 *shell_ui,
 			  uint32_t selected, uint32_t active)
 {
-	g_signal_emit(data, signals[SIGNAL_UPDATE_WORKSPACE_SWITCHER], 0,
-		      selected, active);
+	emit(data, signals[SIGNAL_UPDATE_WORKSPACE_SWITCHER], selected, active);
 }
 
 static void
 window_menu_workspace(void *data, struct polo_shell_ui_v1 *shell_ui,
 		      uint32_t index, const char *name)
 {
-	g_signal_emit(data, signals[SIGNAL_WINDOW_MENU_WORKSPACE], 0, index,
-		      name);
+	emit(data, signals[SIGNAL_WINDOW_MENU_WORKSPACE], index, name);
 }
 
 static void
@@ -233,16 +302,16 @@ show_window_menu(void *data, struct polo_shell_ui_v1 *shell_ui,
 		 uint32_t active_workspace, uint32_t n_workspaces,
 		 uint32_t time)
 {
-	g_signal_emit(data, signals[SIGNAL_SHOW_WINDOW_MENU], 0, window_id,
-		      monitor_for(data, output), x, y, ops, insensitive,
-		      active_workspace, n_workspaces, time);
+	emit(data, signals[SIGNAL_SHOW_WINDOW_MENU], window_id,
+	     monitor_for(data, output), x, y, ops, insensitive,
+	     active_workspace, n_workspaces, time);
 }
 
 static void
 hide_window_menu(void *data, struct polo_shell_ui_v1 *shell_ui,
 		 uint32_t window_id)
 {
-	g_signal_emit(data, signals[SIGNAL_HIDE_WINDOW_MENU], 0, window_id);
+	emit(data, signals[SIGNAL_HIDE_WINDOW_MENU], window_id);
 }
 
 static void
@@ -250,28 +319,28 @@ show_osd(void *data, struct polo_shell_ui_v1 *shell_ui, uint32_t kind,
 	 struct wl_output *output, const char *icon, const char *text,
 	 int32_t value)
 {
-	g_signal_emit(data, signals[SIGNAL_SHOW_OSD], 0, kind,
-		      monitor_for(data, output), icon, text, value);
+	emit(data, signals[SIGNAL_SHOW_OSD], kind, monitor_for(data, output),
+	     icon, text, value);
 }
 
 static void
 show_dialog(void *data, struct polo_shell_ui_v1 *shell_ui, uint32_t dialog_id,
 	    uint32_t kind, struct wl_output *output, const char *payload)
 {
-	g_signal_emit(data, signals[SIGNAL_SHOW_DIALOG], 0, dialog_id, kind,
-		      monitor_for(data, output), payload);
+	emit(data, signals[SIGNAL_SHOW_DIALOG], dialog_id, kind,
+	     monitor_for(data, output), payload);
 }
 
 static void
 hide_dialog(void *data, struct polo_shell_ui_v1 *shell_ui, uint32_t dialog_id)
 {
-	g_signal_emit(data, signals[SIGNAL_HIDE_DIALOG], 0, dialog_id);
+	emit(data, signals[SIGNAL_HIDE_DIALOG], dialog_id);
 }
 
 static void
 lookup_color(void *data, struct polo_shell_ui_v1 *shell_ui, const char *name)
 {
-	g_signal_emit(data, signals[SIGNAL_LOOKUP_COLOR], 0, name);
+	emit(data, signals[SIGNAL_LOOKUP_COLOR], name);
 }
 
 static void
@@ -279,8 +348,8 @@ lookup_icon(void *data, struct polo_shell_ui_v1 *shell_ui, uint32_t serial,
 	    const char *name, const char *desktop_id, int32_t mini_size,
 	    int32_t size, int32_t scale, uint32_t fallback)
 {
-	g_signal_emit(data, signals[SIGNAL_LOOKUP_ICON], 0, serial, name,
-		      desktop_id, mini_size, size, scale, fallback != 0);
+	emit(data, signals[SIGNAL_LOOKUP_ICON], serial, name, desktop_id,
+	     mini_size, size, scale, fallback != 0);
 }
 
 static const struct polo_shell_ui_v1_listener shell_ui_listener = {
