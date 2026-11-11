@@ -5,9 +5,11 @@
 
   test-crash-report.py POLO
 
-A segfault, an abort and a stack overflow each leave, in the log and on
-stderr, the signal, a backtrace and the log before the crash, and Polo still
-dies of the signal itself, so systemd-coredump gets its core.
+A segfault, an abort, a stack overflow and a call through a bad function
+pointer each leave, in the log and on stderr, the signal, a backtrace and the
+log before the crash, and Polo still dies of the signal itself, so
+systemd-coredump gets its core. A report that itself faults still ends with
+the log before the crash.
 """
 
 import os
@@ -58,7 +60,7 @@ def main():
         return 2
     polo = sys.argv[1]
     cases = [("segv", signal.SIGSEGV, "SIGSEGV"), ("abort", signal.SIGABRT, "SIGABRT"),
-             ("overflow", signal.SIGSEGV, "SIGSEGV")]
+             ("overflow", signal.SIGSEGV, "SIGSEGV"), ("jump", signal.SIGSEGV, "SIGSEGV")]
     with tempfile.TemporaryDirectory(prefix="polo-crash-") as runtime:
         os.chmod(runtime, 0o700)
         for how, sig, name in cases:
@@ -79,9 +81,21 @@ def main():
                       "%s: the log before the crash in %s misses an earlier line" % (how, where), log)
                 check("end of the crash report" in out,
                       "%s: the report in %s did not finish" % (how, where), log)
+            if how == "jump":
+                check("unreadable address 0x48" in log,
+                      "jump: the report does not name the bad address", log)
             where_from = log[log.find("where it happened:"):log.find("polo: the log before")]
             check(where_from.count("\n") >= 3,
                   "%s: the backtrace has under 3 frames" % how, log)
+        log, err, status = crash(polo, runtime, "report")
+        check(status == -signal.SIGSEGV,
+              "report: Polo ended with %s, not SIGSEGV" % status, log)
+        for where, out in (("the log", log), ("stderr", err)):
+            check("polo: the crash report itself crashed" in out,
+                  "report: %s does not say the report crashed" % where, log)
+            tail = out[out.find("the crash report itself crashed"):]
+            check("test: crashing with report" in tail and "end of the crash report" in tail,
+                  "report: %s misses the log after the report crashed" % where, log)
     if failures:
         return 1
     print("crash report: all checks passed")
