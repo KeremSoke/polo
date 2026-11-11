@@ -324,6 +324,12 @@ test('cube-interactive', executable('test-cube-interactive', 'test-cube-interact
   suite: 'protocol',
   timeout: 90,
 )
+test('output-cycles', executable('test-output-cycles', 'test-output-cycles.c', dependencies: harness_dep),
+  args: [polo_exe],
+  env: magic_lamp_env,
+  suite: 'protocol',
+  timeout: 180,
+)
 cube_env = environment()
 cube_env.set('WESTON_MODULE_MAP', weston_module_map)
 cube_env.set('GSETTINGS_BACKEND', 'memory')
