@@ -5,6 +5,7 @@
 
 #include <string.h>
 
+#include <xkbcommon/xkbcommon.h>
 #include <xkbcommon/xkbregistry.h>
 
 #include "polo-backend.h"
@@ -43,4 +44,10 @@ polo_backend_keymap_has_layout(const char *layout, const char *variant)
 			return TRUE;
 	}
 	return FALSE;
+}
+
+guint32
+polo_backend_keysym_to_unicode(guint32 keysym)
+{
+	return xkb_keysym_to_utf32(keysym);
 }

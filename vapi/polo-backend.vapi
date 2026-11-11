@@ -61,6 +61,9 @@ namespace Polo {
         [CCode (cname = "polo_backend_watchdog_start")]
         public void start_watchdog (bool by_default);
 
+        [CCode (cname = "polo_backend_keysym_to_unicode")]
+        public uint32 keysym_to_unicode (uint32 keysym);
+
         [CCode (cname = "polo_backend_crash_handler_install")]
         public void install_crash_handler ();
 

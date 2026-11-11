@@ -69,6 +69,9 @@ polo_backend_log_fd(void);
 void
 polo_backend_watchdog_start(gboolean by_default);
 
+guint32
+polo_backend_keysym_to_unicode(guint32 keysym);
+
 void
 polo_backend_crash_handler_install(void);
 
