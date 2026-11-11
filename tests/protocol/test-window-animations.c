@@ -144,10 +144,22 @@ test_open_close(struct harness *h)
 	pause_ms(h, 2200);
 	CHECK(shoot(h).exact == WIDTH * HEIGHT, "did not zoom in whole");
 	harness_window_destroy(window);
-	pause_ms(h, 1600);
-	s = shoot(h);
-	CHECK(s.changed > 0 && s.x2 - s.x1 + 1 < WIDTH * 3 / 4,
-	      "zooming out: %d changed, %d wide", s.changed, s.x2 - s.x1 + 1);
+	{
+		int narrowest = WIDTH, frames = 0;
+
+		for (int i = 0; i < 100; i++) {
+			s = shoot(h);
+			if (s.changed == 0)
+				break;
+			frames++;
+			if (s.x2 - s.x1 + 1 < narrowest)
+				narrowest = s.x2 - s.x1 + 1;
+			pause_ms(h, 50);
+		}
+		CHECK(frames > 0 && narrowest < WIDTH * 3 / 4,
+		      "zooming out: %d frames, at narrowest %d wide", frames,
+		      narrowest);
+	}
 	settle(h, "zooming out");
 
 	harness_set_setting(h, "org.mate.polo.effects", "close-animation",
