@@ -46,6 +46,9 @@ struct _PoloBackendSeat {
 
 	struct weston_keyboard *wrapped_keyboard;
 	const struct weston_keyboard_grab_interface *default_key_interface;
+	struct wl_listener keyboard_focus_listener;
+	gboolean dropping_focus;
+	guint focus_lost_source;
 	PoloBackendKeyFilter key_filter;
 	gpointer key_filter_data;
 	GDestroyNotify key_filter_destroy;
@@ -87,6 +90,7 @@ enum {
 	SIGNAL_GROUP_CHANGED,
 	SIGNAL_NUMLOCK_CHANGED,
 	SIGNAL_MODIFIERS_CHANGED,
+	SIGNAL_KEYBOARD_FOCUS_LOST,
 	N_SIGNALS,
 };
 
@@ -830,6 +834,31 @@ lock_numlock(struct weston_keyboard *keyboard, gboolean locked)
 		wl_display_next_serial(keyboard->seat->compositor->wl_display));
 }
 
+static gboolean
+focus_lost_idle(gpointer data)
+{
+	PoloBackendSeat *self = data;
+	struct weston_keyboard *keyboard;
+
+	self->focus_lost_source = 0;
+	keyboard = self->seat ? weston_seat_get_keyboard(self->seat) : NULL;
+	if (keyboard && !keyboard->focus)
+		g_signal_emit(self, signals[SIGNAL_KEYBOARD_FOCUS_LOST], 0);
+	return G_SOURCE_REMOVE;
+}
+
+static void
+keyboard_focus_changed(struct wl_listener *listener, void *data)
+{
+	PoloBackendSeat *self =
+		wl_container_of(listener, self, keyboard_focus_listener);
+	struct weston_keyboard *keyboard = data;
+
+	if (keyboard->focus || self->dropping_focus || self->focus_lost_source)
+		return;
+	self->focus_lost_source = g_idle_add(focus_lost_idle, self);
+}
+
 static void
 wrap_keyboard(PoloBackendSeat *self)
 {
@@ -839,6 +868,8 @@ wrap_keyboard(PoloBackendSeat *self)
 		return;
 
 	self->wrapped_keyboard = keyboard;
+	self->keyboard_focus_listener.notify = keyboard_focus_changed;
+	wl_signal_add(&keyboard->focus_signal, &self->keyboard_focus_listener);
 	polo_primary_attach_keyboard(self->primary, keyboard);
 	polo_text_seat_attach_keyboard(self->text, keyboard);
 	polo_shortcuts_attach_keyboard(self->shortcuts, keyboard);
@@ -868,6 +899,10 @@ unwrap_keyboard(PoloBackendSeat *self)
 	polo_primary_attach_keyboard(self->primary, NULL);
 	polo_text_seat_attach_keyboard(self->text, NULL);
 	polo_shortcuts_attach_keyboard(self->shortcuts, NULL);
+	wl_list_remove(&self->keyboard_focus_listener.link);
+	if (self->focus_lost_source)
+		g_source_remove(self->focus_lost_source);
+	self->focus_lost_source = 0;
 	self->wrapped_keyboard = NULL;
 }
 
@@ -1088,8 +1123,11 @@ polo_backend_seat_set_keyboard_focus(PoloBackendSeat *seat,
 	}
 
 	keyboard = weston_seat_get_keyboard(seat->seat);
-	if (keyboard)
+	if (keyboard) {
+		seat->dropping_focus = TRUE;
 		weston_keyboard_set_focus(keyboard, NULL);
+		seat->dropping_focus = FALSE;
+	}
 }
 
 void
@@ -1315,6 +1353,9 @@ polo_backend_seat_class_init(PoloBackendSeatClass *klass)
 		g_signal_new("modifiers-changed", G_TYPE_FROM_CLASS(klass),
 			     G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL,
 			     G_TYPE_NONE, 1, G_TYPE_UINT);
+	signals[SIGNAL_KEYBOARD_FOCUS_LOST] = g_signal_new(
+		"keyboard-focus-lost", G_TYPE_FROM_CLASS(klass),
+		G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL, G_TYPE_NONE, 0);
 }
 
 static void

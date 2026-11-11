@@ -667,6 +667,8 @@ namespace Polo {
             public signal void group_changed (uint group);
             public signal void numlock_changed (bool locked);
             public signal void modifiers_changed (Modifiers modifiers);
+            /* The keyboard focus went to nothing without Polo asking. */
+            public signal void keyboard_focus_lost ();
 
             [CCode (cname = "polo_backend_seat_set_keymap")]
             public bool set_keymap (string? rules, string? model, string? layout, string? variant,

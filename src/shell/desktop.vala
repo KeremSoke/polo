@@ -846,10 +846,18 @@ namespace Polo.Shell {
             seat.set_button_filter (on_button);
             seat.set_key_filter (on_key);
             seat.motion.connect (on_motion);
+            seat.keyboard_focus_lost.connect (on_keyboard_focus_lost);
             keyboard.add_seat (seat);
             double x, y;
             seat.get_pointer_position (out x, out y);
             model.pointer_moved (x, y);
+        }
+
+        private void on_keyboard_focus_lost () {
+            var window = model.focused;
+            if (window != null && window.has_state (WindowState.MAPPED) && model.is_showing (window)) {
+                window.adapter.take_focus ();
+            }
         }
 
         public bool grab_active {
