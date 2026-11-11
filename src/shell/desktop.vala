@@ -561,6 +561,7 @@ namespace Polo.Shell {
             server.set_monitor_count (model.get_outputs ().length);
             committed_screens = screens_state ();
             layer_shell.arrange ();
+            push_work_areas ();
             server.output_state_changed ();
             layout_changed ();
             return success;
