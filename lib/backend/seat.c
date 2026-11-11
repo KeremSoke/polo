@@ -660,6 +660,27 @@ polo_backend_seat_end_x_keyboard_grab(PoloBackendSeat *seat,
 	}
 }
 
+/* Pressed alone they change nothing on screen, so they say nothing about
+ * how fast input reaches it. */
+static gboolean
+is_modifier_key(guint32 key)
+{
+	switch (key) {
+	case KEY_LEFTCTRL:
+	case KEY_RIGHTCTRL:
+	case KEY_LEFTSHIFT:
+	case KEY_RIGHTSHIFT:
+	case KEY_LEFTALT:
+	case KEY_RIGHTALT:
+	case KEY_LEFTMETA:
+	case KEY_RIGHTMETA:
+	case KEY_CAPSLOCK:
+		return TRUE;
+	default:
+		return FALSE;
+	}
+}
+
 static void
 filter_key(struct weston_keyboard_grab *grab,
 	   const struct weston_key_event *event)
@@ -672,7 +693,8 @@ filter_key(struct weston_keyboard_grab *grab,
 	if (!self)
 		return;
 	if (event->key_state == WL_KEYBOARD_KEY_STATE_PRESSED) {
-		polo_backend_stats_input(&event->base.ts);
+		if (!is_modifier_key(event->key))
+			polo_backend_stats_input(&event->base.ts);
 		self->last_press_usec = g_get_monotonic_time();
 	}
 	if (locked_key(self, grab, event))
