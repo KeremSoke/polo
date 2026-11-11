@@ -50,6 +50,7 @@ namespace Polo.Shell {
         public Switcher switcher { get; private set; }
         public ShareChooser share_chooser { get; private set; }
         public Expo expo { get; private set; }
+        public Magnifier magnifier { get; private set; }
         public Cube cube { get; private set; }
         public DisplaySwitcher display_switcher { get; private set; }
         public WindowMenu window_menu { get; private set; }
@@ -137,6 +138,7 @@ namespace Polo.Shell {
             switcher = new Switcher (server, model, this, bindings);
             share_chooser = new ShareChooser (server, model, this);
             expo = new Expo (server, model, this, bindings);
+            magnifier = new Magnifier (server, model, bindings);
             cube = new Cube (server, model, this, bindings);
             display_switcher = new DisplaySwitcher (server, this, bindings);
             window_menu = new WindowMenu (server, model, this, bindings);
@@ -257,6 +259,7 @@ namespace Polo.Shell {
             switcher.shutdown ();
             share_chooser.shutdown ();
             expo.shutdown ();
+            magnifier.shutdown ();
             cube.shutdown ();
             display_switcher.shutdown ();
             store.finish ();

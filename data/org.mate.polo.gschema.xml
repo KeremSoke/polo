@@ -368,5 +368,20 @@
       <summary>Turn the desktop cube with the pointer</summary>
       <description>Modifiers and a pointer button (Button1 left, Button2 middle, Button3 right, Button8 back, Button9 forward) that turn the cube while held; letting go lands on the workspace in front. At least one modifier is needed; "disabled" for none. Applications do not get that click.</description>
     </key>
+    <key name="magnifier" type="s">
+      <default>'&lt;Mod4&gt;&lt;Alt&gt;8'</default>
+      <summary>Turn the magnifier on or off</summary>
+      <description>Toggles org.gnome.desktop.a11y.applications screen-magnifier-enabled, which magnifies every screen by org.gnome.desktop.a11y.magnifier mag-factor and follows the pointer and the focused window, in Marco's accelerator syntax ("disabled" for none).</description>
+    </key>
+    <key name="magnifier-zoom-in" type="s">
+      <default>'&lt;Mod4&gt;&lt;Alt&gt;equal'</default>
+      <summary>Magnify more</summary>
+      <description>Raises mag-factor by one, turning the magnifier on if it is off, in Marco's accelerator syntax ("disabled" for none).</description>
+    </key>
+    <key name="magnifier-zoom-out" type="s">
+      <default>'&lt;Mod4&gt;&lt;Alt&gt;minus'</default>
+      <summary>Magnify less</summary>
+      <description>Lowers mag-factor by one, down to 1, in Marco's accelerator syntax ("disabled" for none).</description>
+    </key>
   </schema>
 </schemalist>
