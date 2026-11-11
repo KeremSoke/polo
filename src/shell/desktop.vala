@@ -234,6 +234,10 @@ namespace Polo.Shell {
             server.output_added.disconnect (on_output_added);
             server.output_removed.disconnect (on_output_removed);
             server.outputs_changed.disconnect (apply_layout);
+            if (relayout_source != 0) {
+                GLib.Source.remove (relayout_source);
+                relayout_source = 0;
+            }
             server.seat_added.disconnect (on_seat_added);
             server.new_toplevel.disconnect (on_new_toplevel);
             model.notify["prefs"].disconnect (on_prefs_changed);
@@ -290,12 +294,23 @@ namespace Polo.Shell {
             heads.add (backend_output);
         }
 
+        private uint relayout_source = 0;
+
         private void on_output_removed (Backend.Output backend_output) {
             Logging.scope (LogDomain.POLO).debug ("screen %s removed", backend_output.get_name ());
             heads.remove (backend_output);
             if (outputs.lookup (backend_output) != null) {
                 release_head (backend_output);
                 layer_shell.arrange ();
+            }
+            /* A connector that goes away (a dock's MST port) brings no heads-changed
+             * from libweston, so nothing else would lay the rest out again. */
+            if (relayout_source == 0) {
+                relayout_source = GLib.Idle.add (() => {
+                    relayout_source = 0;
+                    apply_layout ();
+                    return GLib.Source.REMOVE;
+                });
             }
         }
 
