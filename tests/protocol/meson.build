@@ -318,6 +318,15 @@ test('magic-lamp-fade', executable('test-magic-lamp-fade', 'test-magic-lamp-fade
   suite: 'protocol',
   timeout: 60,
 )
+magnifier_exe = executable('test-magnifier', 'test-magnifier.c', dependencies: harness_dep)
+foreach mode : ['pixman', 'gl', 'hidpi']
+  test(mode == 'pixman' ? 'magnifier' : 'magnifier-' + mode, magnifier_exe,
+    args: [polo_exe, mode],
+    env: magic_lamp_env,
+    suite: 'protocol',
+    timeout: 60,
+  )
+endforeach
 test('expo', executable('test-expo', 'test-expo.c', dependencies: harness_dep),
   args: [polo_exe],
   env: magic_lamp_env,
