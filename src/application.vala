@@ -153,6 +153,7 @@ namespace Polo {
                 stderr.printf ("polo: %s\n", e.message);
                 return 1;
             }
+            Backend.install_crash_handler ();
 
             if (CommandLine.log_self_test) {
                 log_self_test ();
@@ -195,6 +196,7 @@ namespace Polo {
             Backend.start_watchdog (config.kind == Backend.Kind.DRM && !CommandLine.test_mode);
             if (CommandLine.test_mode) {
                 block_main_loop_for_tests ();
+                crash_for_tests ();
             }
             server = new Backend.Server ();
             model = new Policy.Model (CommandLine.test_mode ? test_prefs () : MarcoPrefs.defaults ());
@@ -480,6 +482,18 @@ namespace Polo {
          */
         private static bool memory_settings () {
             return GLib.Environment.get_variable ("GSETTINGS_BACKEND") == "memory";
+        }
+
+        private void crash_for_tests () {
+            string? how = GLib.Environment.get_variable ("POLO_TEST_CRASH");
+            if (how == null) {
+                return;
+            }
+            GLib.Timeout.add (1000, () => {
+                Logging.scope (LogDomain.POLO).info ("test: crashing with %s", how);
+                Backend.crash_for_tests (how);
+                return GLib.Source.REMOVE;
+            });
         }
 
         private void block_main_loop_for_tests () {

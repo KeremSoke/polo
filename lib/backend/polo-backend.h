@@ -70,6 +70,12 @@ void
 polo_backend_watchdog_start(gboolean by_default);
 
 void
+polo_backend_crash_handler_install(void);
+
+void
+polo_backend_crash_for_tests(const char *how);
+
+void
 polo_backend_stats_effects(gint64 duration_usec, guint vertices);
 
 /* Tests only: blocks the calling thread in the kernel (state D) for @msec. */

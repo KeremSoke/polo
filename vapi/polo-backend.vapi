@@ -61,6 +61,13 @@ namespace Polo {
         [CCode (cname = "polo_backend_watchdog_start")]
         public void start_watchdog (bool by_default);
 
+        [CCode (cname = "polo_backend_crash_handler_install")]
+        public void install_crash_handler ();
+
+        /* Tests only: "segv", "abort" or "overflow". */
+        [CCode (cname = "polo_backend_crash_for_tests")]
+        public void crash_for_tests (string how);
+
         [CCode (cname = "polo_backend_stats_effects")]
         public void stats_effects (int64 duration_usec, uint vertices);
 

@@ -10,6 +10,7 @@ backend_sources = files(
   'keymap.c',
   'log.c',
   'loop-source.c',
+  'crash.c',
   'gpu-reset.c',
   'stats.c',
   'watchdog.c',
