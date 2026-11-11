@@ -1,0 +1,15 @@
+--- a/libweston/libinput-device.c
++++ b/libweston/libinput-device.c
+@@ -893,6 +893,12 @@
+ 				 libinput_device,
+ 				 libinput_event_get_pointer_event(event));
+ 		break;
++	case LIBINPUT_EVENT_POINTER_SCROLL_WHEEL:
++	case LIBINPUT_EVENT_POINTER_SCROLL_FINGER:
++	case LIBINPUT_EVENT_POINTER_SCROLL_CONTINUOUS:
++		/* libinput sends each scroll as LIBINPUT_EVENT_POINTER_AXIS too,
++		 * which is handled above. */
++		break;
+ 	case LIBINPUT_EVENT_TOUCH_DOWN:
+ 		handle_touch_down(libinput_device,
+ 				  libinput_event_get_touch_event(event));
