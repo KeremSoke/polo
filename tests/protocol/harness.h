@@ -265,6 +265,10 @@ void
 harness_move_pointer_absolute(struct harness *h, int x, int y);
 
 void
+harness_move_pointer_output(struct harness *h, const char *output, double x,
+			    double y);
+
+void
 harness_pointer_position(struct harness *h, int *x, int *y);
 
 void

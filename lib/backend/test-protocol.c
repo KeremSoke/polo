@@ -253,6 +253,37 @@ test_move_pointer_absolute(struct wl_client *client,
 }
 
 static void
+test_move_pointer_output(struct wl_client *client, struct wl_resource *resource,
+			 const char *name, wl_fixed_t x, wl_fixed_t y)
+{
+	PoloBackendServer *server = wl_resource_get_user_data(resource);
+	struct weston_seat *seat = first_seat(server);
+	struct weston_pointer_motion_event event;
+	struct weston_output *output;
+	struct weston_coord_global pos;
+	struct timespec time;
+
+	if (!seat || !weston_seat_get_pointer(seat))
+		return;
+	wl_list_for_each(output, &server->compositor->output_list, link)
+	{
+		if (g_strcmp0(output->name, name) != 0)
+			continue;
+		pos.c = weston_matrix_transform_coord(
+			&output->inverse_matrix,
+			weston_coord(wl_fixed_to_double(x),
+				     wl_fixed_to_double(y)));
+		weston_compositor_get_time(&time);
+		weston_pointer_motion_event_init(&event, &time, seat,
+						 WESTON_POINTER_MOTION_ABS,
+						 &pos, NULL, NULL);
+		notify_motion(&event);
+		notify_pointer_frame(seat);
+		return;
+	}
+}
+
+static void
 test_pointer_axis(struct wl_client *client, struct wl_resource *resource,
 		  int32_t value)
 {
@@ -776,6 +807,7 @@ static const struct polo_test_v1_interface test_implementation = {
 	.get_pointer_position = test_get_pointer_position,
 	.gpu_wedged = test_gpu_wedged,
 	.trim_heap = test_trim_heap,
+	.move_pointer_output = test_move_pointer_output,
 };
 
 static void
@@ -833,7 +865,7 @@ polo_backend_test_protocol_init(PoloBackendServer *server, GError **error)
 		server->compositor, &server->screenshot_authority,
 		authorize_screenshot);
 	server->test_global =
-		wl_global_create(server->display, &polo_test_v1_interface, 14,
+		wl_global_create(server->display, &polo_test_v1_interface, 15,
 				 server, test_bind);
 	if (!server->test_global) {
 		g_set_error(error, POLO_BACKEND_ERROR,

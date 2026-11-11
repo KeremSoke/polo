@@ -14,7 +14,7 @@
     tests check policy decisions rather than libweston internals.
   </description>
 
-  <interface name="polo_test_v1" version="14">
+  <interface name="polo_test_v1" version="15">
     <request name="destroy" type="destructor"/>
 
     <request name="get_window_info">
@@ -333,6 +333,18 @@
         malloc_trim, so that a test reading Polo's resident memory sees
         what is in use rather than what the allocator kept after a burst.
       </description>
+    </request>
+
+    <request name="move_pointer_output" since="15">
+      <description summary="send a position in an output's pixels">
+        An absolute position in the named output's framebuffer pixels, as a
+        touchscreen or a tablet mapped to that output reports it. It goes
+        through the output's transform, scale and magnification to a
+        global position. An unknown output is ignored.
+      </description>
+      <arg name="output" type="string"/>
+      <arg name="x" type="fixed"/>
+      <arg name="y" type="fixed"/>
     </request>
 
   </interface>
