@@ -1,0 +1,12 @@
+--- a/libweston/data-device.c
++++ b/libweston/data-device.c
+@@ -1294,7 +1294,8 @@
+ 		wl_resource_get_user_data(resource);
+ 	char **p;
+ 
+-	wl_signal_emit(&source->destroy_signal, source);
++	/* Ending a drag here takes its offer's listener off this signal. */
++	wl_signal_emit_mutable(&source->destroy_signal, source);
+ 
+ 	wl_array_for_each(p, &source->mime_types)
+ 		free(*p);
