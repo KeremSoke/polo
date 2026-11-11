@@ -921,7 +921,12 @@ namespace Polo.Shell {
             media_keys = keys;
         }
 
+        public Dbus.KeyboardMonitor? keyboard_monitor = null;
+
         private Backend.FilterResult on_key (Backend.Seat seat, Backend.KeyEvent event) {
+            if (keyboard_monitor != null && keyboard_monitor.filter (event) == Backend.FilterResult.CONSUME) {
+                return Backend.FilterResult.CONSUME;
+            }
             locate_pointer.key (event);
             bool locked = server.get_lock_state () != Backend.LockState.UNLOCKED;
             if (media_keys != null && (!grab_active || !event.pressed) &&

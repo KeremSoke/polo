@@ -3,5 +3,6 @@
   <gresource prefix="/org/mate/polo/dbus">
     <file>org.mate.Polo.Outputs1.xml</file>
     <file>org.mate.Polo.ScreenShare1.xml</file>
+    <file>org.freedesktop.a11y.KeyboardMonitor.xml</file>
   </gresource>
 </gresources>

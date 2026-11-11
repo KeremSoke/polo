@@ -72,6 +72,7 @@ polo_sources = files(
   'dbus/sm-manager.vala',
   'dbus/outputs.vala',
   'dbus/screen-share.vala',
+  'dbus/keyboard-monitor.vala',
   'core/spawn.vala',
   'decor/decorations.vala',
   'decor/frame.vala',

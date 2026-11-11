@@ -116,6 +116,7 @@ namespace Polo {
         private Input.AccessX? access_x = null;
         private Protocols.OutputManagement? output_management = null;
         private Dbus.Outputs? outputs_dbus = null;
+        private Dbus.KeyboardMonitor? keyboard_monitor = null;
         private Dbus.ScreenShare? screen_share = null;
         private WindowStates? window_states = null;
 #if POLO_HAVE_XSMP
@@ -338,6 +339,17 @@ namespace Polo {
                 session_env = new SessionEnv ();
                 session_env.publish (server.get_socket_name ());
             }
+            bool a11y_test = CommandLine.test_mode && GLib.Environment.get_variable ("POLO_TEST_A11Y") != null;
+            if (CommandLine.session || a11y_test) {
+                try {
+                    keyboard_monitor = new Dbus.KeyboardMonitor (GLib.Bus.get_sync (GLib.BusType.SESSION));
+                    keyboard_monitor.export ();
+                    desktop.keyboard_monitor = keyboard_monitor;
+                } catch (GLib.Error e) {
+                    log.warning ("cannot provide %s: %s", Dbus.KeyboardMonitor.NAME, e.message);
+                    keyboard_monitor = null;
+                }
+            }
 
             spawn = new Spawn (server, desktop.activation_tokens);
             spawn.trust = trust;
@@ -446,6 +458,11 @@ namespace Polo {
             if (outputs_dbus != null) {
                 outputs_dbus.unexport ();
                 outputs_dbus = null;
+            }
+            if (keyboard_monitor != null) {
+                desktop.keyboard_monitor = null;
+                keyboard_monitor.unexport ();
+                keyboard_monitor = null;
             }
 #if POLO_HAVE_XSMP
             if (xsmp != null) {
