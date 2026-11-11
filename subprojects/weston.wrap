@@ -26,4 +26,5 @@ diff_files =
   weston/0019-output-repaint-reset-on-disable.patch,
   weston/0020-drm-ignore-unexpected-flip.patch,
   weston/0021-drm-release-planes-before-gbm.patch,
-  weston/0022-drm-keep-preferred-mode-flag.patch
+  weston/0022-drm-keep-preferred-mode-flag.patch,
+  weston/0023-drm-destroy-heads-on-failed-create.patch

@@ -1,0 +1,24 @@
+--- a/libweston/backend-drm/drm.c
++++ b/libweston/backend-drm/drm.c
+@@ -4750,6 +4750,7 @@
+ 	struct wl_event_loop *loop;
+ 	const char *seat_id = default_seat;
+ 	const char *session_seat;
++	struct weston_head *base, *next;
+ 	struct weston_drm_format_array *scanout_formats;
+ 	int ret;
+ 
+@@ -4977,6 +4978,13 @@
+ err_udev_input:
+ 	udev_input_destroy(&b->input);
+ err_drm_device:
++	/* The heads found so far point at this backend, which is about to
++	 * be freed; a frontend that loads another backend would use them. */
++	wl_list_for_each_safe(base, next, &compositor->head_list,
++			      compositor_link) {
++		if (base->backend == &b->base)
++			drm_head_destroy(base);
++	}
+ 	drm_backend_destroy_all_drm_devices(b);
+ err_udev:
+ 	udev_unref(b->udev);
