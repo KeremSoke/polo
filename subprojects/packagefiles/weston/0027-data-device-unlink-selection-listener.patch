@@ -1,0 +1,13 @@
+--- a/libweston/data-device.c
++++ b/libweston/data-device.c
+@@ -1178,6 +1178,10 @@
+ 	struct wl_resource *data_device;
+ 	struct weston_surface *focus = NULL;
+ 
++	/* Answering selection_signal may make another source the selection
++	 * and add this listener to it; it must be off the dying list first. */
++	wl_list_remove(&listener->link);
++	wl_list_init(&listener->link);
+ 	seat->selection_data_source = NULL;
+ 
+ 	if (keyboard)
