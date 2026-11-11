@@ -1297,6 +1297,7 @@ namespace Polo.Shell {
             frame_input.forget (window);
             windows.remove (window.toplevel);
             model.unmanage (window.window);
+            window.window.release_adapter ();
         }
 
         /* Map Marco stack layers to compositor layers. */

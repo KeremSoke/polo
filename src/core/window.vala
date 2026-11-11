@@ -70,7 +70,7 @@ namespace Polo {
 
         public uint64 id { get; construct; }
         public WindowKind kind { get; construct; }
-        public WindowAdapter adapter { get; construct; }
+        public WindowAdapter adapter { get; private set; }
 
         /* A stable name for logs and tests (scenario ids). */
         public string? label { get; set; }
@@ -166,8 +166,13 @@ namespace Polo {
         public signal void unmanaged ();
 
         public Window (WindowKind kind, WindowAdapter adapter) {
-            Object (id: next_id++, kind: kind, adapter: adapter);
+            Object (id: next_id++, kind: kind);
+            this.adapter = adapter;
             hints.normalize ();
+        }
+
+        public void release_adapter () {
+            adapter = new GoneAdapter ();
         }
 
         public bool has_feature (WindowFeatures flags) {
@@ -229,6 +234,29 @@ namespace Polo {
 
         public string describe () {
             return "%s#%llu (%s)".printf (kind.to_string (), id, label ?? app_id ?? title ?? "?");
+        }
+    }
+
+    private class GoneAdapter : GLib.Object, WindowAdapter {
+        public void configure (Marco.Rect frame) {
+        }
+
+        public void set_activated (bool activated) {
+        }
+
+        public void set_maximized (bool maximized) {
+        }
+
+        public void set_fullscreen (bool fullscreen) {
+        }
+
+        public void take_focus () {
+        }
+
+        public void close () {
+        }
+
+        public void ping () {
         }
     }
 }
