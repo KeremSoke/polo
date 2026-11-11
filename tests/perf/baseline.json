@@ -1,0 +1,9 @@
+{
+  "idle_wakeups_per_second": 0.20,
+  "idle_cpu_percent": 0.00,
+  "rss_30_windows_mb": 54.6,
+  "alt_tab_first_ms": 39.7,
+  "alt_tab_ms": 33.4,
+  "key_to_frame_p50_ms": 16.9,
+  "key_to_frame_p95_ms": 17.3
+}

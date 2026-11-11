@@ -64,7 +64,7 @@ jobs:
       - name: X socket directory
         run: mkdir -p /tmp/.X11-unix && chmod 1777 /tmp/.X11-unix
       - name: Test
-        run: meson test -C build --print-errorlogs
+        run: meson test -C build --print-errorlogs --no-suite perf
       - name: Application matrix
         env:
           POLO_APP_MATRIX: 1
@@ -133,6 +133,37 @@ jobs:
         with:
           name: testlog-fuzz
           path: build/meson-logs/
+
+  # The budgets of plan M16.2 on headless Polo (perf-budgets), and the numbers
+  # against tests/perf/baseline.json: more than 10% worse is flagged.
+  perf:
+    name: Performance
+    runs-on: ubuntu-latest
+    container: fedora:44
+    steps:
+      - name: Install dependencies
+        run: dnf -y install $FEDORA_DEPS $FEDORA_TEST_DEPS
+      - uses: actions/checkout@v4
+      - name: Cache Weston checkout
+        uses: actions/cache@v4
+        with:
+          path: subprojects/weston
+          key: weston-${{ hashFiles('subprojects/weston.wrap', 'subprojects/packagefiles/weston/**') }}
+      - name: Configure
+        run: meson setup build -Dtest-protocol=true -Dbuildtype=release
+      - name: Build
+        run: ninja -C build
+      - name: Budgets
+        run: meson test -C build --suite perf --print-errorlogs
+      - name: Against the baseline
+        if: always()
+        run: python3 tools/perf-compare.py tests/perf/baseline.json build/tests/protocol/perf-results.json
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-results
+          path: build/tests/protocol/perf-results.json
 
   lint:
     name: Lint and boundary

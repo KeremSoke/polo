@@ -103,7 +103,7 @@ struct harness {
 	int globals_removed;
 
 	/* Mapped windows; any of them can carry a frame callback. */
-	struct harness_window *windows[16];
+	struct harness_window *windows[32];
 	int n_windows;
 
 	struct wl_surface *keyboard_focus;

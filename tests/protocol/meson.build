@@ -166,6 +166,13 @@ if get_option('shell-ui')
     suite: 'protocol',
     timeout: 60,
   )
+  test('perf-budgets', executable('perf-budgets', '../perf/perf-budgets.c', dependencies: harness_dep),
+    args: [polo_exe, shell_ui_exe, meson.current_build_dir() / 'perf-results.json'],
+    env: shell_ui_gtk_env,
+    suite: 'perf',
+    timeout: 180,
+    is_parallel: false,
+  )
   test('alt-tab-hide', executable('test-alt-tab-hide', 'test-alt-tab-hide.c', dependencies: harness_dep),
     args: [polo_exe, shell_ui_exe],
     env: shell_ui_gtk_env,

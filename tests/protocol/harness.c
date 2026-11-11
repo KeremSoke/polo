@@ -894,7 +894,7 @@ window_create(struct harness *h, int width, int height, const char *title,
 	wl_surface_commit(w->surface);
 	harness_roundtrip(h);
 
-	CHECK(h->n_windows < 16, "too many windows");
+	CHECK(h->n_windows < 32, "too many windows");
 	h->windows[h->n_windows++] = w;
 	harness_wait_repaint(h);
 
@@ -968,7 +968,7 @@ harness_window_remap(struct harness_window *w, int width, int height)
 	window_attach(w, width, height);
 	wl_surface_commit(w->surface);
 	harness_roundtrip(h);
-	CHECK(h->n_windows < 16, "too many windows");
+	CHECK(h->n_windows < 32, "too many windows");
 	h->windows[h->n_windows++] = w;
 	harness_wait_repaint(h);
 	CHECK(harness_window_info(w)->known, "not mapped again");
