@@ -38,17 +38,25 @@ struct reader {
 	char log[300];
 };
 
-static char dir[] = "/tmp/polo-a11y-XXXXXX";
+static char dir[] = "/tmp/polo-keyboard-monitor-XXXXXX";
+static bool dir_made;
 static pid_t bus_pid;
 static pid_t reader_pid;
 
 static void
 cleanup(void)
 {
+	char command[128];
+
 	if (reader_pid > 0)
 		kill(reader_pid, SIGKILL);
 	if (bus_pid > 0)
 		kill(bus_pid, SIGTERM);
+	if (dir_made) {
+		snprintf(command, sizeof command, "rm -rf '%s'", dir);
+		if (system(command) != 0)
+			fprintf(stderr, "cannot remove %s\n", dir);
+	}
 }
 
 static void
@@ -205,6 +213,7 @@ main(int argc, char **argv)
 
 	CHECK(argc >= 3, "usage: %s POLO FAKE-ORCA", argv[0]);
 	CHECK(mkdtemp(dir), "mkdtemp: %s", strerror(errno));
+	dir_made = true;
 	atexit(cleanup);
 	start_bus();
 	setenv("POLO_TEST_A11Y", "1", 1);
