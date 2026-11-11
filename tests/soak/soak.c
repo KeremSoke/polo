@@ -132,28 +132,6 @@ key_tap(struct harness *h, uint32_t key)
 }
 
 static void
-destroy_window(struct harness *h, struct harness_window *w)
-{
-	for (int i = 0; i < h->n_windows; i++) {
-		if (h->windows[i] == w) {
-			h->windows[i] = h->windows[--h->n_windows];
-			break;
-		}
-	}
-	xdg_toplevel_destroy(w->xdg_toplevel);
-	xdg_surface_destroy(w->xdg_surface);
-	wl_surface_destroy(w->surface);
-	if (w->buffer)
-		wl_buffer_destroy(w->buffer);
-	if (h->keyboard_focus == w->surface)
-		h->keyboard_focus = NULL;
-	if (h->pointer_focus == w->surface)
-		h->pointer_focus = NULL;
-	free(w);
-	harness_roundtrip(h);
-}
-
-static void
 open_window(struct harness *h)
 {
 	char title[32];
@@ -176,7 +154,7 @@ close_window(struct harness *h)
 	if (n_windows <= 2)
 		return;
 	i = rand() % n_windows;
-	destroy_window(h, windows[i]);
+	harness_window_close(windows[i]);
 	windows[i] = windows[--n_windows];
 }
 
@@ -345,7 +323,7 @@ static double
 checkpoint(struct harness *h, int pid)
 {
 	while (n_windows)
-		destroy_window(h, windows[--n_windows]);
+		harness_window_close(windows[--n_windows]);
 	for (int i = 0; i < 3; i++) {
 		char title[32];
 
@@ -397,7 +375,7 @@ session(int argc, char **argv, double seconds, int index, double soak_start)
 		}
 	}
 	while (n_windows)
-		destroy_window(h, windows[--n_windows]);
+		harness_window_close(windows[--n_windows]);
 	CHECK(harness_stop(h) == 0, "login %d: Polo did not stop cleanly",
 	      index);
 	CHECK(children_of(pid) == 0,

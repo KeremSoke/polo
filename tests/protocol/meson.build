@@ -181,6 +181,19 @@ if get_option('shell-ui')
     timeout: 180,
     is_parallel: false,
   )
+  # The shell UI with its accessibility bridge on, on a bus of its own.
+  test('shell-ui-a11y', executable('test-shell-ui-a11y', 'test-shell-ui-a11y.c', dependencies: harness_dep),
+    args: [polo_exe, shell_ui_exe, files('a11y-listen.py')],
+    env: protocol_test_env,
+    suite: 'protocol',
+    timeout: 90,
+  )
+  test('shell-ui-stress', executable('test-shell-ui-stress', 'test-shell-ui-stress.c', dependencies: harness_dep),
+    args: [polo_exe, shell_ui_exe, '1', '600'],
+    env: shell_ui_gtk_env,
+    suite: 'protocol',
+    timeout: 180,
+  )
   soak_env = shell_ui_gtk_env
   soak_env.set('LIBGL_ALWAYS_SOFTWARE', '1')
   # Two minutes in two logins; tools/soak.sh runs it for hours.

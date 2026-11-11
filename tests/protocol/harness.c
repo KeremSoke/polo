@@ -360,7 +360,11 @@ test_shell_ui_request(void *data, struct polo_test_v1 *test, const char *text)
 {
 	struct harness *h = data;
 
-	CHECK(h->n_shell_ui_requests < 16, "too many shell-ui requests");
+	if (h->n_shell_ui_requests == 16) {
+		memmove(h->shell_ui_requests[0], h->shell_ui_requests[1],
+			15 * sizeof h->shell_ui_requests[0]);
+		h->n_shell_ui_requests--;
+	}
 	snprintf(h->shell_ui_requests[h->n_shell_ui_requests++],
 		 sizeof h->shell_ui_requests[0], "%s", text);
 }
@@ -649,9 +653,11 @@ harness_stop(struct harness *h)
 	wl_display_roundtrip(h->display);
 	wl_display_disconnect(h->display);
 
-	kill(h->pid, SIGTERM);
-	CHECK(waitpid(h->pid, &status, 0) == h->pid, "waitpid: %s",
-	      strerror(errno));
+	if (h->pid > 0) {
+		kill(h->pid, SIGTERM);
+		CHECK(waitpid(h->pid, &status, 0) == h->pid, "waitpid: %s",
+		      strerror(errno));
+	}
 
 	snprintf(cmd, sizeof cmd, "rm -rf '%s'", h->runtime_dir);
 	if (system(cmd) != 0)
@@ -857,7 +863,7 @@ static const struct xdg_toplevel_listener toplevel_listener = {
 
 static struct harness_window *
 window_create(struct harness *h, int width, int height, const char *title,
-	      bool decorated, bool ask_server_side)
+	      bool decorated, bool ask_server_side, bool wait_frame)
 {
 	struct harness_window *w = calloc(1, sizeof *w);
 	int i;
@@ -896,31 +902,40 @@ window_create(struct harness *h, int width, int height, const char *title,
 
 	CHECK(h->n_windows < 32, "too many windows");
 	h->windows[h->n_windows++] = w;
-	harness_wait_repaint(h);
+	if (wait_frame)
+		harness_wait_repaint(h);
+	else
+		harness_roundtrip(h);
 
 	CHECK(harness_window_info(w)->known, "%s: not mapped", title);
 	return w;
 }
 
 struct harness_window *
+harness_window_open(struct harness *h, int width, int height, const char *title)
+{
+	return window_create(h, width, height, title, false, false, false);
+}
+
+struct harness_window *
 harness_window_create(struct harness *h, int width, int height,
 		      const char *title)
 {
-	return window_create(h, width, height, title, false, false);
+	return window_create(h, width, height, title, false, false, true);
 }
 
 struct harness_window *
 harness_window_create_decorated(struct harness *h, int width, int height,
 				const char *title)
 {
-	return window_create(h, width, height, title, true, true);
+	return window_create(h, width, height, title, true, true, true);
 }
 
 struct harness_window *
 harness_window_create_with_decoration(struct harness *h, int width, int height,
 				      const char *title)
 {
-	return window_create(h, width, height, title, true, false);
+	return window_create(h, width, height, title, true, false, true);
 }
 
 static void
@@ -975,7 +990,7 @@ harness_window_remap(struct harness_window *w, int width, int height)
 }
 
 void
-harness_window_destroy(struct harness_window *w)
+harness_window_close(struct harness_window *w)
 {
 	struct harness *h = w->harness;
 	int i;
@@ -998,6 +1013,16 @@ harness_window_destroy(struct harness_window *w)
 	if (h->pointer_focus == w->surface)
 		h->pointer_focus = NULL;
 	free(w);
+	if (h->pid > 0)
+		harness_roundtrip(h);
+}
+
+void
+harness_window_destroy(struct harness_window *w)
+{
+	struct harness *h = w->harness;
+
+	harness_window_close(w);
 	harness_wait_repaint(h);
 }
 

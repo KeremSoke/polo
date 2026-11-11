@@ -191,6 +191,10 @@ struct harness_window *
 harness_window_create(struct harness *h, int width, int height,
 		      const char *title);
 
+struct harness_window *
+harness_window_open(struct harness *h, int width, int height,
+		    const char *title);
+
 /* Creates one after requesting server-side decorations before its first commit.
  */
 struct harness_window *
@@ -212,6 +216,9 @@ harness_buffer_create_colour(struct wl_shm *shm, int width, int height,
 
 void
 harness_window_destroy(struct harness_window *w);
+
+void
+harness_window_close(struct harness_window *w);
 
 /* Attach a null buffer: the toplevel unmaps and keeps its role. */
 void
