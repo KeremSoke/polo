@@ -403,6 +403,22 @@ static const struct wl_registry_listener registry_listener = {
 	registry_global_remove,
 };
 
+static gpointer
+watch_connection(gpointer data)
+{
+	struct wl_display *wl_display = data;
+
+	for (;;) {
+		g_usleep(G_USEC_PER_SEC);
+		if (wl_display_get_error(wl_display) != 0) {
+			g_usleep(2 * G_USEC_PER_SEC);
+			g_printerr("polo-shell-ui: lost the compositor\n");
+			_exit(1);
+		}
+	}
+	return NULL;
+}
+
 PoloShellUiClient *
 polo_shell_ui_client_new(GdkDisplay *display, GError **error)
 {
@@ -444,6 +460,8 @@ polo_shell_ui_client_new(GdkDisplay *display, GError **error)
 	self->wl_display = wl_display;
 	self->shell_ui = scan.shell_ui;
 	polo_shell_ui_v1_add_listener(self->shell_ui, &shell_ui_listener, self);
+	g_thread_unref(
+		g_thread_new("connection-watch", watch_connection, wl_display));
 	return self;
 }
 
