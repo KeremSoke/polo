@@ -57,6 +57,27 @@ pause_ms(struct harness *h, int ms)
 	}
 }
 
+static bool
+exited(int pid)
+{
+	char path[64], stat[512];
+	const char *close_paren;
+	FILE *file;
+	size_t n;
+
+	if (kill(pid, 0) != 0)
+		return true;
+	snprintf(path, sizeof path, "/proc/%d/stat", pid);
+	file = fopen(path, "r");
+	if (!file)
+		return true;
+	n = fread(stat, 1, sizeof stat - 1, file);
+	fclose(file);
+	stat[n] = '\0';
+	close_paren = strrchr(stat, ')');
+	return close_paren && (close_paren[2] == 'Z' || close_paren[2] == 'X');
+}
+
 static double
 rss_mb(int pid)
 {
@@ -231,7 +252,7 @@ outlive_polo(int argc, char **argv, unsigned seed)
 	for (int i = 0; i < 100 && !gone; i++) {
 		struct timespec step = { 0, 100 * 1000000L };
 
-		gone = kill(shell_ui, 0) != 0;
+		gone = exited(shell_ui);
 		nanosleep(&step, NULL);
 	}
 	if (!gone)
