@@ -213,12 +213,13 @@ static void
 filter_grab_button(struct weston_pointer_grab *grab,
 		   const struct weston_pointer_button_event *event)
 {
-	polo_backend_stats_input(&event->base.ts);
 	struct weston_pointer *pointer = grab->pointer;
 	PoloBackendSeat *self = seat_from_pointer(pointer);
 
-	if (event->button_state == WL_POINTER_BUTTON_STATE_PRESSED)
+	if (event->button_state == WL_POINTER_BUTTON_STATE_PRESSED) {
+		polo_backend_stats_input(&event->base.ts);
 		self->last_press_usec = g_get_monotonic_time();
+	}
 	if (self->button_filter &&
 	    !polo_backend_session_lock_active(self->server)) {
 		PoloBackendButtonEvent ev = {
@@ -670,9 +671,10 @@ filter_key(struct weston_keyboard_grab *grab,
 
 	if (!self)
 		return;
-	polo_backend_stats_input(&event->base.ts);
-	if (event->key_state == WL_KEYBOARD_KEY_STATE_PRESSED)
+	if (event->key_state == WL_KEYBOARD_KEY_STATE_PRESSED) {
+		polo_backend_stats_input(&event->base.ts);
 		self->last_press_usec = g_get_monotonic_time();
+	}
 	if (locked_key(self, grab, event))
 		return;
 	if (x_keyboard_grab_takes_key(self, keyboard, event) ||

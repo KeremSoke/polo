@@ -59,6 +59,7 @@ namespace Polo.Shell {
          * arrange (). They are per-output struts (Marco
          * _GNOME_WM_STRUT_AREA), on every workspace. */
         private GLib.GenericArray<Marco.Strut?> struts = new GLib.GenericArray<Marco.Strut?> ();
+        private string? last_layout = null;
 
         public LayerShell (Backend.Server server, Policy.Model model, Desktop desktop) {
             this.server = server;
@@ -193,8 +194,25 @@ namespace Polo.Shell {
                     }
                 }
             }
-            model.invalidate_work_areas ();
+            string layout = layout_key ();
+            if (layout != last_layout) {
+                last_layout = layout;
+                model.invalidate_work_areas ();
+            }
             arranged ();
+        }
+
+        private string layout_key () {
+            var key = new GLib.StringBuilder ();
+            foreach (var output in model.get_outputs ()) {
+                key.append_printf ("%s %d,%d %dx%d;", output.name, output.rect.x, output.rect.y,
+                                   output.rect.width, output.rect.height);
+            }
+            foreach (var strut in struts) {
+                key.append_printf ("%d %d %d,%d %dx%d;", (int) strut.side, (int) strut.edge, strut.rect.x,
+                                   strut.rect.y, strut.rect.width, strut.rect.height);
+            }
+            return key.str;
         }
 
         /* After every layout pass, including output changes. */

@@ -7,9 +7,10 @@
  * start (frame callbacks go out at presentation), missed vblanks, damaged
  * share of the output, and how often the top view was on a hardware plane,
  * and which programs committed the most frames.
- * For input: event to Polo handling it, and event to the presentation of the
- * first frame repainted after it. For effects: simulation time per frame and
- * deformed vertices. Off, every hook returns at once.
+ * For input (key and button presses, pointer motion): event to Polo handling
+ * it, and event to the presentation of the first frame repainted after it. For
+ * effects: simulation time per frame and deformed vertices. Off, every hook
+ * returns at once.
  */
 
 #include <stdlib.h>
@@ -288,7 +289,9 @@ surface_committed(struct wl_listener *listener, void *data)
 			wl_resource_get_client(w->surface->resource));
 		const char *exe = polo_backend_client_get_executable(client);
 
-		if (exe)
+		if (polo_backend_client_get_xserver(client))
+			name = "Xwayland";
+		else if (exe)
 			name = exe;
 	}
 	base = g_path_get_basename(name);

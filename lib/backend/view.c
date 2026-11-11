@@ -283,6 +283,10 @@ polo_backend_view_set_position(PoloBackendView *view, double x, double y)
 	if (!view->view)
 		return;
 
+	if (view->view->geometry.pos_offset.x == x &&
+	    view->view->geometry.pos_offset.y == y &&
+	    !view->view->geometry.parent)
+		return;
 	weston_view_set_position(
 		view->view,
 		(struct weston_coord_global){ .c = weston_coord(x, y) });
@@ -371,6 +375,11 @@ polo_backend_view_move_to_layer(PoloBackendView *view, PoloBackendLayer *layer)
 	if (!view->view)
 		return;
 
+	/* Already on top of that layer: moving it there again only damages
+	 * all of it (a full-screen wallpaper on every panel commit). */
+	if (layer && view->view->layer_link.layer == &layer->layer &&
+	    layer->layer.view_list.link.next == &view->view->layer_link.link)
+		return;
 	weston_view_move_to_layer(view->view,
 				  layer ? &layer->layer.view_list : NULL);
 	weston_compositor_schedule_repaint(view->view->surface->compositor);
