@@ -14,6 +14,7 @@
 #   POLO_IM=fcitx5   start fcitx5 for input methods
 #   POLO_DEBUG=1     also log Polo's debug messages (screens, effects, windows);
 #                    or a comma-separated list of scopes, such as polo,drm-backend
+#   POLO_STATS=1     log a performance summary every 10 s (polo --stats)
 #   POLO_WATCHDOG_SECONDS=N  abort a main loop stuck for N s (default 15; 0 only logs)
 
 set -uo pipefail
@@ -82,6 +83,11 @@ if [[ "${POLO_IM:-}" == fcitx5 ]]; then
     fi
 fi
 
+stats=()
+if [[ "${POLO_STATS:-0}" == 1 ]]; then
+    stats=(--stats)
+fi
+
 debug=()
 if [[ -n "${POLO_DEBUG:-}" && "${POLO_DEBUG}" != 0 ]]; then
     scopes="$POLO_DEBUG"
@@ -113,6 +119,7 @@ export POLO_WATCHDOG_SECONDS="${POLO_WATCHDOG_SECONDS:-15}"
     --debug-kill \
     --log="$run_dir/polo.log" \
     ${debug[@]+"${debug[@]}"} \
+    ${stats[@]+"${stats[@]}"} \
     ${clients[@]+"${clients[@]}"} \
     </dev/null >>"$run_dir/apps.log" 2>&1
 status=$?

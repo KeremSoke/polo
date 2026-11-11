@@ -48,6 +48,7 @@ struct stats_output {
 	double damage_sum;
 	guint top_candidates;
 	guint top_on_plane;
+	GHashTable *off_plane;
 	struct series repaint_present;
 	struct series present_repaint;
 	struct series input_frame;
@@ -143,32 +144,129 @@ refresh_period_usec(struct weston_output *output)
 	return (gint64)1000000000 / output->current_mode->refresh;
 }
 
-/* Whether the topmost view covering the whole output went to a plane of
- * its own in the last repaint: a full-screen view that could be scanned out
- * directly. */
+static const char *const LAYER_NAMES[POLO_BACKEND_N_LAYERS] = {
+	"background", "bottom", "below",      "normal",
+	"above",      "dock",   "fullscreen", "override-redirect",
+	"overlay",    "lock",
+};
+
+static int
+layer_of(struct weston_view *view)
+{
+	while (view->geometry.parent)
+		view = view->geometry.parent;
+	for (int i = 0; i < POLO_BACKEND_N_LAYERS; i++)
+		if (view->layer_link.layer == &stats.server->layers[i].layer)
+			return i;
+	return -1;
+}
+
+static char *
+program_name(struct weston_surface *surface)
+{
+	const char *name = "compositor";
+
+	if (surface->resource) {
+		PoloBackendClient *client = polo_backend_server_get_client(
+			stats.server,
+			wl_resource_get_client(surface->resource));
+		const char *exe = polo_backend_client_get_executable(client);
+
+		if (polo_backend_client_get_xserver(client))
+			name = "Xwayland";
+		else if (exe)
+			name = exe;
+	}
+	return g_path_get_basename(name);
+}
+
+static char *
+blocker_name(struct weston_view *view)
+{
+	int layer = layer_of(view);
+	char *program, *name;
+
+	if (view->layer_link.layer == &view->surface->compositor->cursor_layer)
+		return g_strdup("under the cursor");
+	program = program_name(view->surface);
+	name = g_strdup_printf("under %s (%s)", program,
+			       layer >= 0 ? LAYER_NAMES[layer] : "sub-surface");
+	g_free(program);
+	return name;
+}
+
+static char *
+failure_names(uint32_t reasons)
+{
+	GString *names = g_string_new(NULL);
+
+	if (reasons == FAILURE_REASONS_NONE) {
+		g_string_free(names, TRUE);
+		return g_strdup("not tried");
+	}
+	for (uint32_t bit = 1; bit; bit <<= 1) {
+		if (!(reasons & bit))
+			continue;
+		if (names->len)
+			g_string_append(names, " + ");
+		g_string_append(names,
+				weston_plane_failure_reasons_to_str(bit));
+	}
+	return g_string_free(names, FALSE);
+}
+
+static void
+note_off_plane(struct stats_output *o, char *why)
+{
+	g_hash_table_insert(
+		o->off_plane, why,
+		GUINT_TO_POINTER(GPOINTER_TO_UINT(g_hash_table_lookup(
+					 o->off_plane, why)) +
+				 1));
+}
+
+/* A window covering the whole output (a fullscreen game or video) could be
+ * scanned out directly. Count how often it was, and when not, why: a view the
+ * renderer composites above it, or what the DRM backend said. */
 static void
 check_top_view(struct stats_output *o)
 {
 	struct weston_output *output = o->output;
 	struct weston_paint_node *pnode;
+	struct weston_view *above = NULL;
 	pixman_box32_t *area = pixman_region32_extents(&output->region);
 
 	wl_list_for_each(pnode, &output->paint_node_z_order_list, z_order_link)
 	{
 		pixman_box32_t *box;
+		gboolean composited;
 
 		if (!pnode->view || !weston_view_is_mapped(pnode->view))
 			continue;
 		box = pixman_region32_extents(
 			&pnode->view->transform.boundingbox);
+		composited =
+			!pnode->plane || pnode->plane == &output->primary_plane;
 		if (box->x1 <= area->x1 && box->y1 <= area->y1 &&
 		    box->x2 >= area->x2 && box->y2 >= area->y2) {
+			if (layer_of(pnode->view) < POLO_BACKEND_LAYER_BELOW)
+				return;
 			o->top_candidates++;
-			if (pnode->plane &&
-			    pnode->plane != &output->primary_plane)
+			if (!composited)
 				o->top_on_plane++;
+			else if (above)
+				note_off_plane(o, blocker_name(above));
+			else
+				note_off_plane(
+					o,
+					failure_names(
+						pnode->try_view_on_plane_failure_reasons));
+			return;
 		}
-		return;
+		if (!above && composited && box->x2 > area->x1 &&
+		    box->x1 < area->x2 && box->y2 > area->y1 &&
+		    box->y1 < area->y2)
+			above = pnode->view;
 	}
 }
 
@@ -255,6 +353,7 @@ output_destroyed(struct wl_listener *listener, void *data)
 	wl_list_remove(&o->destroy.link);
 	o->output->start_repaint_loop = o->start_repaint_loop;
 	wl_list_remove(&o->link);
+	g_hash_table_destroy(o->off_plane);
 	g_free(o);
 }
 
@@ -264,6 +363,8 @@ watch_output(struct weston_output *output)
 	struct stats_output *o = g_new0(struct stats_output, 1);
 
 	o->output = output;
+	o->off_plane =
+		g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
 	o->latch.notify = output_latched;
 	wl_signal_add(&output->post_latch_signal, &o->latch);
 	o->frame.notify = output_framed;
@@ -280,21 +381,8 @@ static void
 surface_committed(struct wl_listener *listener, void *data)
 {
 	struct watched_surface *w = wl_container_of(listener, w, commit);
-	const char *name = "compositor";
-	char *base;
+	char *base = program_name(w->surface);
 
-	if (w->surface->resource) {
-		PoloBackendClient *client = polo_backend_server_get_client(
-			stats.server,
-			wl_resource_get_client(w->surface->resource));
-		const char *exe = polo_backend_client_get_executable(client);
-
-		if (polo_backend_client_get_xserver(client))
-			name = "Xwayland";
-		else if (exe)
-			name = exe;
-	}
-	base = g_path_get_basename(name);
 	g_hash_table_insert(
 		stats.commits, base,
 		GUINT_TO_POINTER(GPOINTER_TO_UINT(g_hash_table_lookup(
@@ -360,6 +448,24 @@ output_created(struct wl_listener *listener, void *data)
 	watch_output(data);
 }
 
+static void
+append_off_plane(GString *line, struct stats_output *o)
+{
+	GHashTableIter iter;
+	gpointer why, count;
+	const char *separator = " (off it: ";
+
+	g_hash_table_iter_init(&iter, o->off_plane);
+	while (g_hash_table_iter_next(&iter, &why, &count)) {
+		g_string_append_printf(line, "%s%s %u", separator, (char *)why,
+				       GPOINTER_TO_UINT(count));
+		separator = ", ";
+	}
+	if (g_hash_table_size(o->off_plane))
+		g_string_append_c(line, ')');
+	g_hash_table_remove_all(o->off_plane);
+}
+
 static gboolean
 report(gpointer data)
 {
@@ -385,6 +491,7 @@ report(gpointer data)
 		g_string_append_printf(line,
 				       "; top view on a plane %u of %u frames",
 				       o->top_on_plane, o->top_candidates);
+		append_off_plane(line, o);
 		polo_log_scope_info(log, "%s", line->str);
 		o->frames = o->missed = o->damage_frames = 0;
 		o->top_candidates = o->top_on_plane = 0;
