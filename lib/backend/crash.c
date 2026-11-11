@@ -36,6 +36,7 @@ static struct {
 	int fds[2];
 	int n_fds;
 	volatile sig_atomic_t handling;
+	volatile sig_atomic_t signal;
 } crash;
 
 static void
@@ -102,12 +103,27 @@ report(int fd, int sig, siginfo_t *info, void **frames, int n_frames)
 	say(fd, " in thread ");
 	say_number(fd, (uintptr_t)gettid(), 10);
 	say(fd, "; where it happened:\n");
+	for (int i = 0; i < n_frames; i++) {
+		say(fd, "  ");
+		say_number(fd, (uintptr_t)frames[i], 16);
+		say(fd, "\n");
+	}
 	backtrace_symbols_fd(frames, n_frames, fd);
 	say(fd, "polo: the log before the crash:\n");
 	polo_backend_log_dump_ring(fd);
 	say(fd,
 	    "polo: end of the crash report; a core dump follows if "
 	    "the system keeps them (coredumpctl list polo)\n");
+}
+
+/* Naming the frames takes the dynamic loader's lock, which the crashed
+ * thread may hold: rather than hang, die of the first signal after a while. */
+static void
+on_alarm(int sig)
+{
+	(void)sig;
+	signal(crash.signal, SIG_DFL);
+	raise(crash.signal);
 }
 
 static void
@@ -119,6 +135,9 @@ on_fatal_signal(int sig, siginfo_t *info, void *context)
 	(void)context;
 	if (!crash.handling) {
 		crash.handling = 1;
+		crash.signal = sig;
+		signal(SIGALRM, on_alarm);
+		alarm(3);
 		n_frames = backtrace(frames, FRAMES);
 		for (int i = 0; i < crash.n_fds; i++)
 			report(crash.fds[i], sig, info, frames, n_frames);
