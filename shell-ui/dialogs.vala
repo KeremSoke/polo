@@ -41,6 +41,11 @@ namespace PoloShellUi {
         }
 
         private void on_show (uint id, uint kind, Gdk.Monitor? monitor, string? payload) {
+            var previous = open.lookup (id);
+            if (previous != null) {
+                open.remove (id);
+                previous.destroy ();
+            }
             Gtk.Dialog? dialog = null;
             if (kind == DIALOG_NOT_RESPONDING) {
                 dialog = not_responding (id, payload ?? "");

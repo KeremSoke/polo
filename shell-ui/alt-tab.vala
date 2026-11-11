@@ -452,6 +452,10 @@ namespace PoloShellUi {
         }
 
         public void destroy () {
+            foreach (var entry in entries) {
+                entry.workspace = null;
+                entry.widget = null;
+            }
             window.destroy ();
         }
 
@@ -774,6 +778,7 @@ namespace PoloShellUi {
                 popup = null;
             }
             selected_while_creating = 0;
+            showing_workspaces = false;
             uint mine = ++generation;
             string? shown_heading = heading;
             heading = null;
