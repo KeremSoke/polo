@@ -379,9 +379,11 @@ polo_backend_output_get_internal(PoloBackendOutput *self)
 gboolean
 polo_backend_output_get_enabled(PoloBackendOutput *self)
 {
-	return self->output && self->output->enabled &&
-		(!self->output->destroying ||
-		 !wl_list_empty(&self->turned_off.link));
+	return self->output &&
+		((self->output->enabled &&
+		  (!self->output->destroying ||
+		   !wl_list_empty(&self->turned_off.link))) ||
+		 self->relight_idle);
 }
 int
 polo_backend_output_get_transform(PoloBackendOutput *self)
