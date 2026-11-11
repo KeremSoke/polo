@@ -2766,9 +2766,14 @@ test_close_animation(int argc, char **argv)
 	pid_t client = start_x_client(display, argv[2], true, xauth);
 
 	wait_for_line(h, "mapped");
-	pause_ms(h, 600);
 	uint32_t *shown = grab(h);
 
+	for (int i = 0;
+	     i < 50 && white_pixels(shown, &x, &y) < 300 * 200 * 9 / 10; i++) {
+		free(shown);
+		pause_ms(h, 100);
+		shown = grab(h);
+	}
 	CHECK(white_pixels(shown, &x, &y) >= 300 * 200 * 9 / 10,
 	      "the X window is not on screen");
 	free(shown);
