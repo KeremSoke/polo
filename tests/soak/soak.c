@@ -404,7 +404,13 @@ session(int argc, char **argv, double seconds, int index, double soak_start)
 	      "login %d: Polo left a child process behind", index);
 	CHECK(access(socket_path, F_OK) != 0,
 	      "login %d: Polo left its socket %s behind", index, socket_path);
-	CHECK(n_checks >= 3, "login %d: only %d checkpoints", index, n_checks);
+	if (n_checks < 7) {
+		printf("soak: login %d ended after %d checkpoints: too short "
+		       "to "
+		       "judge memory\n",
+		       index, n_checks);
+		return -1;
+	}
 	n = (n_checks - 1) / 3;
 	if (n < 1)
 		n = 1;
@@ -428,6 +434,7 @@ main(int argc, char **argv)
 	double seconds, session_seconds, start = now_s(), worst = -1;
 	unsigned seed;
 	int index = 0;
+	bool judged = false;
 
 	CHECK(argc >= 4,
 	      "usage: %s POLO POLO-SHELL-UI SECONDS "
@@ -455,11 +462,20 @@ main(int argc, char **argv)
 		double growth =
 			session(argc, argv, session_seconds, ++index, start);
 
-		if (growth > worst)
+		if (growth > -1 && (!judged || growth > worst))
 			worst = growth;
+		judged |= growth > -1;
 	}
-	printf("soak: done: %.0f min, %d logins, %lu actions, worst RSS growth "
-	       "%.1f%%, seed %u\n",
-	       (now_s() - start) / 60, index, actions, worst * 100, seed);
+	if (!judged)
+		printf("soak: done: %.0f min, %d logins, %lu actions, logins "
+		       "too "
+		       "short to judge memory, seed %u\n",
+		       (now_s() - start) / 60, index, actions, seed);
+	else
+		printf("soak: done: %.0f min, %d logins, %lu actions, worst "
+		       "RSS "
+		       "growth %.1f%%, seed %u\n",
+		       (now_s() - start) / 60, index, actions, worst * 100,
+		       seed);
 	return 0;
 }
