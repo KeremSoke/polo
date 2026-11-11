@@ -15,6 +15,8 @@
 #include <string.h>
 
 #include <wayland-server-core.h>
+#include <malloc.h>
+
 #include <libweston/libweston.h>
 
 #include "backend.h"
@@ -378,6 +380,12 @@ test_set_session_active(struct wl_client *client, struct wl_resource *resource,
 	wl_signal_emit(&server->compositor->session_signal, server->compositor);
 	if (active)
 		weston_compositor_damage_all(server->compositor);
+}
+
+static void
+test_trim_heap(struct wl_client *client, struct wl_resource *resource)
+{
+	malloc_trim(0);
 }
 
 static void
@@ -767,6 +775,7 @@ static const struct polo_test_v1_interface test_implementation = {
 	.pointer_axis = test_pointer_axis,
 	.get_pointer_position = test_get_pointer_position,
 	.gpu_wedged = test_gpu_wedged,
+	.trim_heap = test_trim_heap,
 };
 
 static void
@@ -824,7 +833,7 @@ polo_backend_test_protocol_init(PoloBackendServer *server, GError **error)
 		server->compositor, &server->screenshot_authority,
 		authorize_screenshot);
 	server->test_global =
-		wl_global_create(server->display, &polo_test_v1_interface, 13,
+		wl_global_create(server->display, &polo_test_v1_interface, 14,
 				 server, test_bind);
 	if (!server->test_global) {
 		g_set_error(error, POLO_BACKEND_ERROR,

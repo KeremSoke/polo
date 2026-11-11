@@ -14,7 +14,7 @@
     tests check policy decisions rather than libweston internals.
   </description>
 
-  <interface name="polo_test_v1" version="13">
+  <interface name="polo_test_v1" version="14">
     <request name="destroy" type="destructor"/>
 
     <request name="get_window_info">
@@ -327,6 +327,12 @@
         would take.
       </description>
       <arg name="recovery" type="string"/>
+    </request>
+    <request name="trim_heap" since="14">
+      <description summary="give freed heap memory back to the system">
+        malloc_trim, so that a test reading Polo's resident memory sees
+        what is in use rather than what the allocator kept after a burst.
+      </description>
     </request>
 
   </interface>
