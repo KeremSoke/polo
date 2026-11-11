@@ -89,17 +89,20 @@ report(const char *path)
 {
 	struct wl_display *display = wl_display_connect(NULL);
 	struct listing l;
+	char partial[160];
 	FILE *file;
 
 	if (!display)
 		return 2;
 	list_globals(display, &l);
-	file = fopen(path, "w");
+	snprintf(partial, sizeof partial, "%s.part", path);
+	file = fopen(partial, "w");
 	if (!file)
 		return 3;
 	for (int i = 0; i < l.count; i++)
 		fprintf(file, "%s\n", l.names[i]);
-	fclose(file);
+	if (fclose(file) != 0 || rename(partial, path) != 0)
+		return 4;
 	wl_display_disconnect(display);
 	return 0;
 }
