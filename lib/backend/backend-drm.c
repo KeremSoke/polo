@@ -49,20 +49,37 @@ polo_backend_drm_install_bindings(PoloBackendServer *server,
 #endif
 }
 
-struct weston_backend *
-polo_backend_drm_load(PoloBackendServer *server,
-		      const PoloBackendConfig *config)
+static struct weston_backend *
+load_drm(PoloBackendServer *server, const PoloBackendConfig *config,
+	 enum weston_renderer_type renderer)
 {
 	struct weston_drm_backend_config drm = { 0 };
 	drm.base.struct_version = WESTON_DRM_BACKEND_CONFIG_VERSION;
 	drm.base.struct_size = sizeof(drm);
-	drm.renderer = config->renderer == POLO_BACKEND_RENDERER_PIXMAN
-		? WESTON_RENDERER_PIXMAN
-		: WESTON_RENDERER_GL;
+	drm.renderer = renderer;
 	drm.seat_id = (char *)(config->seat ? config->seat : "seat0");
 	drm.use_pixman_shadow = true;
 	drm.configure_device = polo_backend_drm_configure_device;
 	drm.device_removed = device_removed;
 	return weston_compositor_load_backend(server->compositor,
 					      WESTON_BACKEND_DRM, &drm.base);
+}
+
+struct weston_backend *
+polo_backend_drm_load(PoloBackendServer *server,
+		      const PoloBackendConfig *config)
+{
+	struct weston_backend *backend;
+
+	if (config->renderer == POLO_BACKEND_RENDERER_PIXMAN)
+		return load_drm(server, config, WESTON_RENDERER_PIXMAN);
+	backend = load_drm(server, config, WESTON_RENDERER_GL);
+	if (backend || config->renderer == POLO_BACKEND_RENDERER_GL)
+		return backend;
+	polo_log_scope_warning(
+		polo_backend_log_scope("polo"),
+		"the GL renderer did not start (the EGL messages above say "
+		"why); falling back to Pixman, which draws on the CPU and "
+		"has no effects");
+	return load_drm(server, config, WESTON_RENDERER_PIXMAN);
 }
