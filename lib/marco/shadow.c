@@ -62,6 +62,7 @@ static const double shadow_offsets_y[POLO_WINDOW_SHADOW_LAST] = {
 };
 
 #define MAX_SCALE 8
+#define MAX_MASK_PIXELS ((guint64)1 << 26)
 
 static shadow *shadows[POLO_WINDOW_SHADOW_LAST][MAX_SCALE];
 
@@ -240,14 +241,14 @@ make_shadow(PoloWindowShadow type, int scale, double opacity, int width,
 	sheight = height + msize;
 	centre = msize / 2;
 
-	data = g_malloc(swidth * sheight * sizeof(guchar));
+	data = g_malloc((gsize)swidth * sheight);
 
 	if (msize > 0)
 		d = shad->shadow_top[opacity_int * (msize + 1) + msize];
 	else
 		d = sum_gaussian(shad->gaussian_map, opacity, centre, centre,
 				 width, height);
-	memset(data, d, sheight * swidth);
+	memset(data, d, (gsize)sheight * swidth);
 
 	ylimit = msize;
 	if (ylimit > sheight / 2)
@@ -328,6 +329,8 @@ polo_marco_shadow_mask_new(PoloWindowShadow type, double opacity,
 	if (width <= 0 || height <= 0)
 		return NULL;
 	scale = CLAMP(scale, 1, MAX_SCALE);
+	if ((guint64)width * height * scale * scale > MAX_MASK_PIXELS)
+		return NULL;
 
 	/* Scale the radius with the mask so the shadow looks the same on every
 	 * output and Marco's constants still divide out exactly. */

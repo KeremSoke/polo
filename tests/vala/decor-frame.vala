@@ -221,6 +221,25 @@ void test_shadow () {
     assert (width == visible_width + 18 && height == visible_height + 18);
 }
 
+void test_huge_shadow () {
+    if (!GLib.FileUtils.test ("/usr/share/themes/Menta/metacity-1", GLib.FileTest.IS_DIR)) {
+        GLib.Test.skip ("Menta is not installed");
+        return;
+    }
+    var decorations = new Polo.Decor.Decorations ();
+    assert (decorations.load_theme ("Menta"));
+    var normal = Polo.Marco.FrameType.NORMAL;
+    unowned Polo.Marco.Theme theme = decorations.get_theme ();
+    int text_height = theme.text_height (normal, FLAGS, "Sans 10", null, Polo.Decor.Decorations.DPI);
+    Polo.Marco.FrameGeometry geometry;
+    theme.calc_geometry (normal, text_height, FLAGS, 40000, 30000, decorations.button_layout, out geometry);
+    assert (Polo.Marco.ShadowMask.create (Polo.Marco.ShadowType.MEDIUM, Polo.Marco.SHADOW_OPACITY,
+                                          geometry, FLAGS, 1) == null);
+    theme.calc_geometry (normal, text_height, FLAGS, 3840, 2160, decorations.button_layout, out geometry);
+    assert (Polo.Marco.ShadowMask.create (Polo.Marco.ShadowType.MEDIUM, Polo.Marco.SHADOW_OPACITY,
+                                          geometry, FLAGS, 2) != null);
+}
+
 /* HiDPI buffers use the output scale, including corner and shadow clipping. */
 void test_scale () {
     if (!GLib.FileUtils.test ("/usr/share/themes/Menta/metacity-1", GLib.FileTest.IS_DIR)) {
@@ -295,6 +314,7 @@ int main (string[] args) {
     GLib.Test.add_func ("/decor/frame", test_frame);
     GLib.Test.add_func ("/decor/rounded-corners", test_rounded_corners);
     GLib.Test.add_func ("/decor/shadow", test_shadow);
+    GLib.Test.add_func ("/decor/huge-shadow", test_huge_shadow);
     GLib.Test.add_func ("/decor/scale", test_scale);
     int status = GLib.Test.run ();
     server.stop ();
