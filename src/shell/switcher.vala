@@ -155,6 +155,9 @@ namespace Polo.Shell {
                 initial = Policy.TabChain.get_tab_current (model, type, model.current_workspace);
             }
             if (initial == null) {
+                if (type == Policy.TabList.DOCKS) {
+                    desktop.layer_shell.cycle_panels (backward);
+                }
                 return;
             }
 

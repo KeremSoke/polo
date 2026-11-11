@@ -20,6 +20,7 @@
 
 #include "harness.h"
 
+#define LAYER_BOTTOM 1
 #define LAYER_TOP 2
 #define LAYER_OVERLAY 3
 
@@ -406,6 +407,82 @@ test_exclusive_zones(struct harness *h)
 	      info->x, info->y, info->width, info->height);
 	harness_window_destroy(win);
 	layer_surface_destroy(s);
+}
+
+/* ---- Ctrl+Alt+Tab to the panels ------------------------------------------ */
+
+static void
+ctrl_alt_tab(struct harness *h, bool backward)
+{
+	harness_key(h, KEY_LEFTCTRL, true);
+	harness_key(h, KEY_LEFTALT, true);
+	if (backward)
+		harness_key(h, KEY_LEFTSHIFT, true);
+	harness_key(h, KEY_TAB, true);
+	harness_key(h, KEY_TAB, false);
+	if (backward)
+		harness_key(h, KEY_LEFTSHIFT, false);
+	harness_key(h, KEY_LEFTALT, false);
+	harness_key(h, KEY_LEFTCTRL, false);
+	harness_roundtrip(h);
+}
+
+/* Layer-shell panels are no dock windows: Ctrl+Alt+Tab visits those that
+ * take the keyboard on demand, then gives it back to the window. */
+static void
+test_cycle_panels(struct harness *h)
+{
+	struct harness_window *w = harness_window_create(h, 400, 300, "panels");
+	struct layer_surface *top, *bottom, *deaf;
+	const struct harness_window_info *info;
+
+	top = layer_surface_create(h, "panel-top", LAYER_TOP, NULL,
+				   ANCHOR_TOP | ANCHOR_LEFT | ANCHOR_RIGHT, 30,
+				   -1, -1, -1, -1, -1, KBD_ON_DEMAND, 0, 30);
+	bottom = layer_surface_create(
+		h, "panel-bottom", LAYER_BOTTOM, NULL,
+		ANCHOR_BOTTOM | ANCHOR_LEFT | ANCHOR_RIGHT, 30, -1, -1, -1, -1,
+		-1, KBD_ON_DEMAND, 0, 30);
+	deaf = layer_surface_create(h, "panel-none", LAYER_TOP, NULL,
+				    ANCHOR_LEFT, 0, -1, -1, -1, -1, -1,
+				    KBD_NONE, 40, 40);
+	info = harness_window_info(w);
+	harness_click(h, info->x + info->width / 2, info->y + info->height / 2);
+	CHECK(h->keyboard_focus == w->surface, "the window lost the keyboard");
+
+	ctrl_alt_tab(h, false);
+	struct wl_surface *first = h->keyboard_focus;
+
+	CHECK(first == top->surface || first == bottom->surface,
+	      "Ctrl+Alt+Tab did not reach a panel");
+	ctrl_alt_tab(h, false);
+	CHECK(h->keyboard_focus != first && h->keyboard_focus != w->surface &&
+		      (h->keyboard_focus == top->surface ||
+		       h->keyboard_focus == bottom->surface),
+	      "the second Ctrl+Alt+Tab did not reach the other panel");
+	ctrl_alt_tab(h, false);
+	CHECK(h->keyboard_focus == w->surface,
+	      "after the last panel the window did not get the keyboard back");
+
+	ctrl_alt_tab(h, true);
+	CHECK(h->keyboard_focus != first &&
+		      (h->keyboard_focus == top->surface ||
+		       h->keyboard_focus == bottom->surface),
+	      "Ctrl+Alt+Shift+Tab did not start from the last panel");
+	ctrl_alt_tab(h, true);
+	CHECK(h->keyboard_focus == first, "backwards did not go to the first");
+	ctrl_alt_tab(h, true);
+	CHECK(h->keyboard_focus == w->surface,
+	      "backwards did not end on the "
+	      "window");
+	CHECK(h->keyboard_focus != deaf->surface,
+	      "a panel without keyboard "
+	      "interactivity got focus");
+
+	layer_surface_destroy(deaf);
+	layer_surface_destroy(bottom);
+	layer_surface_destroy(top);
+	harness_window_destroy(w);
 }
 
 /* ---- Keyboard interactivity----------------------------------------------- */
@@ -958,6 +1035,7 @@ main(int argc, char **argv)
 	test_margins(h);
 	test_exclusive_zones(h);
 	test_keyboard_modes(h);
+	test_cycle_panels(h);
 	test_popups(h);
 	test_on_demand_release(h);
 	test_errors(h);

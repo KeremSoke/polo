@@ -469,6 +469,36 @@ namespace Polo.Shell {
             desktop.set_keyboard_focus (entry.view);
         }
 
+        public void cycle_panels (bool backward) {
+            if (exclusive_view () != null || locked ()) {
+                return;
+            }
+            Entry[] panels = {};
+            foreach (var entry in entries) {
+                var handle = entry.handle;
+                if (handle.mapped && handle.keyboard_interactivity == KBD_ON_DEMAND && handle.layer >= 1 &&
+                    handle.layer <= 2) {
+                    panels += entry;
+                }
+            }
+            if (panels.length == 0) {
+                return;
+            }
+            int at = -1;
+            for (int i = 0; i < panels.length; i++) {
+                if (panels[i] == focus_holder) {
+                    at = i;
+                }
+            }
+            int next = at < 0 ? (backward ? panels.length - 1 : 0) : at + (backward ? -1 : 1);
+            if (next < 0 || next >= panels.length) {
+                focus_holder = null;
+                hand_back_focus ();
+                return;
+            }
+            take_focus (panels[next]);
+        }
+
         public unowned Backend.View? exclusive_view () {
             if (focus_holder != null &&
                 focus_holder.handle.keyboard_interactivity == KBD_EXCLUSIVE) {
