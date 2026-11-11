@@ -140,7 +140,7 @@ static bool
 white_at(const uint32_t *pixels, int col, int row)
 {
 	return col < cap_width && row < cap_height &&
-	       (pixels[row * cap_width + col] & 0xffffff) == 0xffffff;
+		(pixels[row * cap_width + col] & 0xffffff) == 0xffffff;
 }
 
 /* All white pixels; x, y is the corner of the first solid white block, as a
@@ -1020,7 +1020,8 @@ test_ewmh_messages(int argc, char **argv)
 	x_send(display, send, id, "_NET_WM_STATE", "0", "_NET_WM_STATE_BELOW",
 	       "0", "0", "0", xauth);
 
-    /* Marco leaves shaded windows iconic, with the client below the titlebar. */
+	/* Marco leaves shaded windows iconic, with the client below the
+	 * titlebar. */
 	x_send(display, send, id, "_NET_WM_STATE", "1", "_NET_WM_STATE_SHADED",
 	       "0", "0", "0", xauth);
 	wait_for_line(h, "prop WM_STATE 3 0");
@@ -2010,6 +2011,124 @@ native_drag_to(struct harness *h, struct wl_data_device *device,
 	glide(h, nx, ny, tx, ty);
 }
 
+static void
+native_click_works(struct harness *h, struct harness_window *native, int nx,
+		   int ny, const char *when)
+{
+	int presses = h->button_presses;
+
+	if (drag_offer)
+		wl_data_offer_destroy(drag_offer);
+	drag_offer = NULL;
+
+	harness_move_pointer(h, nx - 3, ny);
+	pause_ms(h, 50);
+	harness_move_pointer(h, nx, ny);
+	pause_ms(h, 100);
+	CHECK(h->pointer_focus == native->surface,
+	      "%s: the pointer does not reach the native window", when);
+	harness_button(h, BTN_LEFT, true);
+	harness_button(h, BTN_LEFT, false);
+	pause_ms(h, 100);
+	CHECK(h->button_presses > presses,
+	      "%s: a click on the native window did not arrive", when);
+}
+
+static pid_t
+x_drag_over_native(struct harness *h, int display, const char *dnd,
+		   const char *xauth, int nx, int ny)
+{
+	int sx = 0, sy = 0;
+	pid_t source;
+
+	fresh_log(0);
+	source = start_x_dnd(display, dnd, xauth, "source", dnd_log[0], false);
+	x_dnd_centre(h, dnd_log[0], true, &sx, &sy);
+	harness_move_pointer(h, sx - 2, sy);
+	pause_ms(h, 100);
+	harness_move_pointer(h, sx, sy);
+	pause_ms(h, 100);
+	harness_button(h, BTN_LEFT, true);
+	pause_ms(h, 200);
+	drag_enters = 0;
+	glide(h, sx, sy, nx, ny);
+	for (int i = 0; i < 100 && !drag_enters; i++)
+		pause_ms(h, 20);
+	CHECK(drag_enters > 0, "the X drag never reached the native window");
+	return source;
+}
+
+static void
+dnd_crashes(struct harness *h, struct wl_data_device *device,
+	    struct harness_window *native, int display, const char *dnd,
+	    char *xauth, int nx, int ny)
+{
+	int tx = 0, ty = 0;
+	pid_t peer, server;
+
+	peer = x_drag_over_native(h, display, dnd, xauth, nx, ny);
+	kill(peer, SIGKILL);
+	waitpid(peer, NULL, 0);
+	pause_ms(h, 300);
+	harness_button(h, BTN_LEFT, false);
+	pause_ms(h, 200);
+	CHECK(!drag_dropped, "a drag whose X source died was dropped");
+	native_click_works(h, native, nx, ny, "after the X source died");
+
+	fresh_log(0);
+	peer = start_x_dnd(display, dnd, xauth, "target", dnd_log[0], false);
+	x_dnd_centre(h, dnd_log[0], false, &tx, &ty);
+	native_drag_to(h, device, native, nx, ny, tx, ty);
+	wait_for_file(h, dnd_log[0], "position");
+	kill(peer, SIGKILL);
+	waitpid(peer, NULL, 0);
+	pause_ms(h, 300);
+	harness_button(h, BTN_LEFT, false);
+	for (int i = 0; i < 100 && !source_was_cancelled && !source_finished;
+	     i++)
+		pause_ms(h, 20);
+	CHECK(source_was_cancelled || source_finished,
+	      "a drag onto an X target that died never ended");
+	native_click_works(h, native, nx, ny, "after the X target died");
+
+	peer = x_drag_over_native(h, display, dnd, xauth, nx, ny);
+	server = xwayland_pid(h);
+	kill(server, SIGKILL);
+	pause_ms(h, 300);
+	harness_button(h, BTN_LEFT, false);
+	pause_ms(h, 200);
+	waitpid(peer, NULL, 0);
+	native_click_works(h, native, nx, ny,
+			   "after Xwayland died in an X drag");
+	for (int i = 0;
+	     i < 400 && (xwayland_pid(h) == 0 || xwayland_pid(h) == server);
+	     i++)
+		pause_ms(h, 20);
+	CHECK(xwayland_pid(h) != 0 && xwayland_pid(h) != server,
+	      "Xwayland did not come back after dying in a drag");
+	pause_ms(h, 500);
+
+	display = x_display(h);
+	find_xauth(h, xauth, 512);
+	fresh_log(0);
+	peer = start_x_dnd(display, dnd, xauth, "target", dnd_log[0], false);
+	x_dnd_centre(h, dnd_log[0], false, &tx, &ty);
+	native_drag_to(h, device, native, nx, ny, tx, ty);
+	wait_for_file(h, dnd_log[0], "position");
+	server = xwayland_pid(h);
+	kill(server, SIGKILL);
+	pause_ms(h, 300);
+	harness_button(h, BTN_LEFT, false);
+	waitpid(peer, NULL, 0);
+	for (int i = 0; i < 100 && !source_was_cancelled && !source_finished;
+	     i++)
+		pause_ms(h, 20);
+	CHECK(source_was_cancelled || source_finished,
+	      "a native drag over X never ended when Xwayland died");
+	native_click_works(h, native, nx, ny,
+			   "after Xwayland died in a native drag");
+}
+
 /* Both directions, X to X beside them, and refusals. */
 static void
 test_dnd(int argc, char **argv)
@@ -2141,7 +2260,12 @@ test_dnd(int argc, char **argv)
 	stop_client(target);
 	stop_client(source);
 	pause_ms(h, 200);
+	if (drag_offer)
+		wl_data_offer_destroy(drag_offer);
+	drag_offer = NULL;
+	drag_dropped = false;
 
+	dnd_crashes(h, device, native, display, dnd, xauth, nx, ny);
 	if (drag_offer)
 		wl_data_offer_destroy(drag_offer);
 	drag_offer = NULL;
@@ -2290,10 +2414,11 @@ primary_selection(void *data, struct zwp_primary_selection_device_v1 *device,
 	primary_offer = offer;
 }
 
-static const struct zwp_primary_selection_device_v1_listener primary_device_listener = {
-	primary_data_offer,
-	primary_selection,
-};
+static const struct zwp_primary_selection_device_v1_listener
+	primary_device_listener = {
+		primary_data_offer,
+		primary_selection,
+	};
 
 static void
 primary_send(void *data, struct zwp_primary_selection_source_v1 *source,
@@ -2310,10 +2435,11 @@ primary_source_cancelled(void *data,
 	zwp_primary_selection_source_v1_destroy(source);
 }
 
-static const struct zwp_primary_selection_source_v1_listener primary_source_listener = {
-	primary_send,
-	primary_source_cancelled,
-};
+static const struct zwp_primary_selection_source_v1_listener
+	primary_source_listener = {
+		primary_send,
+		primary_source_cancelled,
+	};
 
 static long
 primary_paste(struct harness *h, const char *mime)
@@ -2354,8 +2480,8 @@ test_primary(int argc, char **argv)
 	harness_roundtrip(h);
 	CHECK(primary_manager, "no primary selection manager");
 	struct zwp_primary_selection_device_v1 *device =
-		zwp_primary_selection_device_manager_v1_get_device(primary_manager,
-								   h->seat);
+		zwp_primary_selection_device_manager_v1_get_device(
+			primary_manager, h->seat);
 
 	zwp_primary_selection_device_v1_add_listener(
 		device, &primary_device_listener, NULL);
@@ -2371,11 +2497,13 @@ test_primary(int argc, char **argv)
 
 	/* Native to X, including INCR. */
 	struct zwp_primary_selection_source_v1 *source =
-		zwp_primary_selection_device_manager_v1_create_source(primary_manager);
+		zwp_primary_selection_device_manager_v1_create_source(
+			primary_manager);
 
 	zwp_primary_selection_source_v1_add_listener(
 		source, &primary_source_listener, NULL);
-	zwp_primary_selection_source_v1_offer(source, "text/plain;charset=utf-8");
+	zwp_primary_selection_source_v1_offer(source,
+					      "text/plain;charset=utf-8");
 	harness_key(h, KEY_A, true);
 	harness_key(h, KEY_A, false);
 	harness_roundtrip(h);
@@ -2396,7 +2524,8 @@ test_primary(int argc, char **argv)
 	setenv("X_CLIP_SELECTION", "PRIMARY", 1);
 
 	/* X to native; taking it over cancels the native source. */
-	pid_t owner = x_clip_owner(h, display, clip, xauth, "UTF8_STRING", "1000");
+	pid_t owner =
+		x_clip_owner(h, display, clip, xauth, "UTF8_STRING", "1000");
 
 	for (int i = 0; i < 100 && !primary_cancelled; i++)
 		pause_ms(h, 20);

@@ -536,6 +536,9 @@ weston_wm_handle_dnd_event(struct weston_wm *wm,
 
 		wm->dnd_owner = xfixes_selection_notify->owner == wm->selection_window ?
 			XCB_WINDOW_NONE : xfixes_selection_notify->owner;
+		if (wm->x_source &&
+		    wm->x_source->window != xfixes_selection_notify->owner)
+			end_x_drag(wm);
 		if (wm->dnd_owner == XCB_WINDOW_NONE)
 			set_proxy_mapped(wm, false);
 		return 1;
