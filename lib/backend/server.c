@@ -757,6 +757,8 @@ polo_backend_server_start(PoloBackendServer *server,
 
 	if (!load_backend(server, config, error))
 		return FALSE;
+	if (config->kind == POLO_BACKEND_KIND_DRM)
+		polo_backend_gpu_reset_init(server);
 
 	/* Picks the presentation clock and installs the (no-op) colour
 	 * manager; outputs cannot be created before this. */
@@ -868,6 +870,7 @@ polo_backend_server_stop(PoloBackendServer *server)
 		destroy_clients(server);
 	}
 
+	polo_backend_gpu_reset_fini(server);
 	if (server->compositor) {
 		polo_backend_flash_fini(server);
 		polo_backend_desktop_fini(server);

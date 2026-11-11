@@ -14,7 +14,7 @@
     tests check policy decisions rather than libweston internals.
   </description>
 
-  <interface name="polo_test_v1" version="12">
+  <interface name="polo_test_v1" version="13">
     <request name="destroy" type="destructor"/>
 
     <request name="get_window_info">
@@ -319,6 +319,14 @@
         active again and its listeners hear of it.
       </description>
       <arg name="active" type="uint"/>
+    </request>
+    <request name="gpu_wedged" since="13">
+      <description summary="as if the kernel reported a GPU reset">
+        What Polo does on a DRM device's WEDGED uevent: recovery "none"
+        means the kernel brought the GPU back; anything else is what it
+        would take.
+      </description>
+      <arg name="recovery" type="string"/>
     </request>
 
   </interface>

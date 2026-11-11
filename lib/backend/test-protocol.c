@@ -381,6 +381,14 @@ test_set_session_active(struct wl_client *client, struct wl_resource *resource,
 }
 
 static void
+test_gpu_wedged(struct wl_client *client, struct wl_resource *resource,
+		const char *recovery)
+{
+	polo_backend_gpu_wedged(wl_resource_get_user_data(resource), "test",
+				recovery);
+}
+
+static void
 test_remove_output(struct wl_client *client, struct wl_resource *resource,
 		   const char *name)
 {
@@ -758,6 +766,7 @@ static const struct polo_test_v1_interface test_implementation = {
 	.get_outputs = test_get_outputs,
 	.pointer_axis = test_pointer_axis,
 	.get_pointer_position = test_get_pointer_position,
+	.gpu_wedged = test_gpu_wedged,
 };
 
 static void
@@ -815,7 +824,7 @@ polo_backend_test_protocol_init(PoloBackendServer *server, GError **error)
 		server->compositor, &server->screenshot_authority,
 		authorize_screenshot);
 	server->test_global =
-		wl_global_create(server->display, &polo_test_v1_interface, 12,
+		wl_global_create(server->display, &polo_test_v1_interface, 13,
 				 server, test_bind);
 	if (!server->test_global) {
 		g_set_error(error, POLO_BACKEND_ERROR,

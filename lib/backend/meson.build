@@ -10,6 +10,7 @@ backend_sources = files(
   'keymap.c',
   'log.c',
   'loop-source.c',
+  'gpu-reset.c',
   'stats.c',
   'watchdog.c',
   'output.c',
@@ -53,7 +54,7 @@ backend_sources = files(
   'version.c',
   'view.c',
 )
-backend_deps = [glib_dep, gobject_dep, libweston_dep, dependency('libdisplay-info'), dependency('xcursor'), dependency('wayland-client'), dependency('xkbcommon'), dependency('xkbregistry'), dependency('libinput'), dependency('pixman-1')]
+backend_deps = [glib_dep, gobject_dep, libweston_dep, dependency('libdisplay-info'), dependency('xcursor'), dependency('wayland-client'), dependency('xkbcommon'), dependency('xkbregistry'), dependency('libinput'), dependency('pixman-1'), dependency('libudev')]
 backend_c_args = []
 if get_option('debug-kill')
   backend_c_args += '-DPOLO_HAVE_DEBUG_KILL'

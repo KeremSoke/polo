@@ -18,6 +18,9 @@
 #include <libweston/libweston.h>
 #include <libweston/desktop.h>
 
+struct udev;
+struct udev_monitor;
+
 #include "polo-backend.h"
 
 struct _PoloBackendLayer {
@@ -58,7 +61,10 @@ struct _PoloBackendServer {
 	GHashTable *early_server_decorations;
 	GHashTable *fake_heads; /* names of polo_test_v1 add_output heads */
 	guint monitor_count;    /* for polo_test_v1 get_outputs */
-	int output_width;       /* windowed/headless outputs */
+	struct udev *gpu_udev;  /* gpu-reset.c, DRM only */
+	struct udev_monitor *gpu_monitor;
+	guint gpu_source;
+	int output_width; /* windowed/headless outputs */
 	int output_height;
 	int output_scale;
 	int output_scales[8];
@@ -721,5 +727,16 @@ polo_backend_drm_install_bindings(PoloBackendServer *server,
 				  gboolean debug_kill);
 struct weston_surface *
 polo_backend_toplevel_get_weston_surface(PoloBackendToplevel *toplevel);
+
+/* gpu-reset.c */
+void
+polo_backend_gpu_reset_init(PoloBackendServer *server);
+
+void
+polo_backend_gpu_reset_fini(PoloBackendServer *server);
+
+void
+polo_backend_gpu_wedged(PoloBackendServer *server, const char *device,
+			const char *recovery);
 
 #endif /* POLO_BACKEND_PRIVATE_H */
