@@ -194,6 +194,12 @@ if get_option('shell-ui')
     suite: 'protocol',
     timeout: 60,
   )
+  test('shell-ui-popup-memory', executable('test-shell-ui-popup-memory', 'test-shell-ui-popup-memory.c', dependencies: harness_dep),
+    args: [polo_exe, shell_ui_exe],
+    env: shell_ui_gtk_env,
+    suite: 'protocol',
+    timeout: 300,
+  )
   test('shell-ui-hotplug', executable('test-shell-ui-hotplug', 'test-shell-ui-hotplug.c', dependencies: harness_dep),
     args: [polo_exe, shell_ui_exe],
     env: shell_ui_gtk_env,
