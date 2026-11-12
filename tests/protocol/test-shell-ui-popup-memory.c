@@ -5,9 +5,11 @@
  * polo-shell-ui's memory across hundreds of window menus and Alt+Tab
  * popups: GTK 3.24 on Wayland keeps every native window it destroys (a few
  * KB each) unless the shell UI lets them go. After a warm-up that fills
- * GTK's caches, 400 of each must not grow its private memory by 1 MB. The
- * proportional set is printed beside it; it also moves when other processes
- * map or unmap the libraries it shares.
+ * GTK's caches, 400 of each must not grow its dirty private memory (the heap
+ * and written pages, which a leak fills) by 1 MB. Clean private memory and the
+ * proportional set are printed beside it but not judged: they count files
+ * mapped and paged in, which the kernel can drop, and moved by 7 MB with an
+ * unchanged heap in CI.
  *
  *   test-shell-ui-popup-memory POLO POLO-SHELL-UI
  */
@@ -90,21 +92,20 @@ memory_of(int pid)
 }
 
 static double
-private_mb(const struct memory *m)
+dirty_mb(const struct memory *m)
 {
-	return (m->private_clean + m->private_dirty) / 1024.0;
+	return m->private_dirty / 1024.0;
 }
 
 static void
 print_memory(const char *when, const struct memory *m)
 {
-	printf("shell UI %s: private %.2f MB (clean %ld kB, dirty %ld kB), PSS "
-	       "%.2f MB (anon %ld, file %ld, shmem %ld kB), RSS %ld kB (anon "
-	       "%ld, file %ld, shmem %ld kB), anonymous %ld kB, %ld threads\n",
-	       when, private_mb(m), m->private_clean, m->private_dirty,
-	       m->pss / 1024.0, m->pss_anon, m->pss_file, m->pss_shmem, m->rss,
-	       m->rss_anon, m->rss_file, m->rss_shmem, m->anonymous,
-	       m->threads);
+	printf("shell UI %s: private dirty %ld kB, clean %ld kB, PSS %.2f MB "
+	       "(anon %ld, file %ld, shmem %ld kB), RSS %ld kB (anon %ld, file "
+	       "%ld, shmem %ld kB), anonymous %ld kB, %ld threads\n",
+	       when, m->private_dirty, m->private_clean, m->pss / 1024.0,
+	       m->pss_anon, m->pss_file, m->pss_shmem, m->rss, m->rss_anon,
+	       m->rss_file, m->rss_shmem, m->anonymous, m->threads);
 }
 
 static void
@@ -163,10 +164,10 @@ main(int argc, char **argv)
 	      "polo-shell-ui went away");
 #ifndef SANITIZED
 	/* The sanitizer keeps freed memory in quarantine. */
-	CHECK(private_mb(&after) - private_mb(&before) < 1.0,
-	      "polo-shell-ui's private memory grew by %.2f MB over 400 window "
-	      "menus and Alt+Tab popups (PSS by %.2f MB)",
-	      private_mb(&after) - private_mb(&before),
+	CHECK(dirty_mb(&after) - dirty_mb(&before) < 1.0,
+	      "polo-shell-ui's dirty private memory grew by %.2f MB over 400 "
+	      "window menus and Alt+Tab popups (PSS by %.2f MB)",
+	      dirty_mb(&after) - dirty_mb(&before),
 	      (after.pss - before.pss) / 1024.0);
 #endif
 
