@@ -91,11 +91,13 @@ memory_of(int pid)
 	return m;
 }
 
+#ifndef SANITIZED
 static double
 dirty_mb(const struct memory *m)
 {
 	return m->private_dirty / 1024.0;
 }
+#endif
 
 static void
 print_memory(const char *when, const struct memory *m)
