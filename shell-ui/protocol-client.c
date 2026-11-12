@@ -453,9 +453,21 @@ drop_kept_window(gpointer data)
 
 	kept->checks++;
 	if (!gdk_window_is_destroyed(kept->window) || refs > 2) {
+		static gboolean told;
+
 		kept->steady = 0;
 		if (kept->checks < 60)
 			return G_SOURCE_CONTINUE;
+		if (!told) {
+			told = TRUE;
+			g_printerr("polo-shell-ui: a window %s after 30 s "
+				   "still has "
+				   "%u references; it is left as it is\n",
+				   gdk_window_is_destroyed(kept->window)
+					   ? "destroyed"
+					   : "not destroyed",
+				   refs);
+		}
 	} else if (refs == 2 && ++kept->steady < 6) {
 		return G_SOURCE_CONTINUE;
 	} else if (refs == 2) {
@@ -496,6 +508,10 @@ find_out_if_gdk_keeps_windows(void)
 	g_object_ref(window);
 	gdk_window_destroy(window);
 	gdk_keeps_windows = G_OBJECT(window)->ref_count > 1;
+	g_printerr("polo-shell-ui: GTK %u.%u.%u %s destroyed Wayland windows\n",
+		   gtk_get_major_version(), gtk_get_minor_version(),
+		   gtk_get_micro_version(),
+		   gdk_keeps_windows ? "keeps; releasing" : "frees");
 	if (gdk_keeps_windows)
 		g_object_unref(window);
 	g_object_unref(window);
