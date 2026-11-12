@@ -194,6 +194,12 @@ if get_option('shell-ui')
     suite: 'protocol',
     timeout: 60,
   )
+  test('shell-ui-hotplug', executable('test-shell-ui-hotplug', 'test-shell-ui-hotplug.c', dependencies: harness_dep),
+    args: [polo_exe, shell_ui_exe],
+    env: shell_ui_gtk_env,
+    suite: 'protocol',
+    timeout: 120,
+  )
   test('shell-ui-stress', executable('test-shell-ui-stress', 'test-shell-ui-stress.c', dependencies: harness_dep),
     args: [polo_exe, shell_ui_exe, '1', '600'],
     env: shell_ui_gtk_env,
