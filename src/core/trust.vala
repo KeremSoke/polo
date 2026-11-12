@@ -40,7 +40,10 @@ namespace Polo {
         public const string[] DEFAULT_EXECUTABLES = {
             "/usr/libexec/xdg-desktop-portal-wlr",
             "/usr/lib/xdg-desktop-portal-wlr",
-            "/usr/bin/xdg-desktop-portal-wlr"
+            "/usr/bin/xdg-desktop-portal-wlr",
+            "/usr/libexec/mate-notification-daemon",
+            "/usr/libexec/mate-notification-daemon/mate-notification-daemon",
+            "/usr/local/libexec/mate-notification-daemon"
         };
 
         public bool deny_by_default { get; set; default = true; }

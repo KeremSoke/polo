@@ -20,9 +20,9 @@
       <description>Desktop ids or program names that may use privileged protocols, beside the required components.</description>
     </key>
     <key name="trusted-executables" type="as">
-      <default>['/usr/libexec/xdg-desktop-portal-wlr', '/usr/lib/xdg-desktop-portal-wlr', '/usr/bin/xdg-desktop-portal-wlr']</default>
+      <default>['/usr/libexec/xdg-desktop-portal-wlr', '/usr/lib/xdg-desktop-portal-wlr', '/usr/bin/xdg-desktop-portal-wlr', '/usr/libexec/mate-notification-daemon', '/usr/libexec/mate-notification-daemon/mate-notification-daemon', '/usr/local/libexec/mate-notification-daemon']</default>
       <summary>Executables trusted without being started by Polo</summary>
-      <description>Absolute paths of programs that may use privileged protocols although D-Bus, not Polo, starts them, such as the portal backend. A program counts only while its file is owned by root and writable by nobody else.</description>
+      <description>Absolute paths of programs that may use privileged protocols although D-Bus, not Polo, starts them, such as the portal backend and the notification daemon. A program counts only while its file is owned by root and writable by nobody else.</description>
     </key>
     <key name="x11-components" type="as">
       <default>['mate-settings-daemon', 'mate-power-manager', 'mate-screensaver']</default>
