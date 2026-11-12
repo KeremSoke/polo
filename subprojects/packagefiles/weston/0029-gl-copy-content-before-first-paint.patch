@@ -1,0 +1,13 @@
+--- a/libweston/renderer-gl/gl-renderer.c
++++ b/libweston/renderer-gl/gl-renderer.c
+@@ -4668,8 +4668,8 @@
+ 	gs = get_surface_state(surface);
+ 	gb = gs->buffer;
+ 	buffer = gs->buffer_ref.buffer;
+-	assert(buffer);
+-	if (buffer->direct_display)
++	/* Committed but not painted yet: the renderer has no buffer for it. */
++	if (!buffer || buffer->direct_display)
+ 		return -1;
+ 
+ 	cw = buffer->width;
