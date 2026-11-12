@@ -430,6 +430,20 @@ test_outputs_done(void *data, struct polo_test_v1 *test, uint32_t monitors)
 	h->outputs_done = true;
 }
 
+static void
+test_resources(void *data, struct polo_test_v1 *test, uint32_t clients,
+	       uint32_t objects, uint32_t shell_ui_objects,
+	       uint32_t shell_ui_outputs)
+{
+	struct harness *h = data;
+
+	h->resources.clients = clients;
+	h->resources.objects = objects;
+	h->resources.shell_ui_objects = shell_ui_objects;
+	h->resources.shell_ui_outputs = shell_ui_outputs;
+	h->resources.known = true;
+}
+
 static const struct polo_test_v1_listener test_listener = {
 	test_window_info,
 	test_window_unknown,
@@ -443,6 +457,7 @@ static const struct polo_test_v1_listener test_listener = {
 	test_pointer_position,
 	test_output_state,
 	test_outputs_done,
+	test_resources,
 };
 
 static void
@@ -475,7 +490,7 @@ registry_global(void *data, struct wl_registry *registry, uint32_t name,
 		wl_seat_add_listener(h->seat, &seat_listener, h);
 	} else if (strcmp(interface, polo_test_v1_interface.name) == 0) {
 		h->test = wl_registry_bind(registry, name,
-					   &polo_test_v1_interface, 15);
+					   &polo_test_v1_interface, 16);
 		polo_test_v1_add_listener(h->test, &test_listener, h);
 	} else if (strcmp(interface, zwlr_layer_shell_v1_interface.name) == 0) {
 		h->layer_shell = wl_registry_bind(
@@ -1095,6 +1110,16 @@ harness_move_pointer_absolute(struct harness *h, int x, int y)
 {
 	polo_test_v1_move_pointer_absolute(h->test, x, y);
 	harness_wait_repaint(h);
+}
+
+const struct harness_resources *
+harness_resources(struct harness *h)
+{
+	h->resources.known = false;
+	polo_test_v1_get_resources(h->test);
+	while (!h->resources.known)
+		harness_roundtrip(h);
+	return &h->resources;
 }
 
 void

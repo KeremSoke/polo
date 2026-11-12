@@ -862,3 +862,10 @@ static void
 polo_backend_shell_ui_init(PoloBackendShellUi *self)
 {
 }
+
+struct wl_client *
+polo_backend_shell_ui_get_wl_client(PoloBackendShellUi *self)
+{
+	return self && self->resource ? wl_resource_get_client(self->resource)
+				      : NULL;
+}

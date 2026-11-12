@@ -92,6 +92,10 @@ struct harness {
 	struct wl_keyboard *keyboard;
 	struct polo_test_v1 *test;
 	int pointer_x, pointer_y;
+	struct harness_resources {
+		bool known;
+		uint32_t clients, objects, shell_ui_objects, shell_ui_outputs;
+	} resources;
 	struct zwlr_layer_shell_v1 *layer_shell;
 	struct weston_capture_v1 *capture;
 
@@ -263,6 +267,9 @@ harness_move_pointer(struct harness *h, int x, int y);
 
 void
 harness_move_pointer_absolute(struct harness *h, int x, int y);
+
+const struct harness_resources *
+harness_resources(struct harness *h);
 
 void
 harness_move_pointer_output(struct harness *h, const char *output, double x,

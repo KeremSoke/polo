@@ -14,7 +14,7 @@
     tests check policy decisions rather than libweston internals.
   </description>
 
-  <interface name="polo_test_v1" version="15">
+  <interface name="polo_test_v1" version="16">
     <request name="destroy" type="destructor"/>
 
     <request name="get_window_info">
@@ -346,6 +346,25 @@
       <arg name="x" type="fixed"/>
       <arg name="y" type="fixed"/>
     </request>
+
+    <request name="get_resources" since="16">
+      <description summary="count Wayland clients and objects">
+        Answered with one resources event.
+      </description>
+    </request>
+
+    <event name="resources" since="16">
+      <description summary="Wayland clients and objects right now">
+        The connected clients, every Wayland object they have, and those of
+        the shell UI client alone (0 without one), of which shell_ui_outputs
+        are wl_output and zxdg_output_v1 objects: GTK 3 keeps those of every
+        output it has seen until it disconnects.
+      </description>
+      <arg name="clients" type="uint"/>
+      <arg name="objects" type="uint"/>
+      <arg name="shell_ui_objects" type="uint"/>
+      <arg name="shell_ui_outputs" type="uint"/>
+    </event>
 
   </interface>
 </protocol>

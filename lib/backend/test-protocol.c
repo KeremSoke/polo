@@ -283,6 +283,50 @@ test_move_pointer_output(struct wl_client *client, struct wl_resource *resource,
 	}
 }
 
+static enum wl_iterator_result
+count_resource(struct wl_resource *resource, void *data)
+{
+	(*(uint32_t *)data)++;
+	return WL_ITERATOR_CONTINUE;
+}
+
+static enum wl_iterator_result
+count_output(struct wl_resource *resource, void *data)
+{
+	const char *name = wl_resource_get_class(resource);
+
+	if (g_strcmp0(name, "wl_output") == 0 ||
+	    g_strcmp0(name, "zxdg_output_v1") == 0)
+		(*(uint32_t *)data)++;
+	return WL_ITERATOR_CONTINUE;
+}
+
+static void
+test_get_resources(struct wl_client *client, struct wl_resource *resource)
+{
+	PoloBackendServer *server = wl_resource_get_user_data(resource);
+	struct wl_client *shell_ui =
+		polo_backend_shell_ui_get_wl_client(server->shell_ui);
+	struct wl_list *list = wl_display_get_client_list(server->display);
+	struct wl_client *each;
+	uint32_t clients = 0, objects = 0, shell_ui_objects = 0,
+		 shell_ui_outputs = 0;
+
+	wl_client_for_each(each, list)
+	{
+		clients++;
+		wl_client_for_each_resource(each, count_resource, &objects);
+		if (each == shell_ui) {
+			wl_client_for_each_resource(each, count_resource,
+						    &shell_ui_objects);
+			wl_client_for_each_resource(each, count_output,
+						    &shell_ui_outputs);
+		}
+	}
+	polo_test_v1_send_resources(resource, clients, objects,
+				    shell_ui_objects, shell_ui_outputs);
+}
+
 static void
 test_pointer_axis(struct wl_client *client, struct wl_resource *resource,
 		  int32_t value)
@@ -808,6 +852,7 @@ static const struct polo_test_v1_interface test_implementation = {
 	.gpu_wedged = test_gpu_wedged,
 	.trim_heap = test_trim_heap,
 	.move_pointer_output = test_move_pointer_output,
+	.get_resources = test_get_resources,
 };
 
 static void
@@ -865,7 +910,7 @@ polo_backend_test_protocol_init(PoloBackendServer *server, GError **error)
 		server->compositor, &server->screenshot_authority,
 		authorize_screenshot);
 	server->test_global =
-		wl_global_create(server->display, &polo_test_v1_interface, 15,
+		wl_global_create(server->display, &polo_test_v1_interface, 16,
 				 server, test_bind);
 	if (!server->test_global) {
 		g_set_error(error, POLO_BACKEND_ERROR,

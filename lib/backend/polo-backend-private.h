@@ -464,6 +464,9 @@ polo_backend_gamma_control_init(PoloBackendServer *server, GError **error);
 void
 polo_backend_gamma_control_fini(PoloBackendServer *server);
 
+struct wl_client *
+polo_backend_shell_ui_get_wl_client(PoloBackendShellUi *self);
+
 void
 polo_backend_zoom_init(PoloBackendServer *server);
 
