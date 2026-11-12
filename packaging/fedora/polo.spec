@@ -5,7 +5,7 @@
 %global __requires_exclude ^libweston-16\\.so.*$
 
 Name:           polo
-Version:        0.1.0
+Version:        1.0.0
 Release:        1%{?dist}
 Summary:        Wayland compositor and session for the MATE desktop
 
@@ -128,5 +128,5 @@ dconf update &>/dev/null || :
 %{_mandir}/man7/polo-session.7*
 
 %changelog
-* Wed Nov 11 2026 Kerem Soke - 0.1.0-1
-- First package
+* Wed Nov 11 2026 Kerem Soke - 1.0.0-1
+- First release
