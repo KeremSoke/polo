@@ -33,9 +33,9 @@ Wayfire is an extensible, plugin-based Wayland compositor, not a MATE window man
 In session mode Polo is the session manager, compatible with mate-session-manager 1.28 down to its D-Bus API. The panel, Caja, mate-power-manager, mate-screensaver, GTK apps, `mate-session-save` and `mate-session-inhibit` can talk to Polo as they did to the session manager on X11:
 
 - **Autostart** in MATE's phases (Initialization, Window Manager, Panel, Desktop, Application), with conditions, delays and restarts
-- **`org.gnome.SessionManager`** — clients, inhibitors, apps and Presence, using the same interfaces as mate-session
-- **Log out, shut down, restart** — MATE dialogs and countdown, including the "Some programs are still running" dialog when an app blocks
-- **logind** — power off, reboot, suspend, hibernate, switch user, lock before sleep
+- **`org.gnome.SessionManager`** - clients, inhibitors, apps and Presence, using the same interfaces as mate-session
+- **Log out, shut down, restart** - MATE dialogs and countdown, including the "Some programs are still running" dialog when an app blocks
+- **logind** - power off, reboot, suspend, hibernate, switch user, lock before sleep
 - **Saved sessions** in `~/.config/mate-session/saved-session`, as with mate-session (`auto-save-session`)
 - **XSMP** for legacy X11 applications using libSM
 - **mate-settings-daemon** continues running on XWayland since no wayland support; plugins that cannot work on Wayland (xrandr, keyboard, mouse, media keys, accessibility keyboard, background) are disabled only in the Polo session
