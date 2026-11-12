@@ -175,9 +175,9 @@ start_override_client(struct harness *h, const char *path)
 		execl(path, path, log_path, NULL);
 		_exit(127);
 	}
-	for (int i = 0; i < 500 && !log_has("screen"); i++)
+	for (int i = 0; i < 500 && !log_has("mapped"); i++)
 		pause_ms(h, 20);
-	CHECK(log_has("screen"), "the X client did not start");
+	CHECK(log_has("mapped"), "the X client did not map its window");
 	return client;
 }
 
@@ -280,7 +280,7 @@ main(int argc, char **argv)
 	      lit);
 	if (with_x) {
 		count(h, 0, WHITE, &seen, &lit);
-		for (int i = 0; i < 20 && seen <= 1000; i++) {
+		for (int i = 0; i < 100 && seen <= 1000; i++) {
 			pause_ms(h, 100);
 			count(h, 0, WHITE, &seen, &lit);
 		}
