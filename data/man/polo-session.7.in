@@ -1,0 +1,149 @@
+.\" Copyright 2026 Kerem Soke
+.\" SPDX-License-Identifier: GPL-3.0-or-later
+.TH POLO\-SESSION 7 "November 2026" "Polo @VERSION@" "Miscellaneous"
+.SH NAME
+polo\-session \- the MATE (Polo) desktop session
+.SH DESCRIPTION
+The
+.B MATE (Polo)
+session logs you into MATE on Wayland with the Polo compositor in place of
+Marco and
+.BR mate\-session .
+Display managers list it from
+.IR /usr/share/wayland\-sessions/polo.desktop ,
+which runs
+.BR "polo \-\-session" ;
+see
+.BR polo (1).
+.PP
+.B polo
+is the compositor, the window manager and the session manager at once.
+It refuses to start if another program already owns
+.B org.gnome.SessionManager
+on the session bus.
+.SS Environment
+The session sets
+.BR XDG_CURRENT_DESKTOP=MATE ,
+.BR XDG_SESSION_DESKTOP=mate ,
+.BR XDG_SESSION_TYPE=wayland ,
+.BR DESKTOP_SESSION=mate ,
+.B XDG_MENU_PREFIX=mate\-
+and variables that make Qt and Firefox use Wayland.
+It publishes these, with
+.BR WAYLAND_DISPLAY ,
+.B DISPLAY
+and a few others, to the D-Bus activation environment and to
+.BR systemd (1)
+\-\-user, and then starts
+.IR polo\-session.target .
+If the display manager did not start a session bus, the helper
+.I /usr/bin/polo\-wayland.sh
+starts one around Polo.
+.SS Start-up
+The session's programs start in the phases of mate-session: Initialization,
+WindowManager, Panel, Desktop and Application, from the autostart entries in
+.IR ~/.config/autostart ,
+.I /usr/share/mate/autostart
+and
+.I /etc/xdg/autostart
+(more precisely, the matching directories of the XDG data and configuration
+paths).
+Polo waits at most
+.B phase\-timeout
+seconds
+.RB ( org.mate.polo.session ,
+10 by default) for the programs of a phase before it starts the next.
+The applications of the previous session are started again from
+.IR ~/.config/mate\-session/saved\-session ,
+as mate-session does.
+If
+.B restore\-window\-state
+is set, their windows also return to where they were
+.RI ( ~/.config/polo/saved\-windows ).
+.PP
+The programs that need the compositor's privileged Wayland interfaces
+(the panel, for instance) are listed in
+.BR trusted\-components ;
+other programs do not get them.
+.SS X11 programs
+XWayland starts at once in a session.
+Its windows are managed by Polo's own X window manager and follow the same
+rules as Wayland windows.
+.SS Settings
+The session uses the dconf profile
+.IR polo ,
+installed as
+.IR /etc/dconf/profile/polo ,
+which adds the system database
+.IR /etc/dconf/db/polo.d .
+It turns off, and locks, the
+.B mate\-settings\-daemon
+plugins that Polo replaces on Wayland:
+xrandr, keyboard, mouse, media-keys, a11y-keyboard, background and keybindings.
+Packages run
+.B dconf update
+after installing it.
+.PP
+Everything else is configured through the usual MATE keys, including
+.B org.mate.Marco.*
+and
+.BR org.mate.session ,
+and Polo's own,
+.BR org.mate.polo.* ;
+see
+.BR polo (1).
+.SS Services
+Polo provides on the session bus:
+.TP
+.B org.gnome.SessionManager
+Logout, shutdown and inhibitors.
+.TP
+.B org.mate.Polo.Outputs1
+Screen layout, for display settings programs.
+.TP
+.B org.mate.Polo.ScreenShare1
+The screen sharing chooser.
+.TP
+.B org.freedesktop.a11y.Manager
+The keyboard monitor interface of screen readers, answered only for Orca when
+the screen reader is turned on.
+.PP
+For screen sharing and screenshots Polo starts
+.B xdg\-desktop\-portal\-wlr
+with its own configuration, and puts
+.I /usr/share/polo/xdg
+first in
+.B XDG_CONFIG_DIRS
+so that the portal frontend finds Polo's
+.I mate\-portals.conf
+(screenshots and screen casts to the wlr backend, everything else to GTK).
+This changes nothing outside the session: the MATE X11 session is untouched.
+.SH FILES
+.TP
+.I /usr/share/wayland\-sessions/polo.desktop
+The session entry.
+.TP
+.I /usr/lib/systemd/user/polo\-session.target
+Active while the session runs.
+.TP
+.I /etc/dconf/profile/polo
+.TQ
+.I /etc/dconf/db/polo.d/
+The dconf profile and its database.
+.TP
+.I /usr/share/polo/xdg/xdg\-desktop\-portal/mate\-portals.conf
+The session's portal configuration.
+.TP
+.I ~/.config/mate/polo/monitors.xml
+The saved screen layout.
+.SH DIAGNOSTICS
+The log goes to standard error, which is the journal under most display
+managers, or to the file given with
+.BR \-\-log .
+A main loop that stops responding is logged with where it is stuck.
+A crash is logged with a backtrace, and leaves a core dump for
+.BR coredumpctl (1).
+.SH SEE ALSO
+.BR polo (1),
+.BR dconf (7),
+.BR systemd.special (7)

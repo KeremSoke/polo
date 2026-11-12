@@ -1,0 +1,179 @@
+.\" Copyright 2026 Kerem Soke
+.\" SPDX-License-Identifier: GPL-3.0-or-later
+.TH POLO 1 "November 2026" "Polo @VERSION@" "User Commands"
+.SH NAME
+polo \- Wayland compositor for the MATE desktop
+.SH SYNOPSIS
+.B polo
+.RB [ \-\-session ]
+.RI [ OPTION ...]
+.SH DESCRIPTION
+.B polo
+is a Wayland compositor and window manager for MATE.
+It is built on a private copy of libweston, loads MATE's window manager
+settings (the
+.B org.mate.Marco.*
+keys) and runs X11 programs through its own XWayland window manager.
+.PP
+Normally it is started by the display manager as the
+.B MATE (Polo)
+session, with
+.BR \-\-session ;
+see
+.BR polo\-session (7).
+Without
+.BR \-\-session
+it starts only the compositor, for testing.
+Inside a Wayland session it opens a window that is the screen
+.RB ( \-\-backend=wayland );
+on a text console it drives the screens itself
+.RB ( \-\-backend=drm ).
+.SH OPTIONS
+.TP
+.B \-\-session
+Run as the MATE session: provide
+.BR org.gnome.SessionManager ,
+start the session's programs, start XWayland at once and use the Polo dconf
+profile.
+It refuses to start if another session manager is running.
+.TP
+.BI \-\-backend= NAME
+.BR drm ,
+.B wayland
+or
+.BR headless .
+The default is
+.B wayland
+inside a Wayland session and otherwise
+.BR drm .
+.TP
+.BI \-\-renderer= NAME
+.BR auto ,
+.B gl
+or
+.BR pixman .
+Some effects need
+.BR gl .
+.TP
+.BI \-\-xwayland= MODE
+.BR off ,
+.B lazy
+(start XWayland when the first X11 client connects) or
+.BR eager .
+The default is
+.BR lazy ;
+a session uses
+.BR eager .
+.TP
+.BI \-\-width= PIXELS ", " \-\-height= PIXELS
+Size of nested or headless outputs.
+.TP
+.BI \-\-scale= N
+Scale of nested or headless outputs.
+.TP
+.BI \-\-scales= LIST
+Scale of each nested or headless output, as
+.BR 1,2 .
+.TP
+.BI \-\-outputs= N
+Number of nested or headless outputs.
+.TP
+.B \-\-fullscreen
+Open the nested output fullscreen.
+.TP
+.BI \-\-socket= NAME
+Name of the Wayland socket.
+The default is the first free
+.BR wayland\-N .
+.TP
+.BI \-\-exec= COMMAND
+Run
+.I COMMAND
+as a client once Polo has started.
+May be repeated.
+.TP
+.BI \-\-log= FILE
+Write the log to
+.I FILE
+instead of standard error.
+.TP
+.BI \-\-debug\-scopes= A,B
+Also print the debug messages of these log scopes (for example
+.BR polo,drm\-backend ).
+.TP
+.B \-\-stats
+Log frame, input and effect timings every 10 seconds.
+.TP
+.B \-\-debug\-kill
+Let Ctrl+Alt+Backspace end Polo at once.
+Only builds made for development
+.RB ( \-Ddebug\-kill=true )
+act on it; in other builds the option is accepted and does nothing.
+.TP
+.B \-\-version
+Print the version and exit.
+.SH ENVIRONMENT
+.TP
+.B POLO_XWAYLAND
+Chooses the XWayland mode like
+.BR \-\-xwayland .
+.TP
+.B POLO_WATCHDOG_SECONDS
+With the
+.B drm
+backend a watchdog logs a main loop that stops responding for over a second,
+with where it is stuck.
+Set this to a number of seconds to make Polo abort, and so leave a core dump,
+when the main loop is stuck that long; the default is not to abort, and
+.B 0
+only logs.
+Polo does not abort while the system is short of memory or the main loop is
+waiting in the kernel, for the GPU for instance.
+.TP
+.B POLO_STATS_INTERVAL_MS
+Turns on the timing summaries of
+.B \-\-stats
+and sets their interval.
+.TP
+.B POLO_SHELL_UI
+Path of the helper that draws the Alt+Tab switcher, window menus, dialogs and
+on-screen displays instead of
+.IR polo\-shell\-ui .
+Empty means none.
+.TP
+.B POLO_DATA_DIR
+Directory to use instead of
+.I /usr/share/polo
+(it holds the portal configuration).
+.SH FILES
+.TP
+.I /usr/libexec/polo\-shell\-ui
+The helper for the switcher, window menus, dialogs and on-screen displays.
+.TP
+.I /usr/libexec/polo\-share\-chooser
+The screen sharing chooser.
+.TP
+.I /usr/lib64/polo/
+Polo's private libweston and its modules; nothing else uses them.
+.TP
+.I /usr/share/glib\-2.0/schemas/org.mate.polo.gschema.xml
+Polo's own settings:
+.BR org.mate.polo.general ,
+.BR org.mate.polo.session ,
+.BR org.mate.polo.effects
+and
+.BR org.mate.polo.keybindings .
+.TP
+.I ~/.config/mate/polo/monitors.xml
+The saved screen layout.
+.SH EXIT STATUS
+.B 0
+after a normal end of the session or
+.BR \-\-version ,
+non-zero if Polo could not start.
+If Polo dies of a signal it first writes the signal, a backtrace and the end
+of its log to its log, then dies of the same signal so that the system keeps a
+core dump
+.RB ( coredumpctl\ list\ polo ).
+.SH SEE ALSO
+.BR polo\-session (7)

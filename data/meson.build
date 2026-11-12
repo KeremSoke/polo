@@ -8,6 +8,16 @@ install_data('polo-screenshot.sh',
   install_mode: 'rwxr-xr-x')
 install_data('xdg/xdg-desktop-portal/mate-portals.conf',
   install_dir: get_option('datadir') / 'polo' / 'xdg' / 'xdg-desktop-portal')
+man_conf = configuration_data()
+man_conf.set('VERSION', meson.project_version())
+foreach page : [['polo', '1'], ['polo-session', '7']]
+  man_page = configure_file(
+    input: 'man' / '@0@.@1@.in'.format(page[0], page[1]),
+    output: '@0@.@1@'.format(page[0], page[1]),
+    configuration: man_conf,
+  )
+  install_man(man_page)
+endforeach
 install_data('polo.desktop',
   install_dir: get_option('datadir') / 'wayland-sessions')
 # dconf reads only /etc/dconf/profile, whatever the prefix.
