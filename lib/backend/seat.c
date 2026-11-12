@@ -661,6 +661,7 @@ polo_backend_seat_end_x_keyboard_grab(PoloBackendSeat *seat,
 		seat->x_keyboard_grab = NULL;
 		if (seat->x_grab_covering)
 			x_end_covering(seat);
+		weston_log("X keyboard grab ended by its client\n");
 	}
 }
 
