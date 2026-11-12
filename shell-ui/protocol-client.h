@@ -40,6 +40,9 @@ polo_shell_ui_client_menu_action(PoloShellUiClient *client, guint window_id,
 
 /* Call before showing @window. */
 void
+polo_shell_ui_client_release_window(GdkWindow *window);
+
+void
 polo_shell_ui_client_dialog_surface(PoloShellUiClient *client, guint dialog_id,
 				    GdkWindow *window);
 

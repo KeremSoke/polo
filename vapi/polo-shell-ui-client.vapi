@@ -13,6 +13,9 @@ namespace PoloShellUi {
         NO_GLOBAL
     }
 
+    [CCode (cname = "polo_shell_ui_client_release_window")]
+    public static void release_window (Gdk.Window? window);
+
     [CCode (cname = "PoloShellUiClient", type_id = "polo_shell_ui_client_get_type ()")]
     public class Client : GLib.Object {
         [CCode (cname = "polo_shell_ui_client_new", has_construct_function = false)]

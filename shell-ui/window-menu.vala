@@ -348,6 +348,7 @@ namespace PoloShellUi {
                             trigger.set_device (host.get_display ().get_default_seat ().get_keyboard ());
                             menu.menu.popup_at_rect (host.get_window (), rect, Gdk.Gravity.NORTH_WEST,
                                                      Gdk.Gravity.NORTH_WEST, trigger);
+                            release_window (menu.menu.get_data<Gdk.Window> ("gtk-menu-transfer-window"));
                         }
                         return GLib.Source.REMOVE;
                     });

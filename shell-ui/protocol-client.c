@@ -11,6 +11,7 @@
 #include <gobject/gvaluecollector.h>
 
 #include <gdk/gdkwayland.h>
+#include <gtk/gtk.h>
 #include <wayland-client.h>
 
 #include "polo-shell-ui-v1-client-protocol.h"
@@ -419,6 +420,102 @@ watch_connection(gpointer data)
 	return NULL;
 }
 
+/* GTK 3.24's Wayland backend takes a reference on every native window it
+ * creates and drops it only in destroy_notify, which only the X11 and Win32
+ * backends call: each popup's GdkWindow outlives its destruction. Whether
+ * this GTK does is found out once, on a throwaway window. */
+static gboolean gdk_keeps_windows;
+
+/* GTK 3.24 connects every Wayland window to its screen's monitors-changed
+ * and never disconnects it, so a window freed with it connected is run into
+ * by the next screen plugged in, unplugged or rescaled. */
+static void
+forget_screen(GdkWindow *window)
+{
+	g_signal_handlers_disconnect_matched(gdk_window_get_screen(window),
+					     G_SIGNAL_MATCH_DATA, 0, 0, NULL,
+					     NULL, window);
+}
+
+struct kept_window {
+	GdkWindow *window;
+	int checks;
+	int steady;
+};
+
+/* Ours and one more, unchanged for 3 s after the window went: whoever held
+ * it for a while is done, and the one left is GDK's. */
+static gboolean
+drop_kept_window(gpointer data)
+{
+	struct kept_window *kept = data;
+	guint refs = G_OBJECT(kept->window)->ref_count;
+
+	kept->checks++;
+	if (!gdk_window_is_destroyed(kept->window) || refs > 2) {
+		kept->steady = 0;
+		if (kept->checks < 60)
+			return G_SOURCE_CONTINUE;
+	} else if (refs == 2 && ++kept->steady < 6) {
+		return G_SOURCE_CONTINUE;
+	} else if (refs == 2) {
+		g_object_unref(kept->window);
+	}
+	g_object_unref(kept->window);
+	g_free(kept);
+	return G_SOURCE_REMOVE;
+}
+
+void
+polo_shell_ui_client_release_window(GdkWindow *window)
+{
+	struct kept_window *kept;
+
+	if (!gdk_keeps_windows || !window || !gdk_window_has_native(window) ||
+	    g_object_get_data(G_OBJECT(window), "polo-released"))
+		return;
+	g_object_set_data(G_OBJECT(window), "polo-released", window);
+	forget_screen(window);
+	kept = g_new0(struct kept_window, 1);
+	kept->window = g_object_ref(window);
+	g_timeout_add(500, drop_kept_window, kept);
+}
+
+static void
+find_out_if_gdk_keeps_windows(void)
+{
+	GdkWindowAttr attributes = {
+		.width = 1,
+		.height = 1,
+		.wclass = GDK_INPUT_OUTPUT,
+		.window_type = GDK_WINDOW_TOPLEVEL,
+	};
+	GdkWindow *window = gdk_window_new(NULL, &attributes, 0);
+
+	forget_screen(window);
+	g_object_ref(window);
+	gdk_window_destroy(window);
+	gdk_keeps_windows = G_OBJECT(window)->ref_count > 1;
+	if (gdk_keeps_windows)
+		g_object_unref(window);
+	g_object_unref(window);
+}
+
+/* Unrealize runs before GTK destroys a widget's window. */
+static gboolean
+forget_screen_handlers(GSignalInvocationHint *hint, guint n_values,
+		       const GValue *values, gpointer data)
+{
+	GtkWidget *widget = g_value_get_object(&values[0]);
+	GdkWindow *window = widget ? gtk_widget_get_window(widget) : NULL;
+
+	if (window && gtk_widget_get_has_window(widget)) {
+		forget_screen(window);
+		polo_shell_ui_client_release_window(window);
+	}
+	return TRUE;
+}
+
 PoloShellUiClient *
 polo_shell_ui_client_new(GdkDisplay *display, GError **error)
 {
@@ -462,6 +559,10 @@ polo_shell_ui_client_new(GdkDisplay *display, GError **error)
 	polo_shell_ui_v1_add_listener(self->shell_ui, &shell_ui_listener, self);
 	g_thread_unref(
 		g_thread_new("connection-watch", watch_connection, wl_display));
+	find_out_if_gdk_keeps_windows();
+	g_signal_add_emission_hook(
+		g_signal_lookup("unrealize", GTK_TYPE_WIDGET), 0,
+		forget_screen_handlers, NULL, NULL);
 	return self;
 }
 
