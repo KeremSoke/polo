@@ -141,6 +141,11 @@ if not get_option('test-protocol') and not get_option('debug-protocol') and not 
     suite: ['protocol', 'release'],
     timeout: 60,
   )
+  test('install-layout', python,
+    args: [files('install/test-install-layout.py'), meson.project_build_root()],
+    suite: ['install', 'release'],
+    timeout: 120,
+  )
 endif
 
 if get_option('test-protocol')
