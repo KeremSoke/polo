@@ -1,0 +1,2 @@
+# The licence texts in LICENSES/ are the canonical SPDX ones.
+addFilter("incorrect-fsf-address /usr/share/licenses/polo/")
