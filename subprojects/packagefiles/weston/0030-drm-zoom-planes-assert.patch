@@ -1,0 +1,11 @@
+--- a/libweston/backend-drm/state-propose.c
++++ b/libweston/backend-drm/state-propose.c
+@@ -1747,7 +1747,7 @@
+ 	}
+ 
+ 	assert(state);
+-	assert(state->planes_enabled == !output_base->disable_planes);
++	assert(state->planes_enabled == drm_output_planes_allowed(output_base));
+ 
+ 	output->force_rebuild_state = false;
+ 
