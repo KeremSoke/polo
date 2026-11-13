@@ -228,11 +228,21 @@ test_gl(int argc, char **argv)
 	CHECK(!harness_window_info(windows[0])->focused &&
 		      harness_window_info(windows[1])->focused,
 	      "model did not select the next workspace immediately");
-	pause_ms(h, 200);
 	struct frame turning = capture(h, 0);
-	CHECK(turning.count[0] > 1000 && turning.count[0] < PIXELS &&
-		      turning.count[1] > 1000 && turning.count[1] < PIXELS &&
-		      turning.max_x[0] < turning.min_x[1],
+	bool ordered = false;
+
+	for (int i = 0; i < 40; i++) {
+		ordered = turning.count[0] > 1000 &&
+			turning.count[0] < PIXELS && turning.count[1] > 1000 &&
+			turning.count[1] < PIXELS &&
+			turning.max_x[0] < turning.min_x[1];
+		if (ordered)
+			break;
+		free_frame(&turning);
+		pause_ms(h, 20);
+		turning = capture(h, 0);
+	}
+	CHECK(ordered,
 	      "two sides are not narrow and ordered: %d at %d, %d at %d",
 	      turning.count[0], turning.max_x[0], turning.count[1],
 	      turning.min_x[1]);
