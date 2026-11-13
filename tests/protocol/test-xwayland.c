@@ -1025,6 +1025,9 @@ test_ewmh_messages(int argc, char **argv)
 	x_send(display, send, id, "_NET_WM_STATE", "1", "_NET_WM_STATE_SHADED",
 	       "0", "0", "0", xauth);
 	wait_for_line(h, "prop WM_STATE 3 0");
+	for (int i = 0;
+	     i < 100 && count_lines_with("_NET_WM_STATE_SHADED") == 0; i++)
+		pause_ms(h, 20);
 	CHECK(count_lines_with("_NET_WM_STATE_SHADED") > 0,
 	      "_NET_WM_STATE lacks SHADED");
 	pause_ms(h, 300);
