@@ -699,7 +699,9 @@ static void
 xserver_child_exited(GPid pid, gint status, gpointer data)
 {
 	PoloXwm *self = data;
-	gboolean crashed = !WIFEXITED(status) || WEXITSTATUS(status) != 0;
+	gboolean missing = WIFEXITED(status) && WEXITSTATUS(status) == 127;
+	gboolean crashed =
+		!missing && (!WIFEXITED(status) || WEXITSTATUS(status) != 0);
 
 	self->child_watch = 0;
 	g_spawn_close_pid(pid);
@@ -716,6 +718,13 @@ xserver_child_exited(GPid pid, gint status, gpointer data)
 			   status);
 	g_signal_emit(self, signals[SIGNAL_EXITED], 0, crashed);
 
+	if (missing) {
+		weston_log("polo-xwm: Xwayland is not installed; X11 apps "
+			   "will not run\n");
+		polo_xserver_give_up(self->wxs);
+		remove_xauth(self);
+		return;
+	}
 	if (crashed && too_many_crashes(self)) {
 		weston_log("polo-xwm: Xwayland crashed %d times within a "
 			   "minute; not restarting it\n",
