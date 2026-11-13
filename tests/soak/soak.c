@@ -20,6 +20,8 @@
  * SOAK_SECONDS, SOAK_SESSION_SECONDS and SOAK_SEED override the arguments
  * (tools/soak.sh runs the meson test with them). SOAK_IDLE_SECONDS measures
  * an idle desktop that long before the workload and again after it.
+ * SOAK_SCALE is Polo's scale option for the scaled logins (--scale=2 by
+ * default; --scales=1,2 mixes them).
  * SOAK_ORCA is fake-orca.py, for a private session bus. SOAK_LOG_DIR keeps
  * Polo's logs. For chasing a leak, SOAK_ACTIONS keeps only some actions (a
  * comma-separated list of act ()'s cases), SOAK_FIXED_TITLES gives every
@@ -880,7 +882,13 @@ expo(struct harness *h)
 static void
 magnifier(struct harness *h)
 {
-	switch (rand() % 5) {
+	static const char *const factors[] = { "1.0", "1.25", "1.5",  "2.37",
+					       "3.0", "7.5",  "16.0", "32.0",
+					       "0.5", "0.1" };
+	static const char *const tracking[] = { "'none'", "'centered'",
+						"'proportional'", "'push'" };
+
+	switch (rand() % 8) {
 	case 0:
 		chord(h, KEY_LEFTMETA, KEY_LEFTALT, KEY_8);
 		break;
@@ -890,6 +898,26 @@ magnifier(struct harness *h)
 	case 2:
 		chord(h, KEY_LEFTMETA, KEY_LEFTALT, KEY_MINUS);
 		break;
+	case 3:
+		harness_set_setting(
+			h, "org.gnome.desktop.a11y.magnifier", "mag-factor",
+			factors[rand() % (sizeof factors / sizeof *factors)]);
+		break;
+	case 4:
+		harness_set_setting(
+			h, "org.gnome.desktop.a11y.magnifier", "focus-tracking",
+			tracking[rand() %
+				 (sizeof tracking / sizeof *tracking)]);
+		break;
+	case 5: {
+		const struct harness_output_state *o = &outs[rand() % n_outs];
+		int w = o->width * o->scale, ht = o->height * o->scale;
+
+		pointer_to_output(h, o->name, rand() % 2 ? 0 : w - 1,
+				  rand() % 3 == 0 ? rand() % ht
+						  : (rand() % 2 ? 0 : ht - 1));
+		break;
+	}
 	default: {
 		const struct harness_output_state *o = &outs[rand() % n_outs];
 
@@ -1243,7 +1271,10 @@ session(int argc, char **argv, double seconds, int index, bool last,
 	setenv("POLO_TEST_LOG", log_path, 1);
 	/* The last login idles at scale 1 like the first, to compare them. */
 	if (index % 2 == 0 && !last)
-		setenv("POLO_TEST_SCALE", "--scale=2", 1);
+		setenv("POLO_TEST_SCALE",
+		       getenv("SOAK_SCALE") ? getenv("SOAK_SCALE")
+					    : "--scale=2",
+		       1);
 	else
 		unsetenv("POLO_TEST_SCALE");
 	h = harness_start(argc, argv);
