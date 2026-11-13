@@ -6,7 +6,8 @@
  * (panel menus, through get_popup) flip and slide against
  * the output; popups of windows stay inside the work area, as GTK3 menus
  * do on X11; a flip that would still be constrained is not
- * done (xdg_positioner); scale 2; a desktop menu shows above windows.
+ * done (xdg_positioner); scale 2; a desktop menu shows above windows; a
+ * tooltip's shadow does not shift it.
  */
 
 #include <stdio.h>
@@ -130,6 +131,8 @@ struct popup {
 	bool configured;
 };
 
+static int shadow;
+
 static void
 popup_surface_configure(void *data, struct xdg_surface *xdg_surface,
 			uint32_t serial)
@@ -138,10 +141,23 @@ popup_surface_configure(void *data, struct xdg_surface *xdg_surface,
 
 	xdg_surface_ack_configure(xdg_surface, serial);
 	if (!p->buffer) {
-		p->buffer =
-			harness_buffer_create(p->h->shm, p->width, p->height);
+		int bw = p->width + 2 * shadow, bh = p->height + 2 * shadow;
+
+		p->buffer = harness_buffer_create(p->h->shm, bw, bh);
 		wl_surface_attach(p->surface, p->buffer, 0, 0);
-		wl_surface_damage_buffer(p->surface, 0, 0, p->width, p->height);
+		wl_surface_damage_buffer(p->surface, 0, 0, bw, bh);
+		if (shadow) {
+			struct wl_region *input =
+				wl_compositor_create_region(p->h->compositor);
+
+			wl_region_add(input, shadow, shadow, p->width,
+				      p->height);
+			wl_surface_set_input_region(p->surface, input);
+			wl_region_destroy(input);
+			xdg_surface_set_window_geometry(xdg_surface, shadow,
+							shadow, p->width,
+							p->height);
+		}
 	}
 	wl_surface_commit(p->surface);
 	p->configured = true;
@@ -425,6 +441,31 @@ test_desktop_menu_above_windows(struct harness *h)
 	panel_destroy(desktop);
 }
 
+static void
+test_panel_tooltip_shadow(struct harness *h)
+{
+	struct panel *panel = panel_create(
+		h, ANCHOR_BOTTOM | ANCHOR_LEFT | ANCHOR_RIGHT, 0, 30, 30);
+	struct popup *p;
+
+	shadow = 20;
+	p = popup_create(
+		h, NULL, panel, 100, 0, 30, 30, XDG_POSITIONER_ANCHOR_TOP_LEFT,
+		XDG_POSITIONER_GRAVITY_TOP_RIGHT, FLIP_Y | SLIDE_X, 200, 40);
+	shadow = 0;
+	CHECK(p->x == 100 && p->y == -40, "tooltip configured at %d,%d", p->x,
+	      p->y);
+	harness_wait_frame(h, p->surface);
+	harness_move_pointer(h, 150, H - 15);
+	CHECK(h->pointer_focus == panel->surface,
+	      "the tooltip covers the panel button under it");
+	harness_move_pointer(h, 105, H - 35);
+	CHECK(h->pointer_focus == p->surface,
+	      "the tooltip is not where its window geometry was placed");
+	popup_destroy(p);
+	panel_destroy(panel);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -436,6 +477,7 @@ main(int argc, char **argv)
 	test_scale(h);
 	test_menu_returns_focus(h);
 	test_desktop_menu_above_windows(h);
+	test_panel_tooltip_shadow(h);
 
 	status = harness_stop(h);
 	CHECK(status == 0, "polo exited with %d on SIGTERM", status);

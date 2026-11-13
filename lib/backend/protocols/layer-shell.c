@@ -140,17 +140,22 @@ layer_popup_reposition(struct polo_layer_popup *popup)
 		popup->parent ? popup->parent->view : NULL;
 	struct weston_layer_entry *layer = NULL;
 	struct weston_layer *menus;
+	struct weston_geometry geometry = { 0 };
 
 	if (!view || !parent_view)
 		return;
 
+	if (popup->desktop_surface)
+		geometry = weston_desktop_surface_get_geometry(
+			popup->desktop_surface);
 	weston_view_set_position(
 		view,
 		(struct weston_coord_global){
 			.c = weston_coord(parent_view->geometry.pos_offset.x +
-						  popup->offset_x,
+						  popup->offset_x - geometry.x,
 					  parent_view->geometry.pos_offset.y +
-						  popup->offset_y) });
+						  popup->offset_y -
+						  geometry.y) });
 	weston_view_update_transform(view);
 
 	/* Above windows like an X menu, or in the parent's layer if higher */
