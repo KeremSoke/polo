@@ -116,6 +116,9 @@ endif
 if not find_program('grim', required: false).found()
   warning('grim not found: the screenshot keys will not work until it is installed')
 endif
+if get_option('xwayland') and not find_program('Xwayland', required: false).found()
+  warning('Xwayland not found: X11 applications will not run until it is installed')
+endif
 config_h = configure_file(output: 'polo-config.h', configuration: conf)
 config_inc = include_directories('.')
 
