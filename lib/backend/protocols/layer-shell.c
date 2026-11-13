@@ -139,6 +139,7 @@ layer_popup_reposition(struct polo_layer_popup *popup)
 	struct weston_view *parent_view =
 		popup->parent ? popup->parent->view : NULL;
 	struct weston_layer_entry *layer = NULL;
+	struct weston_layer *menus;
 
 	if (!view || !parent_view)
 		return;
@@ -152,9 +153,16 @@ layer_popup_reposition(struct polo_layer_popup *popup)
 						  popup->offset_y) });
 	weston_view_update_transform(view);
 
-	/* The popup shares the layer surface's layer, above it */
+	/* Above windows like an X menu, or in the parent's layer if higher */
+	menus = &polo_backend_server_get_layer(
+			 popup->parent->server,
+			 POLO_BACKEND_LAYER_OVERRIDE_REDIRECT)
+			 ->layer;
 	if (parent_view->layer_link.layer)
-		layer = &parent_view->layer_link.layer->view_list;
+		layer = parent_view->layer_link.layer->position >
+				menus->position
+			? &parent_view->layer_link.layer->view_list
+			: &menus->view_list;
 	weston_view_move_to_layer(view, layer);
 }
 

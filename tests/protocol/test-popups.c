@@ -6,7 +6,7 @@
  * (panel menus, through get_popup) flip and slide against
  * the output; popups of windows stay inside the work area, as GTK3 menus
  * do on X11; a flip that would still be constrained is not
- * done (xdg_positioner); scale 2.
+ * done (xdg_positioner); scale 2; a desktop menu shows above windows.
  */
 
 #include <stdio.h>
@@ -73,8 +73,8 @@ static const struct zwlr_layer_surface_v1_listener panel_listener = {
 };
 
 static struct panel *
-panel_create(struct harness *h, uint32_t anchor, int width, int height,
-	     int zone)
+layer_create(struct harness *h, uint32_t layer, const char *namespace_,
+	     uint32_t anchor, int width, int height, int zone)
 {
 	struct panel *p = calloc(1, sizeof *p);
 
@@ -83,7 +83,7 @@ panel_create(struct harness *h, uint32_t anchor, int width, int height,
 	p->height = height;
 	p->surface = wl_compositor_create_surface(h->compositor);
 	p->layer_surface = zwlr_layer_shell_v1_get_layer_surface(
-		h->layer_shell, p->surface, NULL, 2, "panel");
+		h->layer_shell, p->surface, NULL, layer, namespace_);
 	zwlr_layer_surface_v1_add_listener(p->layer_surface, &panel_listener,
 					   p);
 	zwlr_layer_surface_v1_set_anchor(p->layer_surface, anchor);
@@ -96,6 +96,14 @@ panel_create(struct harness *h, uint32_t anchor, int width, int height,
 	CHECK(harness_layer_info(h, p->surface)->mapped, "panel not mapped");
 	harness_wait_frame(h, p->surface);
 	return p;
+}
+
+static struct panel *
+panel_create(struct harness *h, uint32_t anchor, int width, int height,
+	     int zone)
+{
+	return layer_create(h, ZWLR_LAYER_SHELL_V1_LAYER_TOP, "panel", anchor,
+			    width, height, zone);
 }
 
 static void
@@ -385,6 +393,38 @@ test_menu_returns_focus(struct harness *h)
 	panel_destroy(panel);
 }
 
+/* A desktop menu (caja's, through get_popup on a bottom-layer surface)
+ * shows above the windows covering the desktop, not under them. */
+static void
+test_desktop_menu_above_windows(struct harness *h)
+{
+	struct panel *desktop = layer_create(
+		h, ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM, "desktop",
+		ANCHOR_TOP | ANCHOR_BOTTOM | ANCHOR_LEFT | ANCHOR_RIGHT, 0, 0,
+		0);
+	struct harness_window *w =
+		harness_window_create(h, W - 100, H - 100, "covering");
+	struct popup *p;
+
+	harness_move_pointer(h, W / 2, H / 2);
+	CHECK(h->pointer_focus == w->surface,
+	      "the window does not cover the desktop");
+	p = popup_create(h, NULL, desktop, W / 2 - 50, H / 2 - 50, 1, 1,
+			 XDG_POSITIONER_ANCHOR_TOP_LEFT,
+			 XDG_POSITIONER_GRAVITY_BOTTOM_RIGHT, FLIP_Y | SLIDE_X,
+			 200, 200);
+	harness_wait_frame(h, p->surface);
+	harness_move_pointer(h, W / 2, H / 2);
+	CHECK(h->pointer_focus == p->surface,
+	      "the desktop menu is under the window");
+	popup_destroy(p);
+	harness_move_pointer(h, W / 2, H / 2);
+	CHECK(h->pointer_focus == w->surface,
+	      "the window is not back on top after the menu closed");
+	harness_window_destroy(w);
+	panel_destroy(desktop);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -395,6 +435,7 @@ main(int argc, char **argv)
 	test_window_menu_work_area(h);
 	test_scale(h);
 	test_menu_returns_focus(h);
+	test_desktop_menu_above_windows(h);
 
 	status = harness_stop(h);
 	CHECK(status == 0, "polo exited with %d on SIGTERM", status);
