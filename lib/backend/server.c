@@ -205,6 +205,8 @@ destroy_output(struct weston_output *output)
 {
 	struct weston_head *head;
 
+	if (output->enabled)
+		weston_output_disable(output);
 	while ((head = weston_output_iterate_heads(output, NULL)))
 		weston_head_detach(head);
 	weston_output_destroy(output);

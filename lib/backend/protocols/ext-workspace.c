@@ -52,6 +52,7 @@ struct _PoloBackendWorkspaceManager {
 	struct wl_global *global;
 	struct wl_list resources; /* manager_resource.link */
 	GPtrArray *workspaces;    /* PoloBackendWorkspace, owned */
+	struct wl_listener output_destroyed;
 };
 
 struct _PoloBackendWorkspace {
@@ -432,6 +433,45 @@ manager_bind(struct wl_client *client, void *data, uint32_t version,
 	polo_backend_xfce_sync_all_workspaces(self->server);
 }
 
+/* Clients drop a monitor on output_leave; after the global is gone they can
+ * only guess, and libxfce4windowing then keeps a freed monitor. */
+static void
+leave_head(PoloBackendWorkspaceManager *self, struct weston_head *head)
+{
+	struct manager_resource *mr;
+
+	wl_list_for_each(mr, &self->resources, link)
+	{
+		struct wl_resource *resource;
+		gboolean sent = FALSE;
+
+		if (!mr->group)
+			continue;
+		wl_resource_for_each(resource, &head->resource_list)
+		{
+			if (!g_ptr_array_remove(mr->entered, resource))
+				continue;
+			ext_workspace_group_handle_v1_send_output_leave(
+				mr->group, resource);
+			sent = TRUE;
+		}
+		if (sent)
+			ext_workspace_manager_v1_send_done(mr->resource);
+	}
+}
+
+static void
+output_destroyed(struct wl_listener *listener, void *data)
+{
+	PoloBackendWorkspaceManager *self =
+		wl_container_of(listener, self, output_destroyed);
+	struct weston_output *output = data;
+	struct weston_head *head;
+
+	wl_list_for_each(head, &output->head_list, output_link)
+		leave_head(self, head);
+}
+
 gboolean
 polo_backend_workspace_manager_init_global(PoloBackendServer *server,
 					   GError **error)
@@ -450,6 +490,9 @@ polo_backend_workspace_manager_init_global(PoloBackendServer *server,
 			"cannot create the ext_workspace_manager_v1 global");
 		return FALSE;
 	}
+	self->output_destroyed.notify = output_destroyed;
+	wl_signal_add(&server->compositor->output_destroyed_signal,
+		      &self->output_destroyed);
 	server->workspace_manager = self;
 	return TRUE;
 }
@@ -463,6 +506,7 @@ polo_backend_workspace_manager_fini_global(PoloBackendServer *server)
 
 	if (!self)
 		return;
+	wl_list_remove(&self->output_destroyed.link);
 	wl_list_for_each_safe(mr, tmp, &self->resources, link)
 	{
 		wl_resource_set_destructor(mr->resource, NULL);

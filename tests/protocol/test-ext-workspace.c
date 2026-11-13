@@ -5,7 +5,8 @@
  * ext_workspace_manager_v1 as libxfce4windowing uses it: one group on every
  * output, a handle per workspace, requests held until commit, live names and
  * counts, Marco's fixed-count rules for create and remove, and the xfce
- * toplevel extension's workspace_enter, workspace_leave and move_to_workspace.
+ * toplevel extension's workspace_enter, workspace_leave and move_to_workspace;
+ * an unplugged monitor leaves the group before its wl_output goes.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -31,6 +32,8 @@ struct ws {
 static struct ws list[MAX_WS];
 static int n_ws;
 static int dones, group_caps, output_enters;
+static int events, leave_at, done_after_leave, removed_at;
+static bool unplugging;
 static struct ext_workspace_group_handle_v1 *group;
 static struct zwlr_foreign_toplevel_handle_v1 *wlr_handle;
 
@@ -132,6 +135,8 @@ static void
 group_output_leave(void *data, struct ext_workspace_group_handle_v1 *g,
 		   struct wl_output *output)
 {
+	if (unplugging && !leave_at)
+		leave_at = ++events;
 }
 
 static void
@@ -183,6 +188,8 @@ static void
 manager_done(void *data, struct ext_workspace_manager_v1 *m)
 {
 	dones++;
+	if (leave_at && !done_after_leave)
+		done_after_leave = ++events;
 }
 
 static void
@@ -313,6 +320,8 @@ global(void *data, struct wl_registry *registry, uint32_t name,
 static void
 global_remove(void *data, struct wl_registry *registry, uint32_t name)
 {
+	if (unplugging && !removed_at)
+		removed_at = ++events;
 }
 
 static const struct wl_registry_listener registry_listener = { global,
@@ -332,6 +341,7 @@ settle(struct harness *h)
 int
 main(int argc, char **argv)
 {
+	setenv("POLO_TEST_MANAGED_OUTPUTS", "1", 1);
 	struct harness *h = harness_start(argc, argv);
 	struct wl_registry *registry = wl_display_get_registry(h->display);
 
@@ -339,8 +349,8 @@ main(int argc, char **argv)
 	harness_roundtrip(h);
 	CHECK(manager && toplevels && xfce, "missing globals");
 	ext_workspace_manager_v1_add_listener(manager, &manager_listener, NULL);
-	zwlr_foreign_toplevel_manager_v1_add_listener(toplevels,
-						      &toplevels_listener, NULL);
+	zwlr_foreign_toplevel_manager_v1_add_listener(
+		toplevels, &toplevels_listener, NULL);
 	settle(h);
 
 	/* What a client sees on binding. */
@@ -436,6 +446,26 @@ main(int argc, char **argv)
 	harness_set_setting(h, "org.mate.Marco.general", "num-workspaces", "2");
 	settle(h);
 	CHECK(alive() == 2, "%d workspaces after the count dropped", alive());
+
+	/* A monitor unplugged leaves the group before its wl_output goes:
+	 * libxfce4windowing keeps a freed monitor otherwise. */
+	static const int modes[][3] = { { 1280, 720, 60000 } };
+	int enters = output_enters;
+
+	harness_add_output(h, "HDMI-A-1", "DEL", 0x4321, 9, "Workspaces", false,
+			   527, 296, modes, 1);
+	settle(h);
+	CHECK(h->n_outputs == 2 && output_enters > enters,
+	      "the group did not enter the new output");
+	unplugging = true;
+	harness_remove_output(h, "HDMI-A-1");
+	settle(h);
+	CHECK(removed_at, "the new output's global was not removed");
+	CHECK(leave_at && leave_at < removed_at,
+	      "output_leave came %s the output's global_remove",
+	      leave_at ? "after" : "never before");
+	CHECK(done_after_leave && done_after_leave < removed_at,
+	      "no done between output_leave and global_remove");
 
 	xfce_foreign_toplevel_handle_v1_destroy(x);
 	harness_window_destroy(w);
