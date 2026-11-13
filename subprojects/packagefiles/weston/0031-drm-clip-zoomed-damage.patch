@@ -1,0 +1,11 @@
+--- a/libweston/backend-drm/drm.c
++++ b/libweston/backend-drm/drm.c
+@@ -631,6 +631,8 @@
+ 	weston_region_global_to_output(&scanout_damage,
+ 				       &output->base,
+ 				       &damage);
++	pixman_region32_intersect_rect(&scanout_damage, &scanout_damage, 0, 0,
++				       fb->width, fb->height);
+ 
+ 	assert(scanout_state->damage_blob_id == 0);
+ 
