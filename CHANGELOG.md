@@ -6,6 +6,19 @@ settings it reads, the session D-Bus interfaces, the Wayland protocols it
 offers, the command line and the installed files. The private libweston is not
 part of it.
 
+## 1.0.1 — 2026-11-13
+
+### Fixed
+- The magnifier no longer freezes the screen on some GPUs (AMD).
+- Desktop (Caja) right-click menus show above windows.
+- The magnifier no longer crashes Polo on DRM.
+- Install no longer fails on a broken dconf database of another program.
+- The notification daemon is trusted, so notifications show again.
+- The panel no longer crashes when a monitor is turned off and on again
+
+### Changed
+- A missing Xwayland is reported clearly at build time and when Polo starts it.
+
 ## 1.0.0 — 2026-11-11
 
 First release.
