@@ -409,6 +409,36 @@ test_menu_returns_focus(struct harness *h)
 	panel_destroy(panel);
 }
 
+/* A tooltip centred over a button at the left edge slides right onto the
+ * output, as one at the right edge slides left; a popup sticking out above
+ * the top slides down. */
+static void
+test_slide_off_left_and_top(struct harness *h)
+{
+	struct panel *panel = panel_create(
+		h, ANCHOR_BOTTOM | ANCHOR_LEFT | ANCHOR_RIGHT, 0, 30, 30);
+	struct panel *top;
+	struct popup *p;
+
+	p = popup_create(h, NULL, panel, 0, 0, 30, 30,
+			 XDG_POSITIONER_ANCHOR_TOP, XDG_POSITIONER_GRAVITY_TOP,
+			 FLIP_Y | SLIDE_X, 200, 40);
+	CHECK(p->x == 0 && p->y == -40,
+	      "left-edge tooltip at %d,%d, expected 0,-40", p->x, p->y);
+	popup_destroy(p);
+	panel_destroy(panel);
+
+	top = panel_create(h, ANCHOR_TOP | ANCHOR_LEFT | ANCHOR_RIGHT, 0, 30,
+			   30);
+	p = popup_create(h, NULL, top, 100, 0, 50, 30,
+			 XDG_POSITIONER_ANCHOR_TOP_LEFT,
+			 XDG_POSITIONER_GRAVITY_TOP_RIGHT, SLIDE_Y, 200, 300);
+	CHECK(p->x == 100 && p->y == 0,
+	      "menu above the top at %d,%d, expected 100,0", p->x, p->y);
+	popup_destroy(p);
+	panel_destroy(top);
+}
+
 /* A desktop menu (caja's, through get_popup on a bottom-layer surface)
  * shows above the windows covering the desktop, not under them. */
 static void
@@ -478,6 +508,7 @@ main(int argc, char **argv)
 	test_menu_returns_focus(h);
 	test_desktop_menu_above_windows(h);
 	test_panel_tooltip_shadow(h);
+	test_slide_off_left_and_top(h);
 
 	status = harness_stop(h);
 	CHECK(status == 0, "polo exited with %d on SIGTERM", status);

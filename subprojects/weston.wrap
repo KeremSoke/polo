@@ -35,4 +35,5 @@ diff_files =
   weston/0028-libinput-quiet-scroll-events.patch,
   weston/0029-gl-copy-content-before-first-paint.patch,
   weston/0030-drm-zoom-planes-assert.patch,
-  weston/0031-drm-clip-zoomed-damage.patch
+  weston/0031-drm-clip-zoomed-damage.patch,
+  weston/0032-desktop-popup-slide-both-edges.patch

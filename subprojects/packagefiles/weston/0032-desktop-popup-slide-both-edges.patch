@@ -1,0 +1,26 @@
+--- a/libweston/desktop/xdg-shell.c
++++ b/libweston/desktop/xdg-shell.c
+@@ -525,9 +525,12 @@
+ 	if (is_geometry_satisfied(parent_view, geometry, &area, &intersection))
+ 		return;
+ 
++	/* Slide off either edge, judged after the flips. */
++	local_geometry_to_global(geometry, parent_view, &global_geometry);
+ 	if (positioner->constraint_adjustment &
+ 	    XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_SLIDE_X &&
+-	    global_geometry.x + global_geometry.width > output_x2) {
++	    (global_geometry.x < area.x ||
++	     global_geometry.x + global_geometry.width > output_x2)) {
+ 		if (geometry->x < intersection.x)
+ 			geometry->x = intersection.x;
+ 		else
+@@ -535,7 +538,8 @@
+ 	}
+ 	if (positioner->constraint_adjustment &
+ 	    XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_SLIDE_Y &&
+-	    global_geometry.y + global_geometry.height > output_y2) {
++	    (global_geometry.y < area.y ||
++	     global_geometry.y + global_geometry.height > output_y2)) {
+ 		if (geometry->y < intersection.y)
+ 			geometry->y = intersection.y;
+ 		else
