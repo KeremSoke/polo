@@ -623,6 +623,8 @@ namespace Polo {
             public bool has_capability (DeviceCapability cap);
             [CCode (cname = "polo_backend_input_device_is_touchpad")]
             public bool is_touchpad ();
+            [CCode (cname = "polo_backend_input_device_has_button")]
+            public bool has_button (uint32 code);
             [CCode (cname = "polo_backend_input_device_get_features")]
             public DeviceFeatures get_features ();
             [CCode (cname = "polo_backend_input_device_set_left_handed")]

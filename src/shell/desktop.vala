@@ -37,6 +37,7 @@ namespace Polo.Shell {
         private Effects.LocatePointer locate_pointer;
         private Input.Keyboard keyboard;
         private Input.DeviceSettings device_settings;
+        public Input.DeviceList input_devices { get; private set; default = new Input.DeviceList (); }
 
         private Outputs.Store store;
         public Effects.Engine effects { get; construct; }
@@ -279,6 +280,7 @@ namespace Polo.Shell {
             keyboard.shutdown ();
             server.input_device_added.disconnect (on_input_device_added);
             device_settings.shutdown ();
+            input_devices.clear ();
             layer_shell.shutdown ();
             foreach (var seat in seats) {
                 seat.set_button_filter (null);
@@ -840,6 +842,7 @@ namespace Polo.Shell {
             Logging.scope (LogDomain.INPUT).info ("input device \"%s\"%s", adapter.name,
                                                   adapter.is_touchpad () ? " (touchpad)" : "");
             device_settings.add (adapter);
+            input_devices.add (device);
             device.removed.connect (() => device_settings.remove (adapter));
         }
 

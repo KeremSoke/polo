@@ -118,6 +118,7 @@ namespace Polo {
         private Dbus.Outputs? outputs_dbus = null;
         private Dbus.KeyboardMonitor? keyboard_monitor = null;
         private Dbus.ScreenShare? screen_share = null;
+        private Dbus.InputDevices? input_devices_dbus = null;
         private WindowStates? window_states = null;
 #if POLO_HAVE_XSMP
         private XsmpSession? xsmp = null;
@@ -331,10 +332,14 @@ namespace Polo {
                     screen_share = new Dbus.ScreenShare (GLib.Bus.get_sync (GLib.BusType.SESSION),
                                                          desktop.share_chooser);
                     screen_share.export ();
+                    input_devices_dbus = new Dbus.InputDevices (GLib.Bus.get_sync (GLib.BusType.SESSION),
+                                                                desktop.input_devices);
+                    input_devices_dbus.export ();
                 } catch (GLib.Error e) {
                     log.warning ("cannot provide %s: %s", Dbus.Outputs.NAME, e.message);
                     outputs_dbus = null;
                     screen_share = null;
+                    input_devices_dbus = null;
                 }
                 session_env = new SessionEnv ();
                 session_env.publish (server.get_socket_name ());
@@ -450,6 +455,10 @@ namespace Polo {
             if (end_session != null) {
                 end_session.shutdown ();
                 end_session = null;
+            }
+            if (input_devices_dbus != null) {
+                input_devices_dbus.unexport ();
+                input_devices_dbus = null;
             }
             if (screen_share != null) {
                 screen_share.unexport ();

@@ -719,6 +719,11 @@ polo_backend_input_device_has_capability(PoloBackendInputDevice *device,
 gboolean
 polo_backend_input_device_is_touchpad(PoloBackendInputDevice *device);
 
+/* A pointer device with this evdev button; a clickpad has BTN_LEFT. */
+gboolean
+polo_backend_input_device_has_button(PoloBackendInputDevice *device,
+				     guint32 code);
+
 /* PoloBackendDeviceFeatures; 0 once removed. */
 guint32
 polo_backend_input_device_get_features(PoloBackendInputDevice *device);

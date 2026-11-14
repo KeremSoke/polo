@@ -163,6 +163,13 @@ if get_option('test-protocol')
     timeout: 90,
     is_parallel: false,
   )
+  test('input-devices-dbus', python,
+    args: [files('session/test-input-devices.py'), polo_exe],
+    env: vapi_test_env,
+    suite: 'session',
+    timeout: 60,
+    is_parallel: false,
+  )
   test('sm-consumers', python,
     args: [files('session/test-sm-consumers.py'), polo_exe, fake_shell_ui],
     env: vapi_test_env,

@@ -111,6 +111,16 @@ polo_backend_input_device_is_touchpad(PoloBackendInputDevice *self)
 		libinput_device_config_tap_get_finger_count(self->device) > 0;
 }
 
+gboolean
+polo_backend_input_device_has_button(PoloBackendInputDevice *self, guint32 code)
+{
+	g_return_val_if_fail(POLO_BACKEND_IS_INPUT_DEVICE(self), FALSE);
+	return self->device &&
+		libinput_device_has_capability(self->device,
+					       LIBINPUT_DEVICE_CAP_POINTER) &&
+		libinput_device_pointer_has_button(self->device, code) == 1;
+}
+
 guint32
 polo_backend_input_device_get_features(PoloBackendInputDevice *self)
 {

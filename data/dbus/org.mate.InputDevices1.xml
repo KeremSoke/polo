@@ -1,0 +1,22 @@
+<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN"
+ "http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
+<!--
+  Copyright 2026 Kerem Soke
+  SPDX-License-Identifier: GPL-3.0-or-later
+
+  org.mate.InputDevices1 on /org/mate/InputDevices, bus name
+  org.mate.InputDevices: the input devices, for clients that cannot list
+  them on Wayland (mate-control-center's mouse capplet).
+-->
+<node>
+  <interface name="org.mate.InputDevices1">
+    <!-- One dictionary per device; unknown keys are to be ignored.
+         name: s.
+         type: s, keyboard | pointer | touchpad | touchscreen | tablet | other.
+         has-left-button: b, pointers and touchpads only; false on a touchpad
+         that can only tap (a clickpad clicks as the left button). -->
+    <method name="GetDevices">
+      <arg name="devices" type="aa{sv}" direction="out"/>
+    </method>
+  </interface>
+</node>

@@ -155,6 +155,14 @@ device_settings_test = executable('test-device-settings',
 test('device-settings', device_settings_test, suite: 'unit-vala', protocol: 'tap', args: ['--tap'],
   env: ['GSETTINGS_BACKEND=memory'])
 
+input_devices_test = executable('test-input-devices',
+  'input-devices.vala', meson.project_source_root() / 'src' / 'input' / 'device-list.vala',
+  vala_args: vala_args + ['--pkg', 'polo-backend'],
+  c_args: vala_c_args,
+  dependencies: [glib_dep, gobject_dep, polo_backend_dep],
+)
+test('input-devices', input_devices_test, suite: 'unit-vala', protocol: 'tap', args: ['--tap'])
+
 tiling_test = executable('test-tiling', 'tiling.vala',
   vala_args: vala_args + ['--pkg', 'polo-marco'],
   c_args: vala_c_args,
