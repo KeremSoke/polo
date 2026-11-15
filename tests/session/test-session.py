@@ -324,7 +324,7 @@ def desktop_entry():
                         "polo.desktop")
     with open(path) as f:
         text = f.read()
-    for line in ("Name=MATE (Polo)", "Exec=polo --session", "DesktopNames=MATE",
+    for line in ("Name=MATE (Polo)", "Exec=polo-wayland.sh", "TryExec=polo-wayland.sh", "DesktopNames=MATE",
                  "X-GDM-SessionRegisters=true"):
         check(line + "\n" in text, f"polo.desktop lacks {line}")
     if shutil.which("desktop-file-validate"):

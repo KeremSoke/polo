@@ -1,8 +1,8 @@
 [Desktop Entry]
 Name=MATE (Polo)
 Comment=This session logs you into MATE using the Polo compositor
-Exec=polo --session
-TryExec=polo
+Exec=polo-wayland.sh
+TryExec=polo-wayland.sh
 Icon=mate
 Type=Application
 DesktopNames=MATE
