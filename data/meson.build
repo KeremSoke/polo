@@ -27,6 +27,18 @@ install_data('dconf/db/polo.d/00-polo',
   install_dir: '/etc/dconf/db/polo.d')
 install_data('dconf/db/polo.d/locks/00-polo',
   install_dir: '/etc/dconf/db/polo.d/locks')
+# The compiled database ships too, so a package works without a post-install step.
+dconf_prog = find_program('dconf', required: false)
+if dconf_prog.found()
+  custom_target('dconf-db-polo',
+    output: 'polo',
+    command: [dconf_prog, 'compile', '@OUTPUT@', meson.current_source_dir() / 'dconf' / 'db' / 'polo.d'],
+    depend_files: files('dconf/db/polo.d/00-polo', 'dconf/db/polo.d/locks/00-polo'),
+    install: true,
+    install_dir: '/etc/dconf/db')
+else
+  warning('dconf not found: /etc/dconf/db/polo is not built; packages must run "dconf update" after installing')
+endif
 meson.add_install_script('dconf/update.sh')
 if get_option('systemd')
   systemd_pc = dependency('systemd', required: false)

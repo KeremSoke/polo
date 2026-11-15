@@ -22,6 +22,7 @@ BuildRequires:  desktop-file-utils
 BuildRequires:  pkgconfig(glib-2.0) >= 2.80
 BuildRequires:  pkgconfig(gio-unix-2.0)
 BuildRequires:  pkgconfig(dconf)
+BuildRequires:  dconf
 BuildRequires:  pkgconfig(gtk+-3.0) >= 3.24
 BuildRequires:  pkgconfig(gtk+-wayland-3.0)
 BuildRequires:  pkgconfig(gtk-layer-shell-0)
@@ -123,6 +124,7 @@ dconf update &>/dev/null || :
 %dir %{_sysconfdir}/dconf/db/polo.d/locks
 %config(noreplace) %{_sysconfdir}/dconf/db/polo.d/00-polo
 %config(noreplace) %{_sysconfdir}/dconf/db/polo.d/locks/00-polo
+%verify(not md5 size mtime) %{_sysconfdir}/dconf/db/polo
 %{_userunitdir}/polo-session.target
 %{_mandir}/man1/polo.1*
 %{_mandir}/man7/polo-session.7*
