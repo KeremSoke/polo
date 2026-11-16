@@ -3,7 +3,57 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <unistd.h>
+#include <libweston/libweston.h>
+
+#include "polo-backend-private.h"
 #include "protocol-util.h"
+
+int
+polo_backend_head_edid_fd(struct weston_head *head, size_t *size)
+{
+	g_autofree char *pattern = NULL;
+	g_autofree char *contents = NULL;
+	GDir *dir;
+	const char *name;
+	gsize length = 0;
+	int fd;
+
+	*size = 0;
+	if (!head || !head->name)
+		return -1;
+	dir = g_dir_open("/sys/class/drm", 0, NULL);
+	if (!dir)
+		return -1;
+	pattern = g_strconcat("-", head->name, NULL);
+	while ((name = g_dir_read_name(dir))) {
+		g_autofree char *path = NULL;
+
+		if (!g_str_has_suffix(name, pattern))
+			continue;
+		path = g_build_filename("/sys/class/drm", name, "edid", NULL);
+		if (g_file_get_contents(path, &contents, &length, NULL) &&
+		    length > 0)
+			break;
+		g_clear_pointer(&contents, g_free);
+	}
+	g_dir_close(dir);
+	if (!contents)
+		return -1;
+	fd = memfd_create("polo-edid", MFD_CLOEXEC | MFD_ALLOW_SEALING);
+	if (fd < 0)
+		return -1;
+	if (write(fd, contents, length) != (ssize_t)length) {
+		close(fd);
+		return -1;
+	}
+	fcntl(fd, F_ADD_SEALS,
+	      F_SEAL_SHRINK | F_SEAL_GROW | F_SEAL_WRITE | F_SEAL_SEAL);
+	*size = length;
+	return fd;
+}
 
 void
 polo_protocol_destroy(struct wl_client *client, struct wl_resource *resource)

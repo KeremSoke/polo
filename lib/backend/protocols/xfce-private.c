@@ -489,36 +489,12 @@ send_seat_event(struct xfce_output *xo, struct weston_seat *seat,
 static void
 send_edid(struct xfce_output *xo)
 {
-	g_autofree char *pattern = NULL;
-	g_autofree char *contents = NULL;
-	GDir *dir;
-	const char *name;
-	gsize length = 0;
-	int fd;
+	size_t size = 0;
+	int fd = polo_backend_head_edid_fd(xo->head, &size);
 
-	dir = g_dir_open("/sys/class/drm", 0, NULL);
-	if (!dir)
-		return;
-	pattern = g_strconcat("-", xo->head->name, NULL);
-	while ((name = g_dir_read_name(dir))) {
-		g_autofree char *path = NULL;
-
-		if (!g_str_has_suffix(name, pattern))
-			continue;
-		path = g_build_filename("/sys/class/drm", name, "edid", NULL);
-		if (g_file_get_contents(path, &contents, &length, NULL) &&
-		    length > 0)
-			break;
-		g_clear_pointer(&contents, g_free);
-	}
-	g_dir_close(dir);
-	if (!contents)
-		return;
-	fd = memfd_create("polo-edid", MFD_CLOEXEC);
 	if (fd < 0)
 		return;
-	if (write(fd, contents, length) == (ssize_t)length)
-		xfce_output_v1_send_edid(xo->resource, fd, length);
+	xfce_output_v1_send_edid(xo->resource, fd, size);
 	close(fd);
 }
 

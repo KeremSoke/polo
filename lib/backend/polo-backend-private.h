@@ -366,6 +366,10 @@ polo_backend_output_management_init(PoloBackendServer *server, GError **error);
 void
 polo_backend_output_management_fini(PoloBackendServer *server);
 
+/* The connector's raw EDID in a sealed memfd (the caller closes it), or -1. */
+int
+polo_backend_head_edid_fd(struct weston_head *head, size_t *size);
+
 gboolean
 polo_backend_session_lock_init(PoloBackendServer *server, GError **error);
 
