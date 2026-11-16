@@ -74,15 +74,16 @@ protocol_test_env.set('WESTON_MODULE_MAP', weston_module_map)
 # Polo reads MATE settings (scaling, cursor); never the developer's dconf.
 protocol_test_env.set('GSETTINGS_BACKEND', 'memory')
 # Polo's own schemas, as built, for tests that set its settings.
-protocol_test_env.set('GSETTINGS_SCHEMA_DIR', meson.project_build_root() / 'data')
+protocol_test_env.set('GSETTINGS_SCHEMA_DIR', meson.project_build_root() / 'data' + ':' +
+                      meson.current_build_dir() / '..' / 'schemas')
 # No helper unless a test names one.
 protocol_test_env.set('POLO_SHELL_UI', '')
 
 foreach name : ['ssd', 'frame-input', 'shade', 'frame-scale', 'output-replug', 'decor-live', 'pixel-buffer-gl', 'cursor-no-theme', 'windows', 'interactive', 'outputs', 'managed-outputs', 'layer-shell', 'xdg-output', 'foreign-toplevel',
               'ext-foreign-toplevel-list', 'popups',
               'xfce-private', 'ext-workspace', 'focus', 'activation', 'keybindings', 'monitor-keybindings', 'edge-resistance', 'global-keybindings',
-              'window-keybindings', 'keyboard-move-resize', 'mouse-actions', 'keyboard-config', 'tiling', 'decoration', 'primary-selection', 'text-input', 'idle-inhibit', 'idle-notify', 'session-lock', 'output-management', 'shortcuts-inhibit', 'cursor-shape', 'pointer-gestures', 'xdg-foreign', 'security-context', 'trust', 'system-bell', 'locate-pointer', 'accessx', 'data-control', 'clipboard-handover', 'gamma-control', 'image-copy-capture', 'wallpaper', 'custom-shortcuts', 'lamp-target', 'explicit-sync', 'held-keys', 'blank-wake', 'resource-limits', 'stats', 'panel-damage', 'scanout', 'gpu-reset', 'misbehaving-clients']
-  test_deps = {'cursor-shape': [dependency('xcursor')], 'wallpaper': [dependency('cairo')]}
+              'window-keybindings', 'keyboard-move-resize', 'mouse-actions', 'keyboard-config', 'tiling', 'decoration', 'primary-selection', 'text-input', 'idle-inhibit', 'idle-notify', 'session-lock', 'output-management', 'shortcuts-inhibit', 'cursor-shape', 'pointer-gestures', 'xdg-foreign', 'security-context', 'trust', 'system-bell', 'locate-pointer', 'accessx', 'data-control', 'clipboard-handover', 'gamma-control', 'image-copy-capture', 'wallpaper', 'wallpaper-monitors', 'custom-shortcuts', 'lamp-target', 'explicit-sync', 'held-keys', 'blank-wake', 'resource-limits', 'stats', 'panel-damage', 'scanout', 'gpu-reset', 'misbehaving-clients']
+  test_deps = {'cursor-shape': [dependency('xcursor')], 'wallpaper': [dependency('cairo')], 'wallpaper-monitors': [dependency('cairo')]}
   exe = executable('test-' + name, 'test-' + name + '.c',
     dependencies: [harness_dep] + test_deps.get(name, []))
   test(name, exe,

@@ -1,5 +1,6 @@
 python = find_program('python3')
 
+subdir('schemas')
 subdir('c')
 subdir('vala')
 subdir('policy')
