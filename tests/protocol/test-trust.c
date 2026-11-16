@@ -24,6 +24,7 @@ static const char *const PRIVILEGED[] = {
 	"ext_idle_notifier_v1",
 	"zwlr_output_manager_v1",
 	"mate_output_manager_v1",
+	"mate_input_device_manager_v1",
 	"zwlr_data_control_manager_v1",
 	"ext_data_control_manager_v1",
 	"zwlr_gamma_control_manager_v1",

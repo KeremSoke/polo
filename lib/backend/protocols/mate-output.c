@@ -542,6 +542,8 @@ polo_backend_mate_output_changed(PoloBackendOutput *output)
 	struct mate_head *mh;
 	struct mate_out *out;
 
+	if (server)
+		polo_backend_mate_input_outputs_changed(server);
 	if (!mo)
 		return;
 	wl_list_for_each(mh, &mo->heads, link)

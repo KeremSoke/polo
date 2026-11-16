@@ -129,6 +129,7 @@ struct _PoloBackendServer {
 	struct polo_output_management *output_management;
 	struct polo_mate_output *mate_output;
 	guint wallpaper_capabilities;
+	struct polo_mate_input *mate_input;
 	struct wl_list idle_watches;
 	struct wl_listener idle_wake_listener;
 	struct wl_listener idle_idle_listener;
@@ -452,6 +453,16 @@ polo_backend_server_add_fake_input_device(
 gboolean
 polo_backend_server_remove_fake_input_device(PoloBackendServer *server,
 					     const char *name);
+
+gboolean
+polo_backend_mate_input_device_init(PoloBackendServer *server, GError **error);
+
+void
+polo_backend_mate_input_device_fini(PoloBackendServer *server);
+
+/* Mapped touchscreens and tablets resend their output. */
+void
+polo_backend_mate_input_outputs_changed(PoloBackendServer *server);
 
 /* The connector's raw EDID in a sealed memfd (the caller closes it), or -1. */
 int

@@ -21,6 +21,7 @@ client_protocols = {
   'ext-session-lock-v1': wayland_protocols_dir / 'staging' / 'ext-session-lock' / 'ext-session-lock-v1.xml',
   'wlr-output-management-unstable-v1': meson.project_source_root() / 'protocol' / 'wlr-output-management-unstable-v1.xml',
   'mate-output-v1': meson.project_source_root() / 'protocol' / 'mate-output-v1.xml',
+  'mate-input-device-v1': meson.project_source_root() / 'protocol' / 'mate-input-device-v1.xml',
   'keyboard-shortcuts-inhibit-unstable-v1': wayland_protocols_dir / 'unstable' / 'keyboard-shortcuts-inhibit' / 'keyboard-shortcuts-inhibit-unstable-v1.xml',
   'cursor-shape-v1': wayland_protocols_dir / 'staging' / 'cursor-shape' / 'cursor-shape-v1.xml',
   'tablet-v2': wayland_protocols_dir / 'stable' / 'tablet' / 'tablet-v2.xml',
@@ -83,7 +84,7 @@ protocol_test_env.set('POLO_SHELL_UI', '')
 foreach name : ['ssd', 'frame-input', 'shade', 'frame-scale', 'output-replug', 'decor-live', 'pixel-buffer-gl', 'cursor-no-theme', 'windows', 'interactive', 'outputs', 'managed-outputs', 'layer-shell', 'xdg-output', 'foreign-toplevel',
               'ext-foreign-toplevel-list', 'popups',
               'xfce-private', 'ext-workspace', 'focus', 'activation', 'keybindings', 'monitor-keybindings', 'edge-resistance', 'global-keybindings',
-              'window-keybindings', 'keyboard-move-resize', 'mouse-actions', 'keyboard-config', 'tiling', 'decoration', 'primary-selection', 'text-input', 'idle-inhibit', 'idle-notify', 'session-lock', 'output-management', 'mate-output', 'shortcuts-inhibit', 'cursor-shape', 'pointer-gestures', 'xdg-foreign', 'security-context', 'trust', 'system-bell', 'locate-pointer', 'accessx', 'data-control', 'clipboard-handover', 'gamma-control', 'image-copy-capture', 'wallpaper', 'wallpaper-monitors', 'custom-shortcuts', 'lamp-target', 'explicit-sync', 'held-keys', 'blank-wake', 'resource-limits', 'stats', 'panel-damage', 'scanout', 'gpu-reset', 'misbehaving-clients']
+              'window-keybindings', 'keyboard-move-resize', 'mouse-actions', 'keyboard-config', 'tiling', 'decoration', 'primary-selection', 'text-input', 'idle-inhibit', 'idle-notify', 'session-lock', 'output-management', 'mate-output', 'mate-input-device', 'shortcuts-inhibit', 'cursor-shape', 'pointer-gestures', 'xdg-foreign', 'security-context', 'trust', 'system-bell', 'locate-pointer', 'accessx', 'data-control', 'clipboard-handover', 'gamma-control', 'image-copy-capture', 'wallpaper', 'wallpaper-monitors', 'custom-shortcuts', 'lamp-target', 'explicit-sync', 'held-keys', 'blank-wake', 'resource-limits', 'stats', 'panel-damage', 'scanout', 'gpu-reset', 'misbehaving-clients']
   test_deps = {'cursor-shape': [dependency('xcursor')], 'wallpaper': [dependency('cairo')], 'wallpaper-monitors': [dependency('cairo')]}
   exe = executable('test-' + name, 'test-' + name + '.c',
     dependencies: [harness_dep] + test_deps.get(name, []))

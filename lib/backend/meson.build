@@ -39,6 +39,7 @@ backend_sources = files(
   'protocols/ext-session-lock.c',
   'protocols/wlr-output-management.c',
   'protocols/mate-output.c',
+  'protocols/mate-input-device.c',
   'idle.c',
   'protocols/text-input.c',
   'protocols/virtual-keyboard.c',
@@ -157,6 +158,7 @@ foreach name, xml : {
   'polo-shell-ui-v1': meson.project_source_root() / 'protocol' / 'polo-shell-ui-v1.xml',
   'wlr-output-management-unstable-v1': meson.project_source_root() / 'protocol' / 'wlr-output-management-unstable-v1.xml',
   'mate-output-v1': meson.project_source_root() / 'protocol' / 'mate-output-v1.xml',
+  'mate-input-device-v1': meson.project_source_root() / 'protocol' / 'mate-input-device-v1.xml',
 }
   backend_sources += custom_target(name + '-server-protocol.h',
     input: xml,
