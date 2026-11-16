@@ -833,6 +833,23 @@ namespace Polo.Shell {
             return null;
         }
 
+        public string monitor_id (Backend.Output head) {
+            var connected = new GLib.GenericArray<Polo.Output> ();
+            Polo.Output? own = null;
+            foreach (var other in heads) {
+                var described = describe (other);
+                connected.add (described);
+                if (other == head) {
+                    own = described;
+                }
+            }
+            if (own == null) {
+                own = describe (head);
+                connected.add (own);
+            }
+            return Outputs.MonitorId.for_output (own, connected);
+        }
+
         private static GLib.Settings? settings_or_null (string id) {
             var source = GLib.SettingsSchemaSource.get_default ();
             var schema = source != null ? source.lookup (id, true) : null;

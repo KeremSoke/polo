@@ -219,10 +219,8 @@ namespace Polo.Shell {
         public signal void arranged ();
 
         /*
-         * Whether a client paints this output's background: a mapped
-         * background-layer surface anchored to all four edges, or a caja
-         * desktop (bottom layer, namespace "desktop", which draws its own
-         * background). The wallpaper fallback hides then.
+         * panel_at: the layer surface at a point, ignoring caja's desktop
+         * (namespace "desktop"), which covers the whole output.
          */
         public bool panel_at (int x, int y, out uint anchor) {
             anchor = 0;
@@ -260,14 +258,30 @@ namespace Polo.Shell {
         public bool covers_output (Policy.Output output) {
             foreach (var entry in entries) {
                 var handle = entry.handle;
-                if (entry.output != output || !handle.mapped) {
+                if (entry.output != output || !handle.mapped || handle.get_namespace () == "desktop") {
                     continue;
                 }
                 if (handle.layer == 0 && handle.anchor == (ANCHOR_TOP | ANCHOR_BOTTOM |
                                                            ANCHOR_LEFT | ANCHOR_RIGHT)) {
                     return true;
                 }
-                if (handle.layer == 1 && handle.get_namespace () == "desktop") {
+            }
+            return false;
+        }
+
+        public void restack_desktop (Policy.Output output) {
+            foreach (var entry in entries) {
+                unowned Backend.View? view = entry.view;
+                if (entry.output == output && entry.handle.mapped && view != null &&
+                    entry.handle.get_namespace () == "desktop") {
+                    view.move_to_layer (server.get_layer (backend_layer (entry.handle.layer)));
+                }
+            }
+        }
+
+        public bool has_desktop (Policy.Output output) {
+            foreach (var entry in entries) {
+                if (entry.output == output && entry.handle.mapped && entry.handle.get_namespace () == "desktop") {
                     return true;
                 }
             }
