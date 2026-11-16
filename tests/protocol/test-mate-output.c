@@ -613,6 +613,17 @@ static const struct zwlr_layer_surface_v1_listener desktop_listener = {
 	desktop_closed,
 };
 
+static const char *
+polo_primary(struct harness *h)
+{
+	harness_output_count(h);
+	for (int i = 0; i < h->n_output_states; i++) {
+		if (h->output_states[i].enabled && h->output_states[i].primary)
+			return h->output_states[i].name;
+	}
+	return "";
+}
+
 static void
 expect_error(struct client *c, const char *what)
 {
@@ -790,6 +801,20 @@ main(int argc, char **argv)
 	      "the monitor on another connector is %s",
 	      head_named(c, "HDMI-A-1")->id);
 	disconnect_client(c);
+
+	c = connect_client(h);
+	CHECK(apply(h, c, "HDMI-A-1", 0, NULL, NULL, 0) == SUCCEEDED,
+	      "saving HDMI-A-1 as primary failed");
+	CHECK(apply(h, c, "eDP-1", 1, NULL, NULL, 0) == SUCCEEDED,
+	      "a temporary layout with eDP-1 primary failed");
+	CHECK(strcmp(polo_primary(h), "eDP-1") == 0,
+	      "the temporary primary is %s", polo_primary(h));
+	disconnect_client(c);
+	harness_connect_output(h, "HDMI-A-1", false);
+	harness_connect_output(h, "HDMI-A-1", true);
+	CHECK(strcmp(polo_primary(h), "HDMI-A-1") == 0,
+	      "after a re-plug the primary is %s, not the saved HDMI-A-1",
+	      polo_primary(h));
 
 	c = connect_client(h);
 	struct zwlr_output_configuration_v1 *config =
