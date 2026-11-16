@@ -1,0 +1,10 @@
+--- a/libweston/backend-drm/modes.c
++++ b/libweston/backend-drm/modes.c
+@@ -371,6 +371,7 @@
+ 		memset(dhi, 0, sizeof(*dhi));
+ 		dhi->eotf_mask = WESTON_EOTF_MODE_SDR;
+ 		dhi->colorimetry_mask = WESTON_COLORIMETRY_MODE_DEFAULT;
++		dhi->color_format_mask = WESTON_COLOR_FORMAT_AUTO;
+ 		return NULL;
+ 	}
+ 
