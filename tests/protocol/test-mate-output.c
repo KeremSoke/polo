@@ -16,6 +16,7 @@
 
 #include "harness.h"
 #include "mate-output-v1-client-protocol.h"
+#include "wlr-layer-shell-unstable-v1-client-protocol.h"
 #include "wlr-output-management-unstable-v1-client-protocol.h"
 
 static const int modes[][3] = { { 1024, 768, 60000 } };
@@ -491,7 +492,7 @@ static const struct zwlr_output_configuration_v1_listener config_listener = {
  * mirror is set), with primary and temporary as asked. */
 static int
 apply(struct harness *h, struct client *c, const char *primary, int temporary,
-      const char *mirror_a, const char *mirror_b)
+      const char *mirror_a, const char *mirror_b, int shift)
 {
 	struct zwlr_output_configuration_v1 *config =
 		zwlr_output_manager_v1_create_configuration(c->wlr, c->serial);
@@ -514,7 +515,10 @@ apply(struct harness *h, struct client *c, const char *primary, int temporary,
 								  hd->wlr);
 		zwlr_output_configuration_head_v1_set_mode(chs[i], hd->mode);
 		zwlr_output_configuration_head_v1_set_position(
-			chs[i], mirrored ? 0 : x + (mirror_a ? 1024 : 0), 0);
+			chs[i],
+			mirrored ? (strcmp(hd->name, mirror_b) == 0 ? shift : 0)
+				 : x + (mirror_a ? 1024 + shift : 0),
+			0);
 		if (!mirrored)
 			x += 1024;
 		if (primary && strcmp(hd->name, primary) == 0)
@@ -582,6 +586,33 @@ primaries(struct client *c)
 	return n;
 }
 
+static int
+owners(struct client *c, uint32_t owner)
+{
+	int n = 0;
+
+	for (int i = 0; i < c->n_outs; i++)
+		n += c->outs[i].dones && (uint32_t)c->outs[i].owner == owner;
+	return n;
+}
+
+static void
+desktop_configure(void *data, struct zwlr_layer_surface_v1 *layer_surface,
+		  uint32_t serial, uint32_t width, uint32_t height)
+{
+	zwlr_layer_surface_v1_ack_configure(layer_surface, serial);
+}
+
+static void
+desktop_closed(void *data, struct zwlr_layer_surface_v1 *layer_surface)
+{
+}
+
+static const struct zwlr_layer_surface_v1_listener desktop_listener = {
+	desktop_configure,
+	desktop_closed,
+};
+
 static void
 expect_error(struct client *c, const char *what)
 {
@@ -629,21 +660,22 @@ main(int argc, char **argv)
 	CHECK(strncmp(left->display_name, "PNP(QQA) 27", 11) == 0,
 	      "DP-1 is named %s", left->display_name);
 
-	CHECK(apply(h, c, NULL, 0, NULL, NULL) == SUCCEEDED, "all on failed");
+	CHECK(apply(h, c, NULL, 0, NULL, NULL, 0) == SUCCEEDED,
+	      "all on failed");
 	CHECK(primaries(c) == 1, "%d primary heads", primaries(c));
 
 	CHECK(monitors_xml_changed(h), "an ordinary layout was not saved");
-	CHECK(apply(h, c, "DP-2", 1, NULL, NULL) == SUCCEEDED,
+	CHECK(apply(h, c, "DP-2", 1, NULL, NULL, 0) == SUCCEEDED,
 	      "a temporary layout with DP-2 primary failed");
 	CHECK(right->primary && primaries(c) == 1,
 	      "DP-2 did not become primary");
 	CHECK(!monitors_xml_changed(h),
 	      "a temporary layout changed monitors.xml");
-	CHECK(apply(h, c, "DP-2", 0, NULL, NULL) == SUCCEEDED,
+	CHECK(apply(h, c, "DP-2", 0, NULL, NULL, 0) == SUCCEEDED,
 	      "keeping the layout failed");
 	CHECK(monitors_xml_changed(h), "keeping the layout did not save it");
 
-	CHECK(apply(h, c, "DP-2", 1, "DP-1", "DP-2") == SUCCEEDED,
+	CHECK(apply(h, c, "DP-2", 1, "DP-1", "DP-2", 0) == SUCCEEDED,
 	      "mirroring failed");
 	CHECK(left->mirror_of[0] &&
 		      strcmp(left->mirror_of, right->mirror_of) == 0,
@@ -653,7 +685,7 @@ main(int argc, char **argv)
 		      strcmp(left->mirror_of, right->id) == 0,
 	      "mirror_of names neither twin: %s", left->mirror_of);
 	CHECK(!panel->mirror_of[0], "the panel mirrors %s", panel->mirror_of);
-	CHECK(apply(h, c, "DP-2", 1, NULL, NULL) == SUCCEEDED,
+	CHECK(apply(h, c, "DP-2", 1, NULL, NULL, 0) == SUCCEEDED,
 	      "unmirroring failed");
 	CHECK(!left->mirror_of[0] && !right->mirror_of[0], "still mirrored");
 
@@ -688,6 +720,75 @@ main(int argc, char **argv)
 	CHECK(strcmp(head_named(c, "DP-2")->id, "PNP_QQA_-Twin") == 0,
 	      "the twin left alone keeps a suffix: %s",
 	      head_named(c, "DP-2")->id);
+	disconnect_client(c);
+
+	c = connect_client(h);
+	harness_add_output(h, "DP-1", "QQA", 0x0101, 11, "Twin", false, 600,
+			   340, modes, 1);
+	disconnect_client(c);
+	c = connect_client(h);
+	CHECK(apply(h, c, NULL, 1, "DP-1", "DP-2", 100) == FAILED,
+	      "a partial overlap was accepted");
+	CHECK(apply(h, c, NULL, 1, "DP-1", "DP-2", 0) == SUCCEEDED,
+	      "an exact mirror was refused");
+
+	struct wl_surface *surface =
+		wl_compositor_create_surface(h->compositor);
+	struct zwlr_layer_surface_v1 *desktop =
+		zwlr_layer_shell_v1_get_layer_surface(
+			h->layer_shell, surface, h->outputs[0],
+			ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM, "desktop");
+
+	zwlr_layer_surface_v1_add_listener(desktop, &desktop_listener, h);
+	zwlr_layer_surface_v1_set_anchor(
+		desktop,
+		ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP |
+			ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM |
+			ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT |
+			ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT);
+	wl_surface_commit(surface);
+	harness_roundtrip(h);
+
+	struct wl_buffer *buffer = harness_buffer_create(h->shm, 1024, 768);
+
+	wl_surface_attach(surface, buffer, 0, 0);
+	wl_surface_commit(surface);
+	harness_wait_frame(h, surface);
+	settle(h, c);
+	CHECK(owners(c, MATE_OUTPUT_V1_BACKGROUND_OWNER_CLIENT) == 1,
+	      "%d outputs owned by a client under an opaque desktop",
+	      owners(c, MATE_OUTPUT_V1_BACKGROUND_OWNER_CLIENT));
+	zwlr_layer_surface_v1_destroy(desktop);
+	wl_surface_destroy(surface);
+	wl_buffer_destroy(buffer);
+	settle(h, c);
+	CHECK(owners(c, MATE_OUTPUT_V1_BACKGROUND_OWNER_CLIENT) == 0,
+	      "the owner stayed the client after the desktop went");
+	disconnect_client(c);
+
+	harness_remove_output(h, "DP-1");
+	harness_remove_output(h, "DP-2");
+	harness_add_output(h, "DP-2", "QQA", 0x0101, 11, "Twin", false, 600,
+			   340, modes, 1);
+	harness_add_output(h, "DP-1", "QQA", 0x0101, 22, "Twin", false, 600,
+			   340, modes, 1);
+	c = connect_client(h);
+	CHECK(strcmp(head_named(c, "DP-2")->id, "PNP_QQA_-Twin-s0000000b") ==
+			      0 &&
+		      strcmp(head_named(c, "DP-1")->id,
+			     "PNP_QQA_-Twin-s00000016") == 0,
+	      "swapped twins: DP-1 %s, DP-2 %s", head_named(c, "DP-1")->id,
+	      head_named(c, "DP-2")->id);
+	disconnect_client(c);
+
+	harness_remove_output(h, "DP-1");
+	harness_remove_output(h, "DP-2");
+	harness_add_output(h, "HDMI-A-1", "QQA", 0x0101, 22, "Twin", false, 600,
+			   340, modes, 1);
+	c = connect_client(h);
+	CHECK(strcmp(head_named(c, "HDMI-A-1")->id, "PNP_QQA_-Twin") == 0,
+	      "the monitor on another connector is %s",
+	      head_named(c, "HDMI-A-1")->id);
 	disconnect_client(c);
 
 	c = connect_client(h);
