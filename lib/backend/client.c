@@ -9,7 +9,12 @@
  * no_memory and is disconnected, instead of exhausting Polo's memory.
  */
 
+#include <errno.h>
+#include <sys/pidfd.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/types.h>
+#include <unistd.h>
 
 #include <wayland-server-core.h>
 
@@ -126,6 +131,54 @@ client_destroyed(struct wl_listener *listener, void *data)
 	g_hash_table_remove(server->clients, client);
 }
 
+static gboolean
+same_mount_namespace(pid_t pid)
+{
+	g_autofree char *path = g_strdup_printf("/proc/%d/ns/mnt", (int)pid);
+	struct stat own, theirs;
+
+	if (stat("/proc/self/ns/mnt", &own) != 0 || stat(path, &theirs) != 0)
+		return FALSE;
+	return own.st_dev == theirs.st_dev && own.st_ino == theirs.st_ino;
+}
+
+static char *
+read_executable(pid_t pid, int pidfd)
+{
+	g_autofree char *link = g_strdup_printf("/proc/%d/exe", (int)pid);
+	char *executable;
+
+	if (!same_mount_namespace(pid))
+		return NULL;
+	executable = g_file_read_link(link, NULL);
+	if (executable && pidfd >= 0 &&
+	    (pidfd_send_signal(pidfd, 0, NULL, 0) != 0 ||
+	     pidfd_getpid(pidfd) != pid))
+		g_clear_pointer(&executable, g_free);
+	return executable;
+}
+
+static int
+peer_pidfd(struct wl_client *client)
+{
+	static gboolean warned;
+	int pidfd = -1;
+	socklen_t length = sizeof pidfd;
+
+	if (getsockopt(wl_client_get_fd(client), SOL_SOCKET, SO_PEERPIDFD,
+		       &pidfd, &length) == 0)
+		return pidfd;
+	if (!warned) {
+		warned = TRUE;
+		polo_log_scope_warning(
+			polo_backend_log_scope("polo-protocol"),
+			"no SO_PEERPIDFD (%s): client executables are read by "
+			"pid only",
+			g_strerror(errno));
+	}
+	return -1;
+}
+
 PoloBackendClient *
 polo_backend_client_new(PoloBackendServer *server, struct wl_client *client)
 {
@@ -136,10 +189,11 @@ polo_backend_client_new(PoloBackendServer *server, struct wl_client *client)
 	self->client = client;
 	wl_client_get_credentials(client, &self->pid, &self->uid, &gid);
 	if (self->pid > 0) {
-		g_autofree char *link =
-			g_strdup_printf("/proc/%d/exe", (int)self->pid);
+		int pidfd = peer_pidfd(client);
 
-		self->executable = g_file_read_link(link, NULL);
+		self->executable = read_executable(self->pid, pidfd);
+		if (pidfd >= 0)
+			close(pidfd);
 	}
 
 	self->destroy_listener.notify = client_destroyed;
@@ -193,14 +247,16 @@ polo_backend_client_get_trusted(PoloBackendClient *client)
 void
 polo_backend_client_set_process(PoloBackendClient *client, int pid)
 {
-	g_autofree char *link = NULL;
+	int pidfd;
 
 	g_return_if_fail(POLO_BACKEND_IS_CLIENT(client));
 	g_return_if_fail(pid > 0);
 	client->pid = pid;
-	link = g_strdup_printf("/proc/%d/exe", pid);
+	pidfd = pidfd_open(pid, 0);
 	g_free(client->executable);
-	client->executable = g_file_read_link(link, NULL);
+	client->executable = read_executable(pid, pidfd);
+	if (pidfd >= 0)
+		close(pidfd);
 }
 
 void
