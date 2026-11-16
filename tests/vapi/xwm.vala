@@ -235,6 +235,7 @@ int main (string[] args) {
     xwm.set_workarea ({ 0, 24, 640, 456 });
     wait_for_line ("prop _NET_WORKAREA 0 24 640 456");
     xwm.set_showing_desktop (true);
+    xwm.set_primary_output ("DP-1");
     wait_for_line ("prop _NET_SHOWING_DESKTOP 1");
 
     w.send_take_focus (5);

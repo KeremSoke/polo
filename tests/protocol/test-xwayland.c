@@ -2469,6 +2469,98 @@ primary_paste(struct harness *h, const char *mime)
 	return total;
 }
 
+/* The RandR output xrandr stars as primary, or "" */
+static void
+randr_primary(int display, const char *xauth, char *name, size_t size)
+{
+	char command[768], line[256];
+	FILE *pipe;
+
+	name[0] = '\0';
+	snprintf(command, sizeof command,
+		 "DISPLAY=:%d XAUTHORITY=%s xrandr --listmonitors 2>/dev/null",
+		 display, xauth);
+	pipe = popen(command, "r");
+	CHECK(pipe, "cannot run xrandr");
+	while (fgets(line, sizeof line, pipe)) {
+		char *star = strstr(line, "+*");
+		char *end;
+
+		if (!star)
+			continue;
+		star += 2;
+		end = strpbrk(star, " \n");
+		if (end)
+			*end = '\0';
+		snprintf(name, size, "%s", star);
+	}
+	pclose(pipe);
+}
+
+static void
+expect_randr_primary(struct harness *h, int display, const char *xauth,
+		     const char *wanted)
+{
+	char name[64] = "";
+
+	for (int i = 0; i < 100; i++) {
+		randr_primary(display, xauth, name, sizeof name);
+		if (strcmp(name, wanted) == 0)
+			return;
+		pause_ms(h, 50);
+	}
+	CHECK(false, "Xwayland's RandR primary is '%s', not %s", name, wanted);
+}
+
+static const char *
+polo_primary(struct harness *h)
+{
+	harness_output_count(h);
+	for (int i = 0; i < h->n_output_states; i++) {
+		if (h->output_states[i].enabled && h->output_states[i].primary)
+			return h->output_states[i].name;
+	}
+	return NULL;
+}
+
+static void
+test_randr_primary(int argc, char **argv)
+{
+	static const int modes[][3] = { { 1024, 768, 60000 } };
+	char xauth[512], first[32];
+	const char *primary;
+
+	if (system("command -v xrandr >/dev/null") != 0) {
+		fprintf(stderr, "no xrandr: RandR primary not checked\n");
+		return;
+	}
+	setenv("POLO_XWAYLAND", "eager", 1);
+	setenv("POLO_TEST_MANAGED_OUTPUTS", "1", 1);
+	struct harness *h = harness_start(argc, argv);
+
+	harness_add_output(h, "DP-1", "QQA", 0x0101, 11, "Left", false, 340,
+			   270, modes, 1);
+	harness_add_output(h, "DP-2", "QQB", 0x0202, 22, "Right", false, 340,
+			   270, modes, 1);
+	harness_connect_output(h, "headless0", false);
+	wait_xwayland(h, true);
+	pause_ms(h, 500);
+	int display = x_display(h);
+
+	find_xauth(h, xauth, sizeof xauth);
+	primary = polo_primary(h);
+	CHECK(primary, "Polo has no primary output");
+	snprintf(first, sizeof first, "%s", primary);
+	expect_randr_primary(h, display, xauth, first);
+	harness_connect_output(h, first, false);
+	primary = polo_primary(h);
+	CHECK(primary && strcmp(primary, first) != 0,
+	      "the primary did not move when %s went", first);
+	expect_randr_primary(h, display, xauth, primary);
+	CHECK(harness_stop(h) == 0, "polo did not stop cleanly");
+	unsetenv("POLO_TEST_MANAGED_OUTPUTS");
+}
+
 static void
 test_primary(int argc, char **argv)
 {
@@ -2827,6 +2919,7 @@ main(int argc, char **argv)
 	test_dnd(argc, argv);
 	test_hidpi(argc, argv);
 	test_primary(argc, argv);
+	test_randr_primary(argc, argv);
 	test_keyboard_grab(argc, argv);
 	test_close_animation(argc, argv);
 

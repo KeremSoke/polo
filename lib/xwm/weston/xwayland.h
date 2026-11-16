@@ -28,6 +28,7 @@
 #include <xcb/xcb.h>
 #include <xcb/xfixes.h>
 #include <xcb/xkb.h>
+#include <xcb/randr.h>
 #include <xcb/composite.h>
 #include <xcb/render.h>
 
@@ -120,6 +121,8 @@ struct weston_wm {
 	struct atom_x11 atom;
 	xcb_generic_event_t *polo_held_event;
 	const xcb_query_extension_reply_t *polo_xkb;
+	const xcb_query_extension_reply_t *polo_randr;
+	char *polo_primary;
 };
 
 void

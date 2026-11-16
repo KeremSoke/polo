@@ -86,6 +86,9 @@ void
 polo_xwm_set_workarea(PoloXwm *self, const guint32 *areas, int n);
 void
 polo_xwm_set_showing_desktop(PoloXwm *self, gboolean showing);
+/* The RandR primary output, by connector name; "" leaves it alone. */
+void
+polo_xwm_set_primary_output(PoloXwm *self, const char *name);
 
 /* The X window behind a desktop surface, or NULL for a native one. */
 PoloXWindow *

@@ -132,6 +132,8 @@ polo_wm_window_is_root(struct weston_wm_window *window, uint32_t id);
 void
 polo_wm_window_kill_client(struct weston_wm_window *window);
 void
+polo_wm_set_primary_output(struct weston_wm *wm, const char *name);
+void
 polo_wm_set_root_cardinals(struct weston_wm *wm, const char *property,
 			   uint32_t type, const uint32_t *values, int n);
 bool

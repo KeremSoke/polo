@@ -39,7 +39,18 @@ namespace Polo.Shell {
         private Xwm.Manager xwm;
         private Decor.Decorations decorations;
         private uint idle = 0;
+        private string primary_output = "";
         public Shell.NumWorkspacesWriter? write_num_workspaces_func = null;
+
+        public void set_primary_output (string name) {
+            if (name == primary_output) {
+                return;
+            }
+            primary_output = name;
+            if (xwm.is_running ()) {
+                xwm.set_primary_output (name);
+            }
+        }
 
         private void write_num_workspaces (int count) {
             if (write_num_workspaces_func != null) {
@@ -109,6 +120,7 @@ namespace Polo.Shell {
 
         private void sync_all () {
             xwm.set_supported (SUPPORTED);
+            xwm.set_primary_output (primary_output);
             sync ();
         }
 

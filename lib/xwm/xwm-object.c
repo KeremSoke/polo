@@ -1086,6 +1086,15 @@ polo_xwm_set_workarea(PoloXwm *self, const guint32 *areas, int n)
 }
 
 void
+polo_xwm_set_primary_output(PoloXwm *self, const char *name)
+{
+	struct weston_wm *wm = running_wm(self);
+
+	if (wm)
+		polo_wm_set_primary_output(wm, name);
+}
+
+void
 polo_xwm_set_showing_desktop(PoloXwm *self, gboolean showing)
 {
 	guint32 value = showing ? 1 : 0;

@@ -108,6 +108,7 @@ namespace Polo.Xwm {
         public void set_desktop_viewport ([CCode (array_length_type = "int")] uint32[] origins);
         public void set_workarea ([CCode (array_length_type = "int")] uint32[] areas);
         public void set_showing_desktop (bool showing);
+        public void set_primary_output (string name);
 
         public signal void window_created (XWindow window);
         public signal void ready (string display_name);

@@ -864,6 +864,15 @@ namespace Polo.Shell {
         }
 
         private void push_identities () {
+            string primary = "";
+            foreach (var output in model.get_outputs ()) {
+                if (output.primary) {
+                    primary = output.name;
+                }
+            }
+            if (ewmh != null) {
+                ewmh.set_primary_output (primary);
+            }
             foreach (var head in heads) {
                 var source = mirror_source (head);
                 head.set_mate_identity (monitor_id (head), display_name (head),

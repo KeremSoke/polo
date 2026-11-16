@@ -2553,6 +2553,98 @@ polo_wm_select_bell(struct weston_wm *wm)
 			      XCB_XKB_EVENT_TYPE_BELL_NOTIFY, 0, 0, NULL);
 }
 
+static void
+polo_wm_select_randr(struct weston_wm *wm)
+{
+	wm->polo_randr = xcb_get_extension_data(wm->conn, &xcb_randr_id);
+	if (!wm->polo_randr || !wm->polo_randr->present) {
+		wm->polo_randr = NULL;
+		return;
+	}
+	xcb_randr_select_input(wm->conn, wm->screen->root,
+			       XCB_RANDR_NOTIFY_MASK_SCREEN_CHANGE |
+				       XCB_RANDR_NOTIFY_MASK_OUTPUT_CHANGE);
+}
+
+static xcb_randr_output_t
+polo_wm_randr_output_named(struct weston_wm *wm, const char *name)
+{
+	xcb_randr_get_screen_resources_current_reply_t *resources;
+	xcb_randr_output_t *outputs, found = XCB_NONE;
+	size_t length = strlen(name);
+	int n;
+
+	resources = xcb_randr_get_screen_resources_current_reply(
+		wm->conn,
+		xcb_randr_get_screen_resources_current(wm->conn,
+						       wm->screen->root),
+		NULL);
+	if (!resources)
+		return XCB_NONE;
+	outputs = xcb_randr_get_screen_resources_current_outputs(resources);
+	n = xcb_randr_get_screen_resources_current_outputs_length(resources);
+	for (int i = 0; i < n && found == XCB_NONE; i++) {
+		xcb_randr_get_output_info_reply_t *info =
+			xcb_randr_get_output_info_reply(
+				wm->conn,
+				xcb_randr_get_output_info(
+					wm->conn, outputs[i],
+					resources->config_timestamp),
+				NULL);
+
+		if (info &&
+		    (size_t)xcb_randr_get_output_info_name_length(info) ==
+			    length &&
+		    memcmp(xcb_randr_get_output_info_name(info), name, length) ==
+			    0)
+			found = outputs[i];
+		free(info);
+	}
+	free(resources);
+	return found;
+}
+
+static void
+polo_wm_apply_primary(struct weston_wm *wm)
+{
+	xcb_randr_get_output_primary_reply_t *current;
+	xcb_randr_output_t wanted;
+
+	if (!wm->polo_randr || !wm->polo_primary || !*wm->polo_primary)
+		return;
+	wanted = polo_wm_randr_output_named(wm, wm->polo_primary);
+	if (wanted == XCB_NONE)
+		return;
+	current = xcb_randr_get_output_primary_reply(
+		wm->conn, xcb_randr_get_output_primary(wm->conn, wm->screen->root),
+		NULL);
+	if (!current || current->output != wanted) {
+		xcb_randr_set_output_primary(wm->conn, wm->screen->root, wanted);
+		xcb_flush(wm->conn);
+	}
+	free(current);
+}
+
+void
+polo_wm_set_primary_output(struct weston_wm *wm, const char *name)
+{
+	free(wm->polo_primary);
+	wm->polo_primary = name ? strdup(name) : NULL;
+	polo_wm_apply_primary(wm);
+}
+
+static bool
+polo_wm_handle_randr_event(struct weston_wm *wm, xcb_generic_event_t *event)
+{
+	if (!wm->polo_randr ||
+	    (EVENT_TYPE(event) !=
+		     wm->polo_randr->first_event + XCB_RANDR_SCREEN_CHANGE_NOTIFY &&
+	     EVENT_TYPE(event) != wm->polo_randr->first_event + XCB_RANDR_NOTIFY))
+		return false;
+	polo_wm_apply_primary(wm);
+	return true;
+}
+
 static bool
 polo_wm_handle_xkb_event(struct weston_wm *wm, xcb_generic_event_t *event)
 {
@@ -2582,7 +2674,8 @@ weston_wm_handle_event(int fd, uint32_t mask, void *data)
 	while (event = wm->polo_held_event ? wm->polo_held_event :
 						 xcb_poll_for_event(wm->conn),
 	       wm->polo_held_event = NULL, event != NULL) {
-		if (polo_wm_handle_xkb_event(wm, event)) {
+		if (polo_wm_handle_xkb_event(wm, event) ||
+		    polo_wm_handle_randr_event(wm, event)) {
 			free(event);
 			count++;
 			continue;
@@ -3035,6 +3128,7 @@ weston_wm_create(struct weston_xserver *wxs, int fd)
 		return NULL;
 	}
 	polo_wm_select_bell(wm);
+	polo_wm_select_randr(wm);
 
 	weston_wm_get_visual_and_colormap(wm);
 
@@ -3125,6 +3219,7 @@ weston_wm_destroy(struct weston_wm *wm)
 	weston_wm_destroy_cursors(wm);
 	theme_destroy(wm->theme);
 	free(wm->polo_held_event);
+	free(wm->polo_primary);
 	xcb_disconnect(wm->conn);
 	wl_event_source_remove(wm->source);
 	wl_list_remove(&wm->seat_create_listener.link);
