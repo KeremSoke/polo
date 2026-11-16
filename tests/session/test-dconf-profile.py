@@ -7,8 +7,10 @@
 
 Compiles data/dconf/db/polo.d into a temporary database and reads it
 through a profile like /etc/dconf/profile/polo, with file-db: standing in
-for system-db:polo. In it the six plugins msd must leave to Polo are off
-and locked; under the default profile, as in the X session, they are not.
+for system-db:polo. In it the plugins msd must leave to Polo are off and
+locked; under the default profile, as in the X session, they are not.
+wlrandr exists only in newer mate-settings-daemon builds: without its
+schema it is checked in the compiled database and the locks file.
 """
 
 import os
@@ -19,6 +21,7 @@ import sys
 import tempfile
 
 PLUGINS = ["xrandr", "keyboard", "mouse", "media-keys", "a11y-keyboard", "background", "keybindings"]
+OPTIONAL = ["wlrandr"]
 SCHEMA = "org.mate.SettingsDaemon.plugins.{}"
 
 
@@ -47,7 +50,7 @@ def main():
         base = {k: v for k, v in os.environ.items() if k not in ("DCONF_PROFILE", "GSETTINGS_BACKEND")}
         base.update(XDG_CONFIG_HOME=str(tmp / "config"), GSETTINGS_BACKEND="dconf")
         polo = dict(base, DCONF_PROFILE=str(tmp / "profile"))
-        for plugin in PLUGINS:
+        for plugin in PLUGINS + [p for p in OPTIONAL if SCHEMA.format(p) in schemas]:
             schema = SCHEMA.format(plugin)
             if gsettings(polo, "get", schema, "active") != "false":
                 failures.append(f"{schema} active is not false in the Polo session")
@@ -55,6 +58,15 @@ def main():
                 failures.append(f"{schema} active is writable in the Polo session")
             if gsettings(base, "writable", schema, "active") != "true":
                 failures.append(f"{schema} active is locked outside the Polo session")
+        locks = (source / "data/dconf/db/polo.d/locks/00-polo").read_text().split()
+        for plugin in OPTIONAL:
+            key = f"/org/mate/settings-daemon/plugins/{plugin}/active"
+            value = subprocess.run(["dconf", "read", key], env=polo, capture_output=True,
+                                   text=True, check=True).stdout.strip()
+            if value != "false":
+                failures.append(f"{key} is {value or 'unset'} in the Polo database")
+            if key not in locks:
+                failures.append(f"{key} is not locked")
         if gsettings(polo, "writable", SCHEMA.format("sound"), "active") != "true":
             failures.append("a plugin Polo does not replace is locked in the Polo session")
     finally:

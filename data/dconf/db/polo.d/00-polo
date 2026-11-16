@@ -20,3 +20,6 @@ active=false
 
 [org/mate/settings-daemon/plugins/keybindings]
 active=false
+
+[org/mate/settings-daemon/plugins/wlrandr]
+active=false
