@@ -308,6 +308,21 @@ namespace Polo.Shell {
                 release_head (backend_output);
                 layer_shell.arrange ();
             }
+            bool lit = false;
+            foreach (var head in heads) {
+                lit = lit || head.get_enabled ();
+            }
+            /* Clients that see their last monitor go before another one comes
+             * lose their layer surfaces (mate-panel stays empty after that), so
+             * light the next one while the removed one still exists. */
+            if (drm && backend_output.get_enabled () && !lit && heads.length > 0) {
+                if (relayout_source != 0) {
+                    GLib.Source.remove (relayout_source);
+                    relayout_source = 0;
+                }
+                apply_layout ();
+                return;
+            }
             /* A connector that goes away (a dock's MST port) brings no heads-changed
              * from libweston, so nothing else would lay the rest out again. */
             if (relayout_source == 0) {
@@ -437,33 +452,46 @@ namespace Polo.Shell {
             commit (monitors, backends, true);
         }
 
-        /* libweston moves the outputs right of one whose mode changes, so
-         * those placed before it are put back afterwards. */
         private bool light (GLib.GenericArray<Polo.Output> monitors,
-                            GLib.HashTable<Polo.Output, Backend.Output> backends) {
+                            GLib.HashTable<Polo.Output, Backend.Output> backends,
+                            GLib.GenericSet<Polo.Output> lit) {
             bool success = true;
-            for (int round = 0; round < 2; round++) {
-                foreach (var o in monitors) {
-                    var head = backends[o];
-                    if (!o.enabled) {
-                        continue;
-                    }
-                    if (round == 1) {
-                        int x, y, width, height;
-                        head.get_geometry (out x, out y, out width, out height);
-                        if (!head.get_enabled () || (x == o.x && y == o.y)) {
-                            continue;
-                        }
-                    }
-                    try {
-                        head.apply (o.width, o.height, o.rate, o.scale, o.transform, o.x, o.y, true);
-                    } catch (GLib.Error e) {
-                        GLib.warning ("Output configuration failed: %s", e.message);
-                        success = false;
-                    }
+            foreach (var o in monitors) {
+                if (o.enabled && lit.contains (o)) {
+                    success = configure (backends[o], o, true) && success;
                 }
             }
             return success;
+        }
+
+        private bool put_back (GLib.GenericArray<Polo.Output> monitors,
+                               GLib.HashTable<Polo.Output, Backend.Output> backends) {
+            bool success = true;
+            foreach (var o in monitors) {
+                var head = backends[o];
+                int x, y, width, height;
+                head.get_geometry (out x, out y, out width, out height);
+                if (o.enabled && head.get_enabled () && (x != o.x || y != o.y)) {
+                    success = configure (head, o, true) && success;
+                }
+            }
+            return success;
+        }
+
+        private static bool configure (Backend.Output head, Polo.Output o, bool enabled) {
+            if (enabled) {
+                Logging.scope (LogDomain.POLO).debug ("configure %s: %dx%d@%d at %d,%d", head.get_name (),
+                                                      o.width, o.height, o.rate, o.x, o.y);
+            } else {
+                Logging.scope (LogDomain.POLO).debug ("configure %s: off", head.get_name ());
+            }
+            try {
+                head.apply (o.width, o.height, o.rate, o.scale, o.transform, o.x, o.y, enabled);
+            } catch (GLib.Error e) {
+                GLib.warning ("Output configuration failed: %s", e.message);
+                return false;
+            }
+            return true;
         }
 
         private bool commit (GLib.GenericArray<Polo.Output> monitors,
@@ -471,7 +499,25 @@ namespace Polo.Shell {
             bool success = true;
             Logging.scope (LogDomain.POLO).debug ("commit wanted:%s", describe_wanted (monitors));
             if (drm) {
-                success = light (monitors, backends);
+                var dark = new GLib.GenericSet<Polo.Output> (GLib.direct_hash, GLib.direct_equal);
+                var lit = new GLib.GenericSet<Polo.Output> (GLib.direct_hash, GLib.direct_equal);
+                foreach (var o in monitors) {
+                    (backends[o].get_enabled () ? lit : dark).add (o);
+                }
+                success = light (monitors, backends, dark);
+                foreach (var o in monitors) {
+                    if (!o.enabled) {
+                        success = configure (backends[o], o, false) && success;
+                    }
+                }
+                /* A mode change on a lit output only asks libweston for a
+                 * full modeset; disabling an output afterwards would use up
+                 * that modeset, and the kernel then refuses the new mode. So
+                 * no lit output is touched before the disables, not even to
+                 * move it, and libweston's shifting of outputs right of a
+                 * changed mode is undone only at the end. */
+                success = light (monitors, backends, lit) && success;
+                success = put_back (monitors, backends) && success;
             }
             var groups = new GLib.GenericArray<GLib.GenericArray<Polo.Output>> ();
             foreach (var o in monitors) {
@@ -543,16 +589,6 @@ namespace Polo.Shell {
                         copies.add (head);
                     }
                     head.set_background_color (BACKGROUND_RED, BACKGROUND_GREEN, BACKGROUND_BLUE);
-                }
-            }
-            foreach (var o in monitors) {
-                if (drm && !o.enabled) {
-                    try {
-                        backends[o].apply (o.width, o.height, o.rate, o.scale, o.transform, o.x, o.y, false);
-                    } catch (GLib.Error e) {
-                        GLib.warning ("Output configuration failed: %s", e.message);
-                        success = false;
-                    }
                 }
             }
             var gone = new GLib.GenericArray<Policy.Output> ();

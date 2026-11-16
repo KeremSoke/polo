@@ -5,15 +5,72 @@
  * zwlr_output_manager_v1 v4 on two managed headless outputs: heads and
  * modes, test, apply (seen in the next done), a stale serial cancelled,
  * refusals (every head off, unsupported adaptive sync) and protocol errors
- * (a head left out, another head's mode).
+ * (a head left out, another head's mode). A head turned off is turned off
+ * before any head that stays on is touched: a lit head's mode change asks
+ * DRM for a modeset that disabling another head afterwards would use up.
+ * Unplugging the only head that is on turns another one on before the
+ * unplugged head's wl_output goes, so clients never see no monitor.
  */
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "harness.h"
 #include "wlr-output-management-unstable-v1-client-protocol.h"
+
+static char log_path[64];
+
+static char *
+read_log(void)
+{
+	static char text[1 << 22];
+	FILE *file = fopen(log_path, "r");
+	size_t n = 0;
+
+	if (file) {
+		n = fread(text, 1, sizeof text - 1, file);
+		fclose(file);
+	}
+	text[n] = '\0';
+	return text;
+}
+
+struct outputs_seen {
+	uint32_t names[8];
+	int count, fewest;
+};
+
+static void
+seen_global(void *data, struct wl_registry *registry, uint32_t name,
+	    const char *interface, uint32_t version)
+{
+	struct outputs_seen *seen = data;
+
+	if (strcmp(interface, "wl_output") == 0 && seen->count < 8)
+		seen->names[seen->count++] = name;
+}
+
+static void
+seen_global_remove(void *data, struct wl_registry *registry, uint32_t name)
+{
+	struct outputs_seen *seen = data;
+
+	for (int i = 0; i < seen->count; i++) {
+		if (seen->names[i] == name) {
+			seen->names[i] = seen->names[--seen->count];
+			break;
+		}
+	}
+	if (seen->count < seen->fewest)
+		seen->fewest = seen->count;
+}
+
+static const struct wl_registry_listener seen_listener = {
+	seen_global,
+	seen_global_remove,
+};
 
 struct mode {
 	struct zwlr_output_mode_v1 *mode;
@@ -345,11 +402,43 @@ run(struct harness *h, struct client *c, uint32_t serial, int test, int x2,
 	return result;
 }
 
+static int
+run_first_off(struct harness *h, struct client *c, int x2)
+{
+	struct zwlr_output_configuration_v1 *config =
+		zwlr_output_manager_v1_create_configuration(c->manager,
+							    c->serial);
+	struct zwlr_output_configuration_head_v1 *ch;
+	int result = PENDING;
+
+	zwlr_output_configuration_v1_add_listener(config, &config_listener,
+						  &result);
+	zwlr_output_configuration_v1_disable_head(config, c->heads[0].head);
+	ch = zwlr_output_configuration_v1_enable_head(config, c->heads[1].head);
+	zwlr_output_configuration_head_v1_set_mode(ch,
+						   mode_to_set(&c->heads[1]));
+	zwlr_output_configuration_head_v1_set_position(ch, x2, 0);
+	zwlr_output_configuration_v1_apply(config);
+	for (int i = 0; i < 100 && result == PENDING; i++) {
+		wl_display_roundtrip(c->display);
+		harness_roundtrip(h);
+	}
+	zwlr_output_configuration_v1_destroy(config);
+	wl_proxy_destroy((struct wl_proxy *)ch);
+	wl_display_roundtrip(c->display);
+	return result;
+}
+
 int
 main(int argc, char **argv)
 {
 	setenv("POLO_TEST_MANAGED_OUTPUTS", "1", 1);
 	setenv("POLO_TEST_TWO_OUTPUTS", "1", 1);
+	snprintf(log_path, sizeof log_path,
+		 "/tmp/polo-output-management-XXXXXX");
+	close(mkstemp(log_path));
+	setenv("POLO_TEST_LOG", log_path, 1);
+	setenv("POLO_TEST_DEBUG", "polo", 1);
 	struct harness *h = harness_start(argc, argv);
 	struct client *c = connect_client(h);
 
@@ -447,7 +536,82 @@ main(int argc, char **argv)
 	wl_proxy_destroy((struct wl_proxy *)ch);
 	wl_proxy_destroy((struct wl_proxy *)config);
 	client_free(bad);
+
+	char off_line[96], on_line[96];
+	size_t from = strlen(read_log());
+
+	snprintf(off_line, sizeof off_line, "configure %s: off",
+		 c->heads[0].name);
+	snprintf(on_line, sizeof on_line, "configure %s: ", c->heads[1].name);
+	CHECK(run_first_off(h, c, 0) == SUCCEEDED,
+	      "turning the first head off and moving %s to 0,0 failed",
+	      c->heads[1].name);
+	const char *off_at = strstr(read_log() + from, off_line);
+	const char *on_at = strstr(read_log() + from, on_line);
+
+	CHECK(off_at && on_at, "the change was not logged (off: %d, %s: %d)",
+	      off_at != NULL, c->heads[1].name, on_at != NULL);
+	CHECK(off_at < on_at, "%s was configured before %s was turned off",
+	      c->heads[1].name, c->heads[0].name);
+	CHECK(run(h, c, c->serial, 0, x2, 0, 0, 0) == SUCCEEDED,
+	      "turning both heads on again failed");
+
+	struct harness_window *w =
+		harness_window_create(h, 300, 200, "on-the-first-head");
+	const struct harness_window_info *info = harness_window_info(w);
+
+	CHECK(info->known && info->x < first->width,
+	      "the window did not map on %s", c->heads[0].name);
+	wl_display_roundtrip(c->display);
+	CHECK(run_first_off(h, c, x2) == SUCCEEDED,
+	      "turning the first head off was not applied");
+
+	const struct harness_output_state *left =
+		harness_output_state(h, c->heads[1].name);
+
+	CHECK(left && left->enabled, "%s is not on", c->heads[1].name);
+	CHECK(left->x == x2 && left->y == 0,
+	      "%s moved to %d,%d when the first head went off",
+	      c->heads[1].name, left->x, left->y);
+	info = harness_window_info(w);
+	CHECK(info->x >= left->x && info->y >= left->y &&
+		      info->x + info->width <= left->x + left->width &&
+		      info->y + info->height <= left->y + left->height,
+	      "the window is at %d,%d %dx%d, off %s at %d,%d %dx%d", info->x,
+	      info->y, info->width, info->height, left->name, left->x, left->y,
+	      left->width, left->height);
+	harness_window_destroy(w);
+
+	struct outputs_seen seen = { 0 };
+	struct wl_display *watcher = wl_display_connect(h->socket);
+
+	CHECK(watcher, "cannot connect");
+	struct wl_registry *seen_registry = wl_display_get_registry(watcher);
+
+	wl_registry_add_listener(seen_registry, &seen_listener, &seen);
+	wl_display_roundtrip(watcher);
+	CHECK(seen.count == 1, "%d wl_outputs with only %s on", seen.count,
+	      c->heads[1].name);
+	seen.fewest = seen.count;
+	harness_connect_output(h, c->heads[1].name, false);
+	for (int i = 0; i < 50; i++) {
+		harness_roundtrip(h);
+		wl_display_roundtrip(watcher);
+		wl_display_roundtrip(c->display);
+	}
+	CHECK(seen.fewest > 0,
+	      "clients saw no wl_output when the only head on was unplugged");
+	CHECK(seen.count == 1, "%d wl_outputs after the unplug", seen.count);
+	const struct harness_output_state *back =
+		harness_output_state(h, c->heads[0].name);
+
+	CHECK(back && back->enabled, "%s was not turned on again",
+	      c->heads[0].name);
+	wl_registry_destroy(seen_registry);
+	wl_display_disconnect(watcher);
+
 	client_free(c);
 	CHECK(harness_stop(h) == 0, "polo did not stop cleanly");
+	unlink(log_path);
 	return 0;
 }
