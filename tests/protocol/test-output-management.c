@@ -384,6 +384,28 @@ main(int argc, char **argv)
 	      "apply did not move %s to %d,0 (it is at %d,%d)",
 	      c->heads[1].name, x2, c->heads[1].x, c->heads[1].y);
 
+	int px, py;
+
+	harness_move_pointer_absolute(h, 100, 120);
+	CHECK(run(h, c, c->serial, 0, x2, 0, 0, 0) == SUCCEEDED,
+	      "applying the same configuration again failed");
+	harness_pointer_position(h, &px, &py);
+	CHECK(px == 100 && py == 120,
+	      "applying an unchanged configuration moved the pointer to %d,%d",
+	      px, py);
+
+	struct mode *second = mode_of(c, c->heads[1].current);
+
+	harness_move_pointer_absolute(h, x2 + second->width - 10, 120);
+	CHECK(run(h, c, c->serial, 0, first->width, 0, 0, 0) == SUCCEEDED,
+	      "moving %s left failed", c->heads[1].name);
+	harness_pointer_position(h, &px, &py);
+	CHECK(px == first->width + second->width - 1 && py == 120,
+	      "the pointer was left off every screen, at %d,%d", px, py);
+	CHECK(run(h, c, c->serial, 0, x2, 0, 0, 0) == SUCCEEDED,
+	      "moving %s back failed", c->heads[1].name);
+	harness_move_pointer_absolute(h, 100, 120);
+
 	CHECK(run(h, c, c->serial - 1, 0, 0, 0, 0, 0) == CANCELLED,
 	      "a stale serial was not cancelled");
 	CHECK(run(h, c, c->serial, 0, 0, 1, 0, 0) == FAILED,

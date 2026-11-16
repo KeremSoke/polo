@@ -582,6 +582,7 @@ namespace Polo.Shell {
                                                   describe_monitors ());
             server.set_monitor_count (model.get_outputs ().length);
             committed_screens = screens_state ();
+            keep_pointer_on_screen ();
             layer_shell.arrange ();
             push_work_areas ();
             push_identities ();
@@ -1114,6 +1115,34 @@ namespace Polo.Shell {
             }
             model.pointer_entered (window_of (view), time_msec);
             frame_input.motion (seat, x, y, view != null ? frame_owner (view) : null);
+        }
+
+        private void keep_pointer_on_screen () {
+            foreach (var seat in seats) {
+                double x, y;
+                seat.get_pointer_position (out x, out y);
+                double best = double.MAX;
+                double near_x = x, near_y = y;
+                foreach (var head in heads) {
+                    int hx, hy, width, height;
+                    head.get_geometry (out hx, out hy, out width, out height);
+                    if (!head.get_enabled () || width <= 0 || height <= 0) {
+                        continue;
+                    }
+                    double cx = x.clamp (hx, hx + width - 1);
+                    double cy = y.clamp (hy, hy + height - 1);
+                    double distance = (cx - x) * (cx - x) + (cy - y) * (cy - y);
+                    if (distance < best) {
+                        best = distance;
+                        near_x = cx;
+                        near_y = cy;
+                    }
+                }
+                if (best > 0 && best < double.MAX) {
+                    seat.warp_pointer (near_x, near_y);
+                    model.pointer_moved (near_x, near_y);
+                }
+            }
         }
 
         private void on_pointer_warped (int x, int y) {

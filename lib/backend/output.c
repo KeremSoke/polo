@@ -613,7 +613,8 @@ polo_backend_output_apply(PoloBackendOutput *self, int width, int height,
 		    weston_output_mode_set_native(output, chosen, scale) < 0)
 			goto failed;
 		weston_output_set_scale(output, scale);
-		weston_output_set_transform(output, transform);
+		if (output->transform != (uint32_t)transform)
+			weston_output_set_transform(output, transform);
 	} else {
 		if (self->server->kind == POLO_BACKEND_KIND_DRM) {
 			const struct weston_drm_output_api *api =
