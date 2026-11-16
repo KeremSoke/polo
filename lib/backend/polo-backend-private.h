@@ -170,6 +170,12 @@ struct libinput_device;
 PoloBackendInputDevice *
 polo_backend_input_device_new(struct libinput_device *device);
 
+struct _PoloBackendDeviceDescription;
+
+PoloBackendInputDevice *
+polo_backend_input_device_new_fake(
+	const struct _PoloBackendDeviceDescription *description);
+
 /* Emits "removed" and lets the libinput device go. */
 void
 polo_backend_input_device_remove(PoloBackendInputDevice *device);
@@ -412,6 +418,40 @@ polo_backend_output_get_mirror_of(PoloBackendOutput *output);
 
 PoloBackendBackgroundOwner
 polo_backend_output_get_background_owner(PoloBackendOutput *output);
+
+/* What mate_input_device_manager_v1 reports about a device */
+enum {
+	POLO_DEVICE_TAG_TOUCHPAD = 1 << 0,
+	POLO_DEVICE_TAG_POINTING_STICK = 1 << 1,
+	POLO_DEVICE_TAG_TRACKBALL = 1 << 2,
+};
+
+typedef struct _PoloBackendDeviceDescription {
+	char name[256];
+	guint vendor, product;
+	guint tags;
+	guint capabilities;
+	guint buttons;
+	guint config;
+	guint tap_fingers;
+	guint accel_profiles, scroll_methods, click_methods, send_events;
+	char phys[256];
+	char output_name[64];
+} PoloBackendDeviceDescription;
+
+/* FALSE once the device is gone. */
+gboolean
+polo_backend_input_device_describe(PoloBackendInputDevice *device,
+				   PoloBackendDeviceDescription *description);
+
+PoloBackendInputDevice *
+polo_backend_server_add_fake_input_device(
+	PoloBackendServer *server,
+	const PoloBackendDeviceDescription *description);
+
+gboolean
+polo_backend_server_remove_fake_input_device(PoloBackendServer *server,
+					     const char *name);
 
 /* The connector's raw EDID in a sealed memfd (the caller closes it), or -1. */
 int

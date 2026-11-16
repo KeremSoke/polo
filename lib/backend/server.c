@@ -1173,6 +1173,43 @@ polo_backend_server_input_device_added(PoloBackendServer *server,
 	g_signal_emit(server, signals[SIGNAL_INPUT_DEVICE_ADDED], 0, handle);
 }
 
+PoloBackendInputDevice *
+polo_backend_server_add_fake_input_device(
+	PoloBackendServer *server,
+	const PoloBackendDeviceDescription *description)
+{
+	PoloBackendInputDevice *handle =
+		polo_backend_input_device_new_fake(description);
+
+	g_hash_table_replace(server->input_devices, handle, handle);
+	g_signal_emit(server, signals[SIGNAL_INPUT_DEVICE_ADDED], 0, handle);
+	return handle;
+}
+
+gboolean
+polo_backend_server_remove_fake_input_device(PoloBackendServer *server,
+					     const char *name)
+{
+	GHashTableIter iter;
+	gpointer key, value;
+
+	g_hash_table_iter_init(&iter, server->input_devices);
+	while (g_hash_table_iter_next(&iter, &key, &value)) {
+		PoloBackendInputDevice *handle = value;
+
+		if (key != value ||
+		    g_strcmp0(polo_backend_input_device_get_name(handle),
+			      name) != 0)
+			continue;
+		g_object_ref(handle);
+		g_hash_table_iter_remove(&iter);
+		polo_backend_input_device_remove(handle);
+		g_object_unref(handle);
+		return TRUE;
+	}
+	return FALSE;
+}
+
 void
 polo_backend_server_input_device_removed(PoloBackendServer *server,
 					 struct libinput_device *device)
