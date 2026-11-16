@@ -321,6 +321,13 @@ if get_option('shell-ui')
   )
 endif
 
+test('mate-output-gl', executable('test-mate-output-gl', 'test-mate-output.c', dependencies: harness_dep),
+  args: [polo_exe, 'gl'],
+  env: protocol_test_env,
+  suite: 'protocol',
+  timeout: 60,
+)
+
 # Magic Lamp needs the GL renderer and Polo's own effects schema.
 magic_lamp_env = environment()
 magic_lamp_env.set('WESTON_MODULE_MAP', weston_module_map)

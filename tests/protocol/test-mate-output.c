@@ -635,6 +635,10 @@ int
 main(int argc, char **argv)
 {
 	setenv("POLO_TEST_MANAGED_OUTPUTS", "1", 1);
+	if (argc > 2 && strcmp(argv[2], "gl") == 0) {
+		setenv("POLO_TEST_RENDERER", "--renderer=gl", 1);
+		setenv("LIBGL_ALWAYS_SOFTWARE", "1", 1);
+	}
 	struct harness *h = harness_start(argc, argv);
 
 	harness_add_output(h, "eDP-1", "BOE", 0x0a34, 0, "Panel", true, 344,
