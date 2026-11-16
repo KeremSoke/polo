@@ -302,6 +302,47 @@ count_output(struct wl_resource *resource, void *data)
 }
 
 static void
+test_add_input_device(struct wl_client *client, struct wl_resource *resource,
+		      const char *name, uint32_t vendor, uint32_t product,
+		      uint32_t tags, uint32_t capabilities, uint32_t buttons,
+		      uint32_t config, uint32_t tap_fingers,
+		      uint32_t accel_profiles, uint32_t scroll_methods,
+		      uint32_t click_methods, uint32_t send_events,
+		      const char *phys, const char *output_name)
+{
+	PoloBackendServer *server = wl_resource_get_user_data(resource);
+	PoloBackendDeviceDescription d = {
+		.vendor = vendor,
+		.product = product,
+		.tags = tags,
+		.capabilities = capabilities,
+		.buttons = buttons,
+		.config = config,
+		.tap_fingers = tap_fingers,
+		.accel_profiles = accel_profiles,
+		.scroll_methods = scroll_methods,
+		.click_methods = click_methods,
+		.send_events = send_events,
+	};
+
+	g_strlcpy(d.name, name, sizeof d.name);
+	g_strlcpy(d.phys, phys, sizeof d.phys);
+	g_strlcpy(d.output_name, output_name, sizeof d.output_name);
+	polo_backend_server_add_fake_input_device(server, &d);
+}
+
+static void
+test_remove_input_device(struct wl_client *client, struct wl_resource *resource,
+			 const char *name)
+{
+	PoloBackendServer *server = wl_resource_get_user_data(resource);
+
+	if (!polo_backend_server_remove_fake_input_device(server, name))
+		wl_resource_post_error(resource, 0, "no fake input device %s",
+				       name);
+}
+
+static void
 test_get_resources(struct wl_client *client, struct wl_resource *resource)
 {
 	PoloBackendServer *server = wl_resource_get_user_data(resource);
@@ -853,6 +894,8 @@ static const struct polo_test_v1_interface test_implementation = {
 	.trim_heap = test_trim_heap,
 	.move_pointer_output = test_move_pointer_output,
 	.get_resources = test_get_resources,
+	.add_input_device = test_add_input_device,
+	.remove_input_device = test_remove_input_device,
 };
 
 static void
@@ -910,7 +953,7 @@ polo_backend_test_protocol_init(PoloBackendServer *server, GError **error)
 		server->compositor, &server->screenshot_authority,
 		authorize_screenshot);
 	server->test_global =
-		wl_global_create(server->display, &polo_test_v1_interface, 16,
+		wl_global_create(server->display, &polo_test_v1_interface, 17,
 				 server, test_bind);
 	if (!server->test_global) {
 		g_set_error(error, POLO_BACKEND_ERROR,

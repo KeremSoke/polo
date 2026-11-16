@@ -14,7 +14,7 @@
     tests check policy decisions rather than libweston internals.
   </description>
 
-  <interface name="polo_test_v1" version="16">
+  <interface name="polo_test_v1" version="17">
     <request name="destroy" type="destructor"/>
 
     <request name="get_window_info">
@@ -365,6 +365,36 @@
       <arg name="shell_ui_objects" type="uint"/>
       <arg name="shell_ui_outputs" type="uint"/>
     </event>
+
+    <request name="add_input_device" since="17">
+      <description summary="add a fake input device">
+        As if libinput had found it: listed to mate_input_device_manager_v1
+        and passed to Polo's device settings, which cannot configure it.
+        Capabilities, buttons, config and the four method fields use
+        mate_input_device_v1's values; tags are the udev tags as bits (1
+        touchpad, 2 pointing stick, 4 trackball); output_name stands for
+        udev's WL_OUTPUT.
+      </description>
+      <arg name="name" type="string"/>
+      <arg name="vendor" type="uint"/>
+      <arg name="product" type="uint"/>
+      <arg name="tags" type="uint"/>
+      <arg name="capabilities" type="uint"/>
+      <arg name="buttons" type="uint"/>
+      <arg name="config" type="uint"/>
+      <arg name="tap_fingers" type="uint"/>
+      <arg name="accel_profiles" type="uint"/>
+      <arg name="scroll_methods" type="uint"/>
+      <arg name="click_methods" type="uint"/>
+      <arg name="send_events" type="uint"/>
+      <arg name="phys" type="string"/>
+      <arg name="output_name" type="string"/>
+    </request>
+
+    <request name="remove_input_device" since="17">
+      <description summary="remove a fake input device by name"/>
+      <arg name="name" type="string"/>
+    </request>
 
   </interface>
 </protocol>
