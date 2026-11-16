@@ -864,6 +864,7 @@ namespace Polo.Shell {
         }
 
         private void push_identities () {
+#if POLO_HAVE_XWAYLAND
             string primary = "";
             foreach (var output in model.get_outputs ()) {
                 if (output.primary) {
@@ -873,6 +874,7 @@ namespace Polo.Shell {
             if (ewmh != null) {
                 ewmh.set_primary_output (primary);
             }
+#endif
             foreach (var head in heads) {
                 var source = mirror_source (head);
                 head.set_mate_identity (monitor_id (head), display_name (head),
