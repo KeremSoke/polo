@@ -726,6 +726,10 @@ namespace Polo.Shell {
                 Logging.scope (LogDomain.POLO).debug ("not applied: every screen would be off");
                 return false;
             }
+            if (!Outputs.Layout.overlaps_allowed (after)) {
+                Logging.scope (LogDomain.POLO).debug ("not applied: screens overlap without mirroring");
+                return false;
+            }
             Outputs.Layout.ensure_primary (after);
             if (!commit (after, backends, remember)) {
                 Logging.scope (LogDomain.POLO).debug ("commit failed, going back");

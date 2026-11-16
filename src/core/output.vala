@@ -59,6 +59,10 @@ namespace Polo {
         public int logical_width () {
             return ((transform & 1) != 0 ? height : width) / scale;
         }
+
+        public int logical_height () {
+            return ((transform & 1) != 0 ? width : height) / scale;
+        }
     }
 
     public class OutputMode : GLib.Object {

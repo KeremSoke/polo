@@ -4,6 +4,30 @@
  */
 namespace Polo.Outputs {
     public class Layout : GLib.Object {
+        /* Outputs that are on either do not overlap or overlap exactly, as mirrors. */
+        public static bool overlaps_allowed (GLib.GenericArray<Polo.Output> outputs) {
+            for (int i = 0; i < outputs.length; i++) {
+                var a = outputs[i];
+                if (!a.enabled) {
+                    continue;
+                }
+                for (int j = i + 1; j < outputs.length; j++) {
+                    var b = outputs[j];
+                    if (!b.enabled) {
+                        continue;
+                    }
+                    bool same = a.x == b.x && a.y == b.y && a.logical_width () == b.logical_width () &&
+                                a.logical_height () == b.logical_height ();
+                    bool apart = a.x + a.logical_width () <= b.x || b.x + b.logical_width () <= a.x ||
+                                 a.y + a.logical_height () <= b.y || b.y + b.logical_height () <= a.y;
+                    if (!same && !apart) {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+
         public static bool restore (GLib.GenericArray<Polo.Output> outputs, MonitorsXml? saved) {
             if (saved == null) {
                 return false;

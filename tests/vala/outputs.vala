@@ -265,6 +265,41 @@ void persistence_test () {
     } catch (Error e) { error ("%s", e.message); }
 }
 
+Polo.Output placed (int x, int y, int width, int height, int scale = 1, int transform = 0, bool enabled = true) {
+    var o = new Polo.Output ();
+    o.x = x;
+    o.y = y;
+    o.width = width;
+    o.height = height;
+    o.scale = scale;
+    o.transform = transform;
+    o.enabled = enabled;
+    return o;
+}
+
+bool allowed (Polo.Output[] outputs) {
+    var list = new GLib.GenericArray<Polo.Output> ();
+    foreach (var o in outputs) {
+        list.add (o);
+    }
+    return Outputs.Layout.overlaps_allowed (list);
+}
+
+void overlaps_test () {
+    assert (allowed ({ placed (0, 0, 1920, 1080), placed (1920, 0, 1920, 1080) }));
+    assert (allowed ({ placed (0, 0, 1920, 1080), placed (1920, -200, 1920, 1080) }));
+    assert (allowed ({ placed (0, 0, 1920, 1080), placed (0, 1080, 1280, 1024) }));
+    assert (allowed ({ placed (0, 0, 1920, 1080), placed (2200, 0, 1280, 1024) }));
+    assert (allowed ({ placed (0, 0, 1920, 1080), placed (0, 0, 1920, 1080) }));
+    assert (allowed ({ placed (0, 0, 3840, 2160, 2), placed (0, 0, 1920, 1080) }));
+    assert (allowed ({ placed (0, 0, 1080, 1920, 1, 1), placed (0, 0, 1920, 1080) }));
+    assert (allowed ({ placed (0, 0, 1920, 1080), placed (100, 0, 1920, 1080, 1, 0, false) }));
+    assert (!allowed ({ placed (0, 0, 1920, 1080), placed (100, 0, 1920, 1080) }));
+    assert (!allowed ({ placed (0, 0, 1920, 1080), placed (0, 0, 1280, 1024) }));
+    assert (!allowed ({ placed (0, 0, 1920, 1080), placed (1919, 1079, 800, 600) }));
+    assert (!allowed ({ placed (0, 0, 1920, 1080), placed (1920, 0, 800, 600), placed (2000, 0, 800, 600) }));
+}
+
 int main (string[] args) {
     Test.init (ref args);
     Test.add_func ("/outputs/parser", parser_test);
@@ -273,5 +308,6 @@ int main (string[] args) {
     Test.add_func ("/outputs/layout-hotplug", layout_hotplug_test);
     Test.add_func ("/outputs/display-modes", display_modes_test);
     Test.add_func ("/outputs/persistence", persistence_test);
+    Test.add_func ("/outputs/overlaps", overlaps_test);
     return Test.run ();
 }
