@@ -64,6 +64,10 @@ struct om_config {
 	uint32_t serial;
 	gboolean used;
 	struct wl_list heads;
+	gboolean extended;
+	gboolean primary_set;
+	struct om_config_head *primary;
+	gboolean temporary;
 };
 
 struct polo_output_management {
@@ -650,6 +654,8 @@ fill_request(PoloBackendOutputRequest *request, struct om_config_head *ch)
 	request->adaptive_sync = ch->has_adaptive_sync
 		? ch->adaptive_sync
 		: wo->vrr_mode != WESTON_VRR_MODE_NONE;
+	request->primary = ch->config->primary == ch;
+	request->temporary = ch->config->temporary;
 }
 
 static void
@@ -740,10 +746,89 @@ config_resource_destroyed(struct wl_resource *resource)
 	{
 		if (ch->resource)
 			wl_resource_set_user_data(ch->resource, NULL);
+		if (config->primary == ch)
+			config->primary = NULL;
 		wl_list_remove(&ch->link);
 		g_free(ch);
 	}
 	g_free(config);
+}
+
+/* ---- mate_output_manager_v1 hooks ---------------------------------------- */
+
+PoloBackendOutput *
+polo_output_management_head_output(struct wl_resource *resource)
+{
+	struct om_head *head;
+
+	if (!resource ||
+	    !wl_resource_instance_of(resource, &zwlr_output_head_v1_interface,
+				     &head_impl))
+		return NULL;
+	head = wl_resource_get_user_data(resource);
+	return head ? head->output : NULL;
+}
+
+static struct om_config *
+config_of(struct wl_resource *resource)
+{
+	if (!resource ||
+	    !wl_resource_instance_of(resource,
+				     &zwlr_output_configuration_v1_interface,
+				     &config_impl))
+		return NULL;
+	return wl_resource_get_user_data(resource);
+}
+
+PoloOmExtensionResult
+polo_output_management_attach(struct wl_resource *resource)
+{
+	struct om_config *config = config_of(resource);
+
+	if (!config)
+		return POLO_OM_EXTENSION_NOT_A_CONFIGURATION;
+	if (config->used)
+		return POLO_OM_EXTENSION_ALREADY_USED;
+	if (config->extended)
+		return POLO_OM_EXTENSION_ALREADY_CONSTRUCTED;
+	config->extended = TRUE;
+	return POLO_OM_EXTENSION_OK;
+}
+
+PoloOmExtensionResult
+polo_output_management_set_primary(struct wl_resource *resource,
+				   struct wl_resource *head_resource)
+{
+	struct om_config *config = config_of(resource);
+	struct om_config_head *ch;
+
+	if (!config || config->used)
+		return POLO_OM_EXTENSION_ALREADY_USED;
+	if (config->primary_set)
+		return POLO_OM_EXTENSION_ALREADY_SET;
+	if (!wl_resource_instance_of(
+		    head_resource, &zwlr_output_configuration_head_v1_interface,
+		    &config_head_impl))
+		return POLO_OM_EXTENSION_INVALID_HEAD;
+	ch = wl_resource_get_user_data(head_resource);
+	if (!ch || ch->config != config)
+		return POLO_OM_EXTENSION_INVALID_HEAD;
+	config->primary_set = TRUE;
+	config->primary = ch;
+	return POLO_OM_EXTENSION_OK;
+}
+
+PoloOmExtensionResult
+polo_output_management_set_temporary(struct wl_resource *resource)
+{
+	struct om_config *config = config_of(resource);
+
+	if (!config || config->used)
+		return POLO_OM_EXTENSION_ALREADY_USED;
+	if (config->temporary)
+		return POLO_OM_EXTENSION_ALREADY_SET;
+	config->temporary = TRUE;
+	return POLO_OM_EXTENSION_OK;
 }
 
 /* ---- Manager ----------------------------------------------------------- */

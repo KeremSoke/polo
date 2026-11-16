@@ -454,6 +454,35 @@ polo_backend_output_set_work_area(PoloBackendOutput *output, int x, int y,
 void
 polo_backend_output_set_primary(PoloBackendOutput *output, gboolean primary);
 
+/* mate_output_manager_v1: who draws the output's desktop background now. */
+typedef enum {
+	POLO_BACKEND_BACKGROUND_OWNER_NONE,
+	POLO_BACKEND_BACKGROUND_OWNER_CLIENT,
+	POLO_BACKEND_BACKGROUND_OWNER_COMPOSITOR,
+} PoloBackendBackgroundOwner;
+
+/* mate_output_manager_v1: the monitor id, the name to show and the id of
+ * the head this one mirrors ("" for none). */
+void
+polo_backend_output_set_mate_identity(PoloBackendOutput *output,
+				      const char *id, const char *display_name,
+				      const char *mirror_of);
+
+void
+polo_backend_output_set_background_owner(PoloBackendOutput *output,
+					 PoloBackendBackgroundOwner owner);
+
+/* mate_output_manager_v1.capability bits. */
+typedef enum {
+	POLO_BACKEND_WALLPAPER = 1 << 0,
+	POLO_BACKEND_WALLPAPER_PER_OUTPUT = 1 << 1,
+	POLO_BACKEND_WALLPAPER_SPANNED = 1 << 2,
+} PoloBackendWallpaperCapabilities;
+
+void
+polo_backend_server_set_wallpaper_capabilities(
+	PoloBackendServer *server, PoloBackendWallpaperCapabilities caps);
+
 void
 polo_backend_output_set_background_color(PoloBackendOutput *output,
 					 double red, double green,
@@ -1571,6 +1600,10 @@ typedef struct {
 	int transform;
 	double scale;
 	gboolean adaptive_sync;
+	/* mate_output_configuration_v1: make this output primary; keep none of
+	 * the configuration (the same in every request). */
+	gboolean primary;
+	gboolean temporary;
 } PoloBackendOutputRequest;
 
 typedef gboolean (*PoloBackendOutputConfigHandler)(const PoloBackendOutputRequest *requests,

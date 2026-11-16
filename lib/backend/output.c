@@ -28,6 +28,10 @@ struct _PoloBackendOutput {
 	gboolean has_work_area;
 	struct weston_geometry work_area;
 	gboolean primary;
+	char *mate_id;
+	char *display_name;
+	char *mirror_of;
+	guint background_owner;
 
 	struct wl_listener post_latch;
 	struct weston_animation animation;
@@ -200,6 +204,7 @@ polo_backend_output_set_work_area(PoloBackendOutput *output, int x, int y,
 	output->has_work_area = has;
 	output->work_area = area;
 	polo_backend_xfce_output_changed(output, FALSE);
+	polo_backend_mate_output_changed(output);
 }
 
 void
@@ -211,6 +216,67 @@ polo_backend_output_set_primary(PoloBackendOutput *output, gboolean primary)
 	output->primary = !!primary;
 	if (primary)
 		polo_backend_xfce_output_changed(output, TRUE);
+	polo_backend_mate_output_changed(output);
+}
+
+static gboolean
+replace_string(char **field, const char *value)
+{
+	if (g_strcmp0(*field, value ? value : "") == 0)
+		return FALSE;
+	g_free(*field);
+	*field = g_strdup(value ? value : "");
+	return TRUE;
+}
+
+void
+polo_backend_output_set_mate_identity(PoloBackendOutput *output, const char *id,
+				      const char *display_name,
+				      const char *mirror_of)
+{
+	gboolean changed;
+
+	g_return_if_fail(POLO_BACKEND_IS_OUTPUT(output));
+	changed = replace_string(&output->mate_id, id);
+	changed |= replace_string(&output->display_name, display_name);
+	changed |= replace_string(&output->mirror_of, mirror_of);
+	if (changed)
+		polo_backend_mate_output_changed(output);
+}
+
+void
+polo_backend_output_set_background_owner(PoloBackendOutput *output,
+					 PoloBackendBackgroundOwner owner)
+{
+	g_return_if_fail(POLO_BACKEND_IS_OUTPUT(output));
+	if (output->background_owner == owner)
+		return;
+	output->background_owner = owner;
+	polo_backend_mate_output_changed(output);
+}
+
+const char *
+polo_backend_output_get_mate_id(PoloBackendOutput *output)
+{
+	return output->mate_id ? output->mate_id : "";
+}
+
+const char *
+polo_backend_output_get_display_name(PoloBackendOutput *output)
+{
+	return output->display_name ? output->display_name : "";
+}
+
+const char *
+polo_backend_output_get_mirror_of(PoloBackendOutput *output)
+{
+	return output->mirror_of ? output->mirror_of : "";
+}
+
+PoloBackendBackgroundOwner
+polo_backend_output_get_background_owner(PoloBackendOutput *output)
+{
+	return output->background_owner;
 }
 
 gboolean
@@ -287,6 +353,9 @@ polo_backend_output_finalize(GObject *object)
 
 	clear_background(self);
 	g_free(self->name);
+	g_free(self->mate_id);
+	g_free(self->display_name);
+	g_free(self->mirror_of);
 	G_OBJECT_CLASS(polo_backend_output_parent_class)->finalize(object);
 }
 

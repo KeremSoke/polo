@@ -127,6 +127,8 @@ struct _PoloBackendServer {
 	struct wl_global *idle_notifier_global;
 	struct polo_session_lock *session_lock;
 	struct polo_output_management *output_management;
+	struct polo_mate_output *mate_output;
+	guint wallpaper_capabilities;
 	struct wl_list idle_watches;
 	struct wl_listener idle_wake_listener;
 	struct wl_listener idle_idle_listener;
@@ -365,6 +367,51 @@ polo_backend_output_management_init(PoloBackendServer *server, GError **error);
 
 void
 polo_backend_output_management_fini(PoloBackendServer *server);
+
+/* zwlr_output_manager_v1 objects for mate_output_manager_v1. The head's
+ * output, or NULL when @head is not a live head. */
+PoloBackendOutput *
+polo_output_management_head_output(struct wl_resource *head);
+
+typedef enum {
+	POLO_OM_EXTENSION_OK,
+	POLO_OM_EXTENSION_ALREADY_CONSTRUCTED,
+	POLO_OM_EXTENSION_ALREADY_USED,
+	POLO_OM_EXTENSION_ALREADY_SET,
+	POLO_OM_EXTENSION_INVALID_HEAD,
+	POLO_OM_EXTENSION_NOT_A_CONFIGURATION,
+} PoloOmExtensionResult;
+
+PoloOmExtensionResult
+polo_output_management_attach(struct wl_resource *config);
+
+PoloOmExtensionResult
+polo_output_management_set_primary(struct wl_resource *config,
+				   struct wl_resource *config_head);
+
+PoloOmExtensionResult
+polo_output_management_set_temporary(struct wl_resource *config);
+
+gboolean
+polo_backend_mate_output_init(PoloBackendServer *server, GError **error);
+
+void
+polo_backend_mate_output_fini(PoloBackendServer *server);
+
+void
+polo_backend_mate_output_changed(PoloBackendOutput *output);
+
+const char *
+polo_backend_output_get_mate_id(PoloBackendOutput *output);
+
+const char *
+polo_backend_output_get_display_name(PoloBackendOutput *output);
+
+const char *
+polo_backend_output_get_mirror_of(PoloBackendOutput *output);
+
+PoloBackendBackgroundOwner
+polo_backend_output_get_background_owner(PoloBackendOutput *output);
 
 /* The connector's raw EDID in a sealed memfd (the caller closes it), or -1. */
 int

@@ -324,6 +324,24 @@ namespace Polo {
             public int transform;
             public double scale;
             public bool adaptive_sync;
+            public bool primary;
+            public bool temporary;
+        }
+
+        [CCode (cname = "PoloBackendBackgroundOwner", cprefix = "POLO_BACKEND_BACKGROUND_OWNER_", has_type_id = false)]
+        public enum BackgroundOwner {
+            NONE,
+            CLIENT,
+            COMPOSITOR
+        }
+
+        [Flags]
+        [CCode (cname = "PoloBackendWallpaperCapabilities", cprefix = "POLO_BACKEND_WALLPAPER_", has_type_id = false)]
+        public enum WallpaperCapabilities {
+            [CCode (cname = "POLO_BACKEND_WALLPAPER")]
+            DRAWN,
+            PER_OUTPUT,
+            SPANNED
         }
 
         /* test: validate only. An apply that fails must have reverted what it changed. */
@@ -414,6 +432,9 @@ namespace Polo {
 
             [CCode (cname = "polo_backend_server_set_output_config_handler")]
             public void set_output_config_handler (owned OutputConfigHandler? handler);
+
+            [CCode (cname = "polo_backend_server_set_wallpaper_capabilities")]
+            public void set_wallpaper_capabilities (WallpaperCapabilities capabilities);
 
             /* Outputs changed outside a hotplug: resend their state to output managers. */
             [CCode (cname = "polo_backend_server_output_state_changed")]
@@ -557,6 +578,13 @@ namespace Polo {
 
             [CCode (cname = "polo_backend_output_set_primary")]
             public void set_primary (bool primary);
+
+            /* mate_output_manager_v1: the monitor id, the name to show, the id of the head mirrored ("" none). */
+            [CCode (cname = "polo_backend_output_set_mate_identity")]
+            public void set_mate_identity (string id, string display_name, string mirror_of);
+
+            [CCode (cname = "polo_backend_output_set_background_owner")]
+            public void set_background_owner (BackgroundOwner owner);
 
             [CCode (cname = "polo_backend_output_set_background_color")]
             public void set_background_color (double red, double green, double blue);

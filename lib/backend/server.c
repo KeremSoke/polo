@@ -727,6 +727,9 @@ polo_backend_server_start(PoloBackendServer *server,
 	if (!polo_backend_output_management_init(server, error))
 		return FALSE;
 
+	if (!polo_backend_mate_output_init(server, error))
+		return FALSE;
+
 	if (!polo_backend_text_input_init(server, error))
 		return FALSE;
 
@@ -929,6 +932,7 @@ polo_backend_server_stop(PoloBackendServer *server)
 		polo_backend_image_capture_fini(server);
 		polo_backend_text_input_fini(server);
 		polo_backend_session_lock_fini(server);
+		polo_backend_mate_output_fini(server);
 		polo_backend_output_management_fini(server);
 		polo_backend_idle_notify_fini(server);
 		polo_backend_idle_fini(server);

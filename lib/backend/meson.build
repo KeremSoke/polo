@@ -38,6 +38,7 @@ backend_sources = files(
   'protocols/ext-idle-notify.c',
   'protocols/ext-session-lock.c',
   'protocols/wlr-output-management.c',
+  'protocols/mate-output.c',
   'idle.c',
   'protocols/text-input.c',
   'protocols/virtual-keyboard.c',
@@ -155,6 +156,7 @@ foreach name, xml : {
   'xwayland-keyboard-grab-unstable-v1': wl_protocols_dir / 'unstable' / 'xwayland-keyboard-grab' / 'xwayland-keyboard-grab-unstable-v1.xml',
   'polo-shell-ui-v1': meson.project_source_root() / 'protocol' / 'polo-shell-ui-v1.xml',
   'wlr-output-management-unstable-v1': meson.project_source_root() / 'protocol' / 'wlr-output-management-unstable-v1.xml',
+  'mate-output-v1': meson.project_source_root() / 'protocol' / 'mate-output-v1.xml',
 }
   backend_sources += custom_target(name + '-server-protocol.h',
     input: xml,

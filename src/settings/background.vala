@@ -76,6 +76,11 @@ namespace Polo.Settings {
                 settings = new GLib.Settings.full (schema, null, null);
                 settings.changed.connect (on_settings_changed);
                 monitor_schema = source.lookup (MONITOR_SCHEMA, true);
+                var capabilities = Backend.WallpaperCapabilities.DRAWN | Backend.WallpaperCapabilities.SPANNED;
+                if (monitor_schema != null) {
+                    capabilities |= Backend.WallpaperCapabilities.PER_OUTPUT;
+                }
+                server.set_wallpaper_capabilities (capabilities);
             } else {
                 Logging.scope (LogDomain.POLO).info ("no %s schema; no wallpaper", SCHEMA);
             }
@@ -252,13 +257,26 @@ namespace Polo.Settings {
             return layer_shell.has_desktop (entry.output) ? !draw : draw;
         }
 
+        private Backend.BackgroundOwner owner (Entry entry, bool show) {
+            if (show) {
+                return Backend.BackgroundOwner.COMPOSITOR;
+            }
+            if (layer_shell.covers_output (entry.output) ||
+                (layer_shell.has_desktop (entry.output) &&
+                 (entry.effective == null || entry.effective.get_boolean ("draw-background")))) {
+                return Backend.BackgroundOwner.CLIENT;
+            }
+            return Backend.BackgroundOwner.NONE;
+        }
+
         private void place_all () {
             foreach (var entry in entries) {
+                bool show = should_show (entry);
+                desktop.set_background_owner (entry.output, owner (entry, show));
                 unowned Backend.View? view = entry.buffer != null ? entry.buffer.get_view () : null;
                 if (view == null) {
                     continue;
                 }
-                bool show = should_show (entry);
                 if (show) {
                     view.set_position (entry.output.rect.x, entry.output.rect.y);
                     view.move_to_layer (server.get_layer (Backend.LayerKind.BACKGROUND));

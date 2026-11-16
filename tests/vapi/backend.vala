@@ -268,6 +268,8 @@ int main () {
         output.set_background_color (0.1, 0.2, 0.3);
         output.set_work_area (0, 24, 640, 456);
         output.set_primary (true);
+        output.set_mate_identity ("BOE-0x0A34", "Built-in display", "");
+        output.set_background_owner (Polo.Backend.BackgroundOwner.COMPOSITOR);
         var toplevel = new Polo.Backend.ForeignToplevel (server);
         toplevel.set_title ("title");
         toplevel.set_app_id ("app");
@@ -422,7 +424,11 @@ int main () {
     server.lock_restart_requested.connect (() => {});
     server.set_lock_prompt (null);
     server.force_unlock ();
-    server.set_output_config_handler ((requests, test) => requests.length > 0 && test);
+    server.set_output_config_handler ((requests, test) => requests.length > 0 && test && !requests[0].temporary &&
+                                      !requests[0].primary);
+    server.set_wallpaper_capabilities (Polo.Backend.WallpaperCapabilities.DRAWN |
+                                       Polo.Backend.WallpaperCapabilities.PER_OUTPUT |
+                                       Polo.Backend.WallpaperCapabilities.SPANNED);
     server.output_state_changed ();
     server.set_output_config_handler (null);
     server.set_keyboard_repeat (25, 600);

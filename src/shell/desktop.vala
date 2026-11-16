@@ -584,6 +584,7 @@ namespace Polo.Shell {
             committed_screens = screens_state ();
             layer_shell.arrange ();
             push_work_areas ();
+            push_identities ();
             server.output_state_changed ();
             layout_changed ();
             return success;
@@ -750,6 +751,12 @@ namespace Polo.Shell {
             }
             var wanted = new GLib.GenericArray<Polo.Output> ();
             var vrr = new GLib.HashTable<Backend.Output, bool> (GLib.direct_hash, GLib.direct_equal);
+            bool choose_primary = false;
+            bool temporary = false;
+            foreach (var candidate in requests) {
+                choose_primary |= candidate.primary;
+                temporary |= candidate.temporary;
+            }
             foreach (var head in heads) {
                 var next = describe (head);
                 Backend.OutputRequest? request = null;
@@ -775,6 +782,9 @@ namespace Polo.Shell {
                     next.transform = request.transform;
                     next.scale = (int) GLib.Math.round (request.scale).clamp (1, 8);
                 }
+                if (choose_primary) {
+                    next.primary = request.primary;
+                }
                 vrr.insert (head, request.adaptive_sync);
                 wanted.add (next);
             }
@@ -789,12 +799,12 @@ namespace Polo.Shell {
                 return true;
             }
             var before = current_outputs ();
-            if (!apply_monitors (wanted, true)) {
+            if (!apply_monitors (wanted, !temporary)) {
                 return false;
             }
             foreach (var head in heads) {
                 if (head.get_enabled () && !head.set_adaptive_sync (vrr[head])) {
-                    apply_monitors (before, true);
+                    apply_monitors (before, !temporary);
                     return false;
                 }
             }
@@ -802,6 +812,60 @@ namespace Polo.Shell {
         }
 
         /* ---- Seats and input -------------------------------------------- */
+
+        private Backend.Output? mirror_source (Backend.Output head) {
+            var shown = outputs.lookup (head);
+            if (shown == null) {
+                return null;
+            }
+            Backend.Output? source = null;
+            int members = 0;
+            foreach (var other in heads) {
+                if (outputs.lookup (other) == shown) {
+                    members++;
+                    if (!mirrors.contains (other) && source == null) {
+                        source = other;
+                    }
+                }
+            }
+            return members > 1 ? source : null;
+        }
+
+        [CCode (cname = "g_dgettext", cheader_filename = "glib.h")]
+        private static extern unowned string dgettext (string domain, string msgid);
+
+        public static string display_name (Backend.Output head) {
+            if (head.get_internal ()) {
+                return dgettext ("mate-desktop", "Laptop");
+            }
+            string vendor = head.get_make () != "" ? head.get_make () : dgettext ("mate-desktop", "Unknown");
+            int width_mm, height_mm;
+            head.get_physical_size (out width_mm, out height_mm);
+            if (width_mm > 0 && height_mm > 0) {
+                double diagonal = GLib.Math.sqrt ((double) width_mm * width_mm + (double) height_mm * height_mm);
+                int inches = (int) (diagonal / 25.4 + 0.5);
+                if (inches > 0) {
+                    return "%s %d\"".printf (vendor, inches);
+                }
+            }
+            return vendor;
+        }
+
+        public void set_background_owner (Policy.Output output, Backend.BackgroundOwner owner) {
+            foreach (var head in heads) {
+                if (outputs.lookup (head) == output) {
+                    head.set_background_owner (owner);
+                }
+            }
+        }
+
+        private void push_identities () {
+            foreach (var head in heads) {
+                var source = mirror_source (head);
+                head.set_mate_identity (monitor_id (head), display_name (head),
+                                        source != null ? monitor_id (source) : "");
+            }
+        }
 
         private void push_work_areas () {
             foreach (var head in heads) {
