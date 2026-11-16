@@ -15,6 +15,13 @@ outputs_test = executable('test-outputs',
 test('outputs', outputs_test, suite: 'unit-vala', protocol: 'tap', args: ['--tap'],
   env: ['POLO_MONITOR_FIXTURE=' + meson.current_source_dir() / 'fixtures/monitors-x-session.xml'])
 
+monitor_id_test = executable('test-monitor-id', 'monitor-id.vala',
+  vala_args: vala_args,
+  c_args: vala_c_args,
+  dependencies: [glib_dep, gobject_dep, polo_output_dep],
+)
+test('monitor-id', monitor_id_test, suite: 'unit-vala', protocol: 'tap', args: ['--tap'])
+
 work_areas_test = executable('test-work-areas', 'work-areas.vala',
   vala_args: vala_args + ['--pkg', 'polo-marco'],
   c_args: vala_c_args,

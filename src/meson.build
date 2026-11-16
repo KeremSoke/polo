@@ -42,7 +42,7 @@ polo_policy_dep = declare_dependency(
 
 output_lib = static_library('polo-output',
   'core/output.vala', 'output/monitors-xml.vala', 'output/layout.vala', 'output/display-modes.vala',
-  'output/store.vala',
+  'output/store.vala', 'output/monitor-id.vala',
   vala_args: vala_args,
   vala_header: 'polo-output.h',
   vala_vapi: 'polo-output.vapi',

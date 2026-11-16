@@ -6,9 +6,11 @@ namespace Polo {
     /* Compositor-neutral monitor description and requested configuration. */
     public class Output : GLib.Object {
         public string name = "";
+        public string make = "";
         public string vendor = "";
         public string product = "";
         public string serial = "";
+        public string serial_text = "";
         public string model = "";
         public int mm_width;
         public int mm_height;

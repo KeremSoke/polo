@@ -328,10 +328,12 @@ namespace Polo.Shell {
         private Polo.Output describe (Backend.Output head) {
             var o = new Polo.Output ();
             o.name = head.get_name ();
+            o.make = head.get_make ();
             o.vendor = head.get_vendor ();
             o.model = head.get_model ();
             o.product = head.get_product ();
             o.serial = head.get_edid_serial ();
+            o.serial_text = head.get_serial ();
             o.internal_panel = head.get_internal ();
             head.get_physical_size (out o.mm_width, out o.mm_height);
             for (int i = 0; i < head.get_mode_count (); i++) {
