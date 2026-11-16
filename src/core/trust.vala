@@ -22,6 +22,7 @@ namespace Polo {
             "ext_session_lock_manager_v1",
             "ext_idle_notifier_v1",
             "zwlr_output_manager_v1",
+            "mate_output_manager_v1",
             "zwlr_data_control_manager_v1",
             "ext_data_control_manager_v1",
             "zwlr_gamma_control_manager_v1",
@@ -43,7 +44,17 @@ namespace Polo {
             "/usr/bin/xdg-desktop-portal-wlr",
             "/usr/libexec/mate-notification-daemon",
             "/usr/libexec/mate-notification-daemon/mate-notification-daemon",
-            "/usr/local/libexec/mate-notification-daemon"
+            "/usr/local/libexec/mate-notification-daemon",
+            "/usr/bin/mate-display-properties",
+            "/usr/local/bin/mate-display-properties",
+            "/usr/bin/mate-appearance-properties",
+            "/usr/local/bin/mate-appearance-properties",
+            "/usr/bin/mate-mouse-properties",
+            "/usr/local/bin/mate-mouse-properties",
+            "/usr/libexec/mate-settings-daemon",
+            "/usr/local/libexec/mate-settings-daemon",
+            "/usr/bin/caja",
+            "/usr/local/bin/caja"
         };
 
         public bool deny_by_default { get; set; default = true; }
