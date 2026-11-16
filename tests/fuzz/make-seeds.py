@@ -28,6 +28,8 @@ GROUPS = {
     "image-copy-capture": ["ext_output_image_capture_source_manager_v1",
                            "ext_foreign_toplevel_image_capture_source_manager_v1",
                            "ext_image_copy_capture_manager_v1"],
+    "output-management": ["zwlr_output_manager_v1", "mate_output_manager_v1"],
+    "mate-input-device": ["mate_input_device_manager_v1"],
 }
 LIMIT = 60
 

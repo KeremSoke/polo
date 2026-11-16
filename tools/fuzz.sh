@@ -33,11 +33,13 @@ interfaces() {
         session-lock) echo ext_session_lock_manager_v1 ;;
         data-control) echo zwlr_data_control_manager_v1,ext_data_control_manager_v1 ;;
         image-copy-capture) echo ext_output_image_capture_source_manager_v1,ext_foreign_toplevel_image_capture_source_manager_v1,ext_image_copy_capture_manager_v1 ;;
+        output-management) echo zwlr_output_manager_v1,mate_output_manager_v1 ;;
+        mate-input-device) echo mate_input_device_manager_v1 ;;
         *) echo "fuzz.sh: no group $1" >&2; return 1 ;;
     esac
 }
 
-groups=${*:-"layer-shell foreign-toplevel workspace session-lock data-control image-copy-capture"}
+groups=${*:-"layer-shell foreign-toplevel workspace session-lock data-control image-copy-capture output-management mate-input-device"}
 
 export WESTON_MODULE_MAP="headless-backend.so=$weston/backend-headless/headless-backend.so"
 export LD_LIBRARY_PATH="$weston"
