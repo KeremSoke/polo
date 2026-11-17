@@ -4,7 +4,9 @@
  *
  * Per-monitor wallpapers (org.mate.background.monitor under the monitor's
  * id): a monitor with its own settings shows them and is left out of the
- * spanned picture's box; with use-shared it joins the box again; under a
+ * spanned picture's box; with use-shared it joins the box again; two
+ * monitors show their own pictures and change them one at a time; two
+ * outputs share a slideshow and change slides together; under a
  * transparent caja desktop the wallpaper shows only when draw-background
  * is false.
  */
@@ -20,10 +22,15 @@
 #define RED 0xff0000u
 #define BLUE 0x0000ffu
 #define GREEN 0x00ff00u
+#define YELLOW 0xffff00u
+#define CYAN 0x00ffffu
 
 #define OWN                                                                    \
 	"org.mate.background.monitor:/org/mate/desktop/background/"            \
 	"monitors/PNP_QQB_-Right/"
+#define OWN_LEFT                                                               \
+	"org.mate.background.monitor:/org/mate/desktop/background/"            \
+	"monitors/PNP_QQA_-Left/"
 
 static const int same_size[][3] = { { HARNESS_OUTPUT_WIDTH,
 				      HARNESS_OUTPUT_HEIGHT, 60000 } };
@@ -48,6 +55,37 @@ write_picture(const char *path)
 	CHECK(cairo_surface_write_to_png(surface, path) == CAIRO_STATUS_SUCCESS,
 	      "cannot write %s", path);
 	cairo_surface_destroy(surface);
+}
+
+static void
+write_solid(const char *path, double r, double g, double b)
+{
+	cairo_surface_t *surface =
+		cairo_image_surface_create(CAIRO_FORMAT_RGB24, 16, 16);
+	cairo_t *cr = cairo_create(surface);
+
+	cairo_set_source_rgb(cr, r, g, b);
+	cairo_paint(cr);
+	cairo_destroy(cr);
+	CHECK(cairo_surface_write_to_png(surface, path) == CAIRO_STATUS_SUCCESS,
+	      "cannot write %s", path);
+	cairo_surface_destroy(surface);
+}
+
+static void
+write_slideshow(const char *path, const char *first, const char *second)
+{
+	FILE *file = fopen(path, "w");
+
+	CHECK(file, "cannot write %s", path);
+	fprintf(file,
+		"<background><starttime><year>2020</year><month>1</month>"
+		"<day>1</day><hour>0</hour><minute>0</minute><second>0</second>"
+		"</starttime><static><duration>3.0</duration><file>%s</file>"
+		"</static><static><duration>3.0</duration><file>%s</file>"
+		"</static></background>",
+		first, second);
+	fclose(file);
 }
 
 static uint32_t
@@ -154,6 +192,80 @@ main(int argc, char **argv)
 	expect(h, 2, 100, 300, BLUE, "use-shared again");
 	expect(h, 1, 256, 384, RED, "box with all three");
 
+	char yellow[512], green[512], cyan[512], red[512], blue[512], show[512];
+
+	snprintf(yellow, sizeof yellow, "%s/yellow.png", h->runtime_dir);
+	snprintf(green, sizeof green, "%s/green.png", h->runtime_dir);
+	snprintf(cyan, sizeof cyan, "%s/cyan.png", h->runtime_dir);
+	snprintf(red, sizeof red, "%s/red.png", h->runtime_dir);
+	snprintf(blue, sizeof blue, "%s/blue.png", h->runtime_dir);
+	snprintf(show, sizeof show, "%s/show.xml", h->runtime_dir);
+	write_solid(yellow, 1, 1, 0);
+	write_solid(green, 0, 1, 0);
+	write_solid(cyan, 0, 1, 1);
+	write_solid(red, 1, 0, 0);
+	write_solid(blue, 0, 0, 1);
+	write_slideshow(show, red, blue);
+
+	snprintf(value, sizeof value, "'%s'", yellow);
+	harness_set_setting(h, OWN_LEFT, "picture-options", "'stretched'");
+	harness_set_setting(h, OWN_LEFT, "picture-filename", value);
+	harness_set_setting(h, OWN_LEFT, "use-shared", "false");
+	snprintf(value, sizeof value, "'%s'", green);
+	harness_set_setting(h, OWN, "picture-options", "'stretched'");
+	harness_set_setting(h, OWN, "picture-filename", value);
+	harness_set_setting(h, OWN, "use-shared", "false");
+	expect(h, 1, 256, 384, YELLOW, "the left monitor's own picture");
+	expect(h, 2, 400, 300, GREEN, "the right monitor's own picture");
+	expect(h, 0, 256, 384, RED, "the shared output next to them");
+
+	snprintf(value, sizeof value, "'%s'", cyan);
+	harness_set_setting(h, OWN, "picture-filename", value);
+	expect(h, 2, 400, 300, CYAN, "the right monitor's picture changed");
+	expect(h, 1, 256, 384, YELLOW, "the left monitor kept its picture");
+	expect(h, 0, 256, 384, RED, "the shared output kept its picture");
+
+	harness_set_setting(h, OWN_LEFT, "use-shared", "true");
+	harness_set_setting(h, "org.mate.background", "picture-options",
+			    "'stretched'");
+	snprintf(value, sizeof value, "'%s'", show);
+	harness_set_setting(h, "org.mate.background", "picture-filename",
+			    value);
+	uint32_t slide = 0;
+
+	for (int i = 0; i < 300; i++) {
+		slide = pixel_at(h, 0, 256, 384);
+		if ((slide == RED || slide == BLUE) &&
+		    pixel_at(h, 1, 256, 384) == slide)
+			break;
+		slide = 0;
+		harness_roundtrip(h);
+		usleep(20000);
+	}
+	CHECK(slide != 0, "the two outputs never showed the same slide");
+	uint32_t next = slide == RED ? BLUE : RED;
+	bool moved = false;
+
+	for (int i = 0; i < 400 && !moved; i++) {
+		moved = pixel_at(h, 0, 256, 384) == next &&
+			pixel_at(h, 1, 256, 384) == next;
+		if (!moved) {
+			harness_roundtrip(h);
+			usleep(20000);
+		}
+	}
+	CHECK(moved, "the shared slideshow did not move on on both outputs");
+	expect(h, 2, 400, 300, CYAN, "the own picture stayed");
+
+	harness_set_setting(h, OWN, "use-shared", "true");
+	harness_set_setting(h, "org.mate.background", "picture-options",
+			    "'spanned'");
+	snprintf(value, sizeof value, "'%s'", path);
+	harness_set_setting(h, "org.mate.background", "picture-filename",
+			    value);
+	expect(h, 1, 256, 384, RED, "back to the spanned picture");
+	expect(h, 2, 100, 300, BLUE, "back to the spanned picture");
+
 	struct wl_surface *surface =
 		wl_compositor_create_surface(h->compositor);
 	struct zwlr_layer_surface_v1 *desktop =
@@ -198,6 +310,12 @@ main(int argc, char **argv)
 	expect(h, 0, 700, 384, RED, "after caja's desktop went");
 
 	unlink(path);
+	unlink(yellow);
+	unlink(green);
+	unlink(cyan);
+	unlink(red);
+	unlink(blue);
+	unlink(show);
 	CHECK(harness_stop(h) == 0, "polo did not stop cleanly");
 	return 0;
 }
