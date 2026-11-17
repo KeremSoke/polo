@@ -2,10 +2,10 @@
 # Copyright 2026 Kerem Soke
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# Makes a release from a clean main: checks that meson.build, the Fedora spec
-# and CHANGELOG.md agree on VERSION, builds the dist tarball with the patched
-# Weston tree, writes its checksum and the release notes, and makes a signed
-# tag. It pushes nothing.
+# Makes a release from a clean main or release-* branch: checks that
+# meson.build, the Fedora spec and CHANGELOG.md agree on VERSION, builds the
+# dist tarball with the patched Weston tree, writes its checksum and the
+# release notes, and makes a signed tag. It pushes nothing.
 #
 #   tools/release.sh VERSION [--no-tests]
 
@@ -21,7 +21,10 @@ tag=v$version
 cd "$(git rev-parse --show-toplevel)"
 
 echo "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || die "$version is not MAJOR.MINOR.PATCH"
-[ "$(git branch --show-current)" = main ] || die "not on main"
+case "$(git branch --show-current)" in
+	main | release-*) ;;
+	*) die "not on main or a release-* branch" ;;
+esac
 [ -z "$(git status --porcelain)" ] || die "the tree is not clean"
 git rev-parse -q --verify "refs/tags/$tag" >/dev/null && die "$tag exists"
 git config user.signingkey >/dev/null || die "no git user.signingkey to sign the tag with"
