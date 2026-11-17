@@ -6,6 +6,17 @@ settings it reads, the session D-Bus interfaces, the Wayland protocols it
 offers, the command line and the installed files. The private libweston is not
 part of it.
 
+## 1.0.2 — 2026-11-17
+
+### Fixed
+- Panel and desktop menus and popups are placed right, also near the left and top edges of the screen.
+- X11 menus and tooltips that open while the screen is locked show after unlocking.
+
+### Changed
+- The session starts through polo-wayland.sh, which starts a D-Bus session bus when the login manager doesn't.
+- The compiled dconf database ships with the package, so Polo's defaults work without a post-install step.
+- Input devices are offered over D-Bus, for the mouse preferences.
+
 ## 1.0.1 — 2026-11-13
 
 ### Fixed
