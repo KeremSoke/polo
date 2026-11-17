@@ -23,13 +23,16 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <sys/stat.h>
 
 #include <gdk-pixbuf/gdk-pixbuf.h>
 #include <pango/pango.h>
 
 #include "bg.h"
 
-#define CACHE_SIZE 4
+#define CACHE_SIZE 8
+
+static gint decode_count;
 
 typedef struct {
 	double red, green, blue;
@@ -66,8 +69,6 @@ struct _PoloBg {
 	BgColor primary;
 	BgColor secondary;
 
-	/* Decoded images by file name, at most CACHE_SIZE (MateBG's). */
-	GHashTable *cache;
 	gboolean slideshow_tried;
 	SlideShow *slideshow;
 	guint timeout;
@@ -332,36 +333,67 @@ pixbuf_tile(GdkPixbuf *src, GdkPixbuf *dest, int origin_x, int origin_y)
 static GdkPixbuf *
 load_pixbuf(PoloBg *bg, const char *filename, int best_width, int best_height)
 {
+	static GMutex lock;
+	static GHashTable *decoded;
 	GdkPixbufFormat *format;
 	GdkPixbuf *pixbuf, *rotated;
-	gchar *name = NULL;
+	struct stat st;
+	gchar *name = NULL, *key;
+	gboolean sized;
 
-	pixbuf = g_hash_table_lookup(bg->cache, filename);
-	if (pixbuf)
-		return g_object_ref(pixbuf);
-
+	if (stat(filename, &st) != 0)
+		return NULL;
 	format = gdk_pixbuf_get_file_info(filename, NULL, NULL);
 	if (format)
 		name = gdk_pixbuf_format_get_name(format);
-	if (g_strcmp0(name, "svg") == 0 && best_width > 0 && best_height > 0 &&
-	    (bg->placement == POLO_BG_PLACEMENT_FILL_SCREEN ||
-	     bg->placement == POLO_BG_PLACEMENT_SCALED ||
-	     bg->placement == POLO_BG_PLACEMENT_ZOOMED))
+	sized = g_strcmp0(name, "svg") == 0 && best_width > 0 &&
+		best_height > 0 &&
+		(bg->placement == POLO_BG_PLACEMENT_FILL_SCREEN ||
+		 bg->placement == POLO_BG_PLACEMENT_SCALED ||
+		 bg->placement == POLO_BG_PLACEMENT_ZOOMED);
+	g_free(name);
+	key = g_strdup_printf("%s\n%lld\n%lld\n%d\n%d", filename,
+			      (long long)st.st_mtime, (long long)st.st_size,
+			      sized ? best_width : 0, sized ? best_height : 0);
+
+	g_mutex_lock(&lock);
+	if (!decoded)
+		decoded = g_hash_table_new_full(g_str_hash, g_str_equal, g_free,
+						g_object_unref);
+	pixbuf = g_hash_table_lookup(decoded, key);
+	if (pixbuf) {
+		pixbuf = g_object_ref(pixbuf);
+		g_mutex_unlock(&lock);
+		g_free(key);
+		return pixbuf;
+	}
+	g_mutex_unlock(&lock);
+
+	if (sized)
 		pixbuf = gdk_pixbuf_new_from_file_at_size(filename, best_width,
 							  best_height, NULL);
 	else
 		pixbuf = gdk_pixbuf_new_from_file(filename, NULL);
-	g_free(name);
-	if (!pixbuf)
+	if (!pixbuf) {
+		g_free(key);
 		return NULL;
+	}
 
 	rotated = gdk_pixbuf_apply_embedded_orientation(pixbuf);
 	g_object_unref(pixbuf);
-	if (g_hash_table_size(bg->cache) >= CACHE_SIZE)
-		g_hash_table_remove_all(bg->cache);
-	g_hash_table_insert(bg->cache, g_strdup(filename),
-			    g_object_ref(rotated));
+	g_mutex_lock(&lock);
+	g_atomic_int_inc(&decode_count);
+	if (g_hash_table_size(decoded) >= CACHE_SIZE)
+		g_hash_table_remove_all(decoded);
+	g_hash_table_insert(decoded, key, g_object_ref(rotated));
+	g_mutex_unlock(&lock);
 	return rotated;
+}
+
+guint
+polo_bg_decode_count(void)
+{
+	return (guint)g_atomic_int_get(&decode_count);
 }
 
 struct _PoloBgImage {
@@ -796,8 +828,6 @@ polo_bg_new(void)
 	PoloBg *bg = g_new0(PoloBg, 1);
 
 	bg->ref_count = 1;
-	bg->cache = g_hash_table_new_full(g_str_hash, g_str_equal, g_free,
-					  g_object_unref);
 	bg->placement = POLO_BG_PLACEMENT_ZOOMED;
 	bg->timeout = G_MAXUINT;
 	return bg;
@@ -816,7 +846,6 @@ polo_bg_unref(PoloBg *bg)
 	if (!bg || !g_atomic_int_dec_and_test(&bg->ref_count))
 		return;
 	g_free(bg->filename);
-	g_hash_table_unref(bg->cache);
 	slideshow_free(bg->slideshow);
 	g_free(bg);
 }

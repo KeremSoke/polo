@@ -65,6 +65,9 @@ polo_bg_image_copy_argb(const PoloBgImage *image, guint8 *data, int stride);
 PoloBg *
 polo_bg_ref(PoloBg *bg);
 
+guint
+polo_bg_decode_count(void);
+
 void
 polo_bg_unref(PoloBg *bg);
 

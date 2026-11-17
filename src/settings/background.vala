@@ -355,6 +355,7 @@ namespace Polo.Settings {
                 }
             }
             var shared_screen = screen_of (shared);
+            var described = new GLib.HashTable<GLib.Settings, Bg.Background> (GLib.direct_hash, GLib.direct_equal);
             var jobs = new GLib.GenericArray<Job> ();
             foreach (var entry in entries) {
                 if (entry.buffer == null) {
@@ -370,7 +371,12 @@ namespace Polo.Settings {
                 job.scale = entry.scale;
                 job.rect = entry.output.rect;
                 bool own = entry.effective != null && entry.effective != settings;
-                job.bg = describe (own ? entry.effective : settings);
+                var source = own ? entry.effective : settings;
+                job.bg = described[source];
+                if (job.bg == null) {
+                    job.bg = describe (source);
+                    described[source] = job.bg;
+                }
                 job.screen = own ? entry.output.rect : shared_screen;
                 if (job.data.length > 0) {
                     jobs.add (job);

@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
  * Exercises MateBG-compatible background drawing with generated images:
- * colours, gradients, placement, tiling and slideshows.
+ * colours, gradients, placement, tiling and slideshows, and pictures decoded
+ * once for every background that shows them.
  */
 
 #include <math.h>
@@ -329,6 +330,53 @@ test_slideshow(void)
 	}
 }
 
+static void
+test_shared_decode(void)
+{
+	g_autofree char *blue = make_solid_image("shared.png", 0, 0, 255);
+	g_autofree char *red = make_solid_image("first-slide.png", 255, 0, 0);
+	g_autofree char *show =
+		make_slideshow("shared.xml", time(NULL) - 5, red, blue);
+	PoloBg *a, *b;
+	guint before;
+	Frame f;
+
+	before = polo_bg_decode_count();
+	a = image_bg(blue, POLO_BG_PLACEMENT_FILL_SCREEN);
+	b = image_bg(blue, POLO_BG_PLACEMENT_FILL_SCREEN);
+	f = draw(a, 4, 4, 1, 0, 0, 4, 4);
+	g_assert_cmphex(at(f, 1, 1), ==, BLUE);
+	g_free(f.pixels);
+	f = draw(b, 4, 4, 1, 0, 0, 4, 4);
+	g_assert_cmphex(at(f, 1, 1), ==, BLUE);
+	g_free(f.pixels);
+	g_assert_cmpuint(polo_bg_decode_count() - before, ==, 1);
+	polo_bg_unref(a);
+	polo_bg_unref(b);
+
+	before = polo_bg_decode_count();
+	a = image_bg(show, POLO_BG_PLACEMENT_FILL_SCREEN);
+	b = image_bg(show, POLO_BG_PLACEMENT_FILL_SCREEN);
+	f = draw(a, 4, 4, 1, 0, 0, 4, 4);
+	g_assert_cmphex(at(f, 1, 1), ==, RED);
+	g_free(f.pixels);
+	f = draw(b, 4, 4, 1, 0, 0, 4, 4);
+	g_assert_cmphex(at(f, 1, 1), ==, RED);
+	g_free(f.pixels);
+	g_assert_cmpuint(polo_bg_decode_count() - before, ==, 1);
+	polo_bg_unref(a);
+	polo_bg_unref(b);
+
+	g_free(make_image("shared.png", 16, 8));
+	before = polo_bg_decode_count();
+	a = image_bg(blue, POLO_BG_PLACEMENT_FILL_SCREEN);
+	f = draw(a, 4, 4, 1, 0, 0, 4, 4);
+	g_assert_cmphex(at(f, 3, 1), ==, RED);
+	g_free(f.pixels);
+	g_assert_cmpuint(polo_bg_decode_count() - before, ==, 1);
+	polo_bg_unref(a);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -342,6 +390,7 @@ main(int argc, char **argv)
 	g_test_add_func("/bg/gradients", test_gradients);
 	g_test_add_func("/bg/placements", test_placements);
 	g_test_add_func("/bg/slideshow", test_slideshow);
+	g_test_add_func("/bg/shared-decode", test_shared_decode);
 	status = g_test_run();
 
 	{

@@ -49,7 +49,7 @@ LIBC_HEADERS = {
     "stdio.h", "stdlib.h", "string.h", "strings.h",
 }
 PURE_EXTRA = re.compile(r"^(glib\.h|cairo\.h|cairo/.*|pango/.*)$")
-BG_EXTRA = re.compile(r"^(gdk-pixbuf/gdk-pixbuf\.h|time\.h)$")
+BG_EXTRA = re.compile(r"^(gdk-pixbuf/gdk-pixbuf\.h|time\.h|sys/stat\.h)$")
 MARCO_EXTRA = re.compile(r"^gdk-pixbuf/gdk-pixbuf\.h$")
 
 BACKEND_USE_RE = re.compile(r"(?<![\w.])(?:Polo\s*\.\s*)?Backend\s*\.|\busing\s+Polo\.Backend\b")
