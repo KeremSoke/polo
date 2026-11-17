@@ -84,8 +84,8 @@ protocol_test_env.set('POLO_SHELL_UI', '')
 foreach name : ['ssd', 'frame-input', 'shade', 'frame-scale', 'output-replug', 'decor-live', 'pixel-buffer-gl', 'cursor-no-theme', 'windows', 'interactive', 'outputs', 'managed-outputs', 'layer-shell', 'xdg-output', 'foreign-toplevel',
               'ext-foreign-toplevel-list', 'popups',
               'xfce-private', 'ext-workspace', 'focus', 'activation', 'keybindings', 'monitor-keybindings', 'edge-resistance', 'global-keybindings',
-              'window-keybindings', 'keyboard-move-resize', 'mouse-actions', 'keyboard-config', 'tiling', 'decoration', 'primary-selection', 'text-input', 'idle-inhibit', 'idle-notify', 'session-lock', 'output-management', 'mate-output', 'mate-input-device', 'shortcuts-inhibit', 'cursor-shape', 'pointer-gestures', 'xdg-foreign', 'security-context', 'trust', 'system-bell', 'locate-pointer', 'accessx', 'data-control', 'clipboard-handover', 'gamma-control', 'image-copy-capture', 'wallpaper', 'wallpaper-monitors', 'background-owner', 'custom-shortcuts', 'lamp-target', 'explicit-sync', 'held-keys', 'blank-wake', 'resource-limits', 'stats', 'panel-damage', 'scanout', 'gpu-reset', 'misbehaving-clients']
-  test_deps = {'cursor-shape': [dependency('xcursor')], 'wallpaper': [dependency('cairo')], 'wallpaper-monitors': [dependency('cairo')]}
+              'window-keybindings', 'keyboard-move-resize', 'mouse-actions', 'keyboard-config', 'tiling', 'decoration', 'primary-selection', 'text-input', 'idle-inhibit', 'idle-notify', 'session-lock', 'output-management', 'mate-output', 'mate-input-device', 'shortcuts-inhibit', 'cursor-shape', 'pointer-gestures', 'xdg-foreign', 'security-context', 'trust', 'system-bell', 'locate-pointer', 'accessx', 'data-control', 'clipboard-handover', 'gamma-control', 'image-copy-capture', 'wallpaper', 'wallpaper-monitors', 'background-owner', 'wallpaper-changes', 'custom-shortcuts', 'lamp-target', 'explicit-sync', 'held-keys', 'blank-wake', 'resource-limits', 'stats', 'panel-damage', 'scanout', 'gpu-reset', 'misbehaving-clients']
+  test_deps = {'cursor-shape': [dependency('xcursor')], 'wallpaper': [dependency('cairo')], 'wallpaper-monitors': [dependency('cairo')], 'wallpaper-changes': [dependency('cairo')]}
   exe = executable('test-' + name, 'test-' + name + '.c',
     dependencies: [harness_dep] + test_deps.get(name, []))
   test(name, exe,
@@ -322,6 +322,14 @@ if get_option('shell-ui')
 endif
 
 test('mate-output-gl', executable('test-mate-output-gl', 'test-mate-output.c', dependencies: harness_dep),
+  args: [polo_exe, 'gl'],
+  env: protocol_test_env,
+  suite: 'protocol',
+  timeout: 60,
+)
+
+test('wallpaper-changes-gl', executable('test-wallpaper-changes-gl', 'test-wallpaper-changes.c',
+                                        dependencies: [harness_dep, dependency('cairo')]),
   args: [polo_exe, 'gl'],
   env: protocol_test_env,
   suite: 'protocol',
