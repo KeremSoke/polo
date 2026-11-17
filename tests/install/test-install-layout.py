@@ -112,8 +112,8 @@ def main():
 
         entry = read_keyfile(under(datadir, "wayland-sessions", "polo.desktop"))
         section = entry["Desktop Entry"] if entry.has_section("Desktop Entry") else {}
-        check(section.get("Exec") == "polo --session", "polo.desktop runs %r" % section.get("Exec"))
-        check(section.get("TryExec") == "polo", "polo.desktop tries %r" % section.get("TryExec"))
+        check(section.get("Exec") == "polo-wayland.sh", "polo.desktop runs %r" % section.get("Exec"))
+        check(section.get("TryExec") == "polo-wayland.sh", "polo.desktop tries %r" % section.get("TryExec"))
         check(section.get("Type") == "Application", "polo.desktop is not an Application")
         if shutil.which("desktop-file-validate"):
             out = run(["desktop-file-validate", under(datadir, "wayland-sessions", "polo.desktop")])
