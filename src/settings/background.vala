@@ -34,6 +34,9 @@ namespace Polo.Settings {
             public GLib.Settings? effective = null;
             public Policy.Output output;
             public Backend.PixelBuffer buffer;
+            public Backend.PixelBuffer? previous;
+            public int previous_width;
+            public int previous_height;
             public int x;
             public int y;
             public int width;
@@ -62,6 +65,7 @@ namespace Polo.Settings {
         private GLib.Thread<bool>? worker = null;
         private uint finish_idle = 0;
         private bool redraw_pending = false;
+        private bool shown_once = false;
 
         public Background (Backend.Server server, Policy.Model model, Shell.Desktop desktop,
                            Shell.LayerShell layer_shell) {
@@ -195,6 +199,7 @@ namespace Polo.Settings {
                 return;
             }
             bool changed = false;
+            var fresh = new GLib.GenericArray<Entry> ();
             var outputs = model.get_outputs ();
             for (int i = entries.length - 1; i >= 0; i--) {
                 bool found = false;
@@ -231,6 +236,13 @@ namespace Polo.Settings {
                 if (width <= 0 || height <= 0) {
                     continue;
                 }
+                if (entry.buffer != null && entry.buffer.is_ready ()) {
+                    entry.previous = entry.buffer;
+                    entry.previous_width = entry.width / entry.scale;
+                    entry.previous_height = entry.height / entry.scale;
+                } else if (entry.previous == null) {
+                    fresh.add (entry);
+                }
                 entry.x = output.rect.x;
                 entry.y = output.rect.y;
                 entry.width = width;
@@ -242,6 +254,13 @@ namespace Polo.Settings {
             }
             if (refresh_effective ()) {
                 changed = true;
+            }
+            if (shown_once && fresh.length > 0) {
+                var jobs = make_jobs (fresh);
+                draw_jobs (jobs);
+                foreach (var job in jobs) {
+                    job.buffer.commit ();
+                }
             }
             place_all ();
             if (changed) {
@@ -274,16 +293,34 @@ namespace Polo.Settings {
                 bool show = should_show (entry);
                 desktop.set_background_owner (entry.output, owner (entry, show));
                 unowned Backend.View? view = entry.buffer != null ? entry.buffer.get_view () : null;
+                if (view != null && entry.previous != null) {
+                    unowned Backend.View? old = entry.previous.get_view ();
+                    if (old != null) {
+                        old.move_to_layer (null);
+                    }
+                    entry.previous = null;
+                }
+                bool stand_in = view == null && entry.previous != null;
+                if (stand_in) {
+                    view = entry.previous.get_view ();
+                }
                 if (view == null) {
                     continue;
                 }
                 if (show) {
-                    view.set_position (entry.output.rect.x, entry.output.rect.y);
+                    var rect = entry.output.rect;
+                    view.set_position (rect.x, rect.y);
+                    if (stand_in) {
+                        view.set_effect_transform (rect.x, rect.y,
+                                                   (double) rect.width / entry.previous_width,
+                                                   (double) rect.height / entry.previous_height, 0, 0, 0);
+                    }
                     view.move_to_layer (server.get_layer (Backend.LayerKind.BACKGROUND));
                     layer_shell.restack_desktop (entry.output);
                 } else {
                     view.move_to_layer (null);
                 }
+                shown_once = shown_once || show;
                 if (show != entry.shown) {
                     entry.shown = show;
                     Logging.scope (LogDomain.POLO).debug ("wallpaper on %s (%s) %s", entry.output.name, entry.id,
@@ -335,19 +372,7 @@ namespace Polo.Settings {
             return Marco.Rect () { x = x1, y = y1, width = x2 - x1, height = y2 - y1 };
         }
 
-        private void redraw () {
-            if (settings == null || entries.length == 0) {
-                return;
-            }
-            if (worker != null) {
-                redraw_pending = true;
-                return;
-            }
-            if (slideshow_timer != 0) {
-                GLib.Source.remove (slideshow_timer);
-                slideshow_timer = 0;
-            }
-
+        private GLib.GenericArray<Job> make_jobs (GLib.GenericArray<Entry> targets) {
             var shared = new GLib.GenericArray<Policy.Output> ();
             foreach (var entry in entries) {
                 if (entry.effective == null || entry.effective == settings) {
@@ -357,7 +382,7 @@ namespace Polo.Settings {
             var shared_screen = screen_of (shared);
             var described = new GLib.HashTable<GLib.Settings, Bg.Background> (GLib.direct_hash, GLib.direct_equal);
             var jobs = new GLib.GenericArray<Job> ();
-            foreach (var entry in entries) {
+            foreach (var entry in targets) {
                 if (entry.buffer == null) {
                     continue;
                 }
@@ -382,18 +407,40 @@ namespace Polo.Settings {
                     jobs.add (job);
                 }
             }
+            return jobs;
+        }
+
+        private static uint draw_jobs (GLib.GenericArray<Job> jobs) {
+            uint timeout = uint.MAX;
+            foreach (var job in jobs) {
+                job.bg.draw_output (job.data, job.width, job.height, job.stride, job.scale,
+                                    job.rect.x - job.screen.x, job.rect.y - job.screen.y,
+                                    job.screen.width, job.screen.height);
+                timeout = uint.min (timeout, job.bg.get_timeout ());
+            }
+            return timeout;
+        }
+
+        private void redraw () {
+            if (settings == null || entries.length == 0) {
+                return;
+            }
+            if (worker != null) {
+                redraw_pending = true;
+                return;
+            }
+            if (slideshow_timer != 0) {
+                GLib.Source.remove (slideshow_timer);
+                slideshow_timer = 0;
+            }
+
+            var jobs = make_jobs (entries);
             if (jobs.length == 0) {
                 return;
             }
 
-            uint timeout = uint.MAX;
             worker = new GLib.Thread<bool> ("polo-background", () => {
-                foreach (var job in jobs) {
-                    job.bg.draw_output (job.data, job.width, job.height, job.stride, job.scale,
-                                        job.rect.x - job.screen.x, job.rect.y - job.screen.y,
-                                        job.screen.width, job.screen.height);
-                    timeout = uint.min (timeout, job.bg.get_timeout ());
-                }
+                uint timeout = draw_jobs (jobs);
                 finish_idle = GLib.Idle.add (() => {
                     finish_idle = 0;
                     finish (jobs, timeout);
