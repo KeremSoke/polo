@@ -740,6 +740,7 @@ namespace Polo.Shell {
             xwindow.geometry_changed.connect (place);
             xwindow.unmapped.connect (hide);
             xwindow.destroyed.connect (hide);
+            on_committed ();
         }
 
         /* Xwayland may keep the wl_surface a second longer. */
