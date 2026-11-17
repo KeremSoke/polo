@@ -126,6 +126,7 @@ test('logging', python,
 
 if get_option('test-protocol')
   subdir('protocol')
+  subdir('multimon')
 endif
 
 # What a build made for users offers: registered only without the test and
