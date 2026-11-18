@@ -272,8 +272,7 @@ namespace Polo.Settings {
             if (entry.effective == null || layer_shell.covers_output (entry.output)) {
                 return false;
             }
-            bool draw = entry.effective.get_boolean ("draw-background");
-            return layer_shell.has_desktop (entry.output) ? !draw : draw;
+            return !layer_shell.has_desktop (entry.output) || !entry.effective.get_boolean ("draw-background");
         }
 
         private Backend.BackgroundOwner owner (Entry entry, bool show) {

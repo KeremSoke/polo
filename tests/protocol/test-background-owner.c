@@ -4,9 +4,10 @@
  *
  * mate_output_v1.background_owner on two outputs, a transparent desktop
  * surface on the first: the owner changes exactly when what is drawn
- * changes, through six steps (the desktop mapping, draw-background off and
+ * changes, through seven steps (the desktop mapping, draw-background off and
  * on, the first monitor's own draw-background off and back to the shared
- * settings, the desktop unmapping), and the pixels agree.
+ * settings, draw-background off again and the desktop unmapping), and the
+ * pixels agree.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -307,7 +308,7 @@ main(int argc, char **argv)
 
 	harness_set_setting(h, "org.mate.background", "draw-background",
 			    "false");
-	step(h, c, COMPOSITOR, NONE, "draw-background off");
+	step(h, c, COMPOSITOR, COMPOSITOR, "draw-background off");
 
 	harness_set_setting(h, "org.mate.background", "draw-background",
 			    "true");
@@ -324,11 +325,16 @@ main(int argc, char **argv)
 	harness_set_setting(h, own, "use-shared", "true");
 	step(h, c, CLIENT, COMPOSITOR, "the first monitor shared again");
 
+	harness_set_setting(h, "org.mate.background", "draw-background",
+			    "false");
+	step(h, c, COMPOSITOR, COMPOSITOR, "draw-background off again");
+
 	zwlr_layer_surface_v1_destroy(desktop);
 	wl_surface_destroy(surface);
 	wl_buffer_destroy(clear);
 	harness_roundtrip(h);
-	step(h, c, COMPOSITOR, COMPOSITOR, "the desktop unmapped");
+	step(h, c, COMPOSITOR, COMPOSITOR,
+	     "the desktop unmapped with draw-background off");
 
 	for (int i = 0; i < c->n_outs; i++) {
 		mate_output_v1_destroy(c->outs[i].mate);
