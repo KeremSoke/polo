@@ -5,10 +5,13 @@
  * The wallpaper fallback. When no client paints an output's
  * background (a background-layer surface covers it), Polo draws
  * org.mate.background, or the output's org.mate.background.monitor
- * settings when use-shared is false, itself on the BACKGROUND layer, as
+ * settings when use-shared is false, or else the current workspace's
+ * org.mate.polo.background.workspace settings when use-shared is false,
+ * itself on the BACKGROUND layer, as
  * MateBG draws the X root window: libpolo-bg (lib/bg, ported from mate-bg.c)
  * draws each output's part of the screen into a Backend.PixelBuffer on a
- * worker thread. Without a desktop surface the wallpaper shows when
+ * worker thread, one buffer per output and per settings some workspace
+ * shows there, so switching workspaces only swaps buffers. Without a desktop surface the wallpaper shows when
  * draw-background is true. Under caja's desktop surface it shows when
  * draw-background is false: caja then paints only icons on a transparent
  * surface. Settings changes apply live; slideshows redraw on their timer.
@@ -19,6 +22,8 @@ namespace Polo.Settings {
         private const string SCHEMA = "org.mate.background";
         private const string MONITOR_SCHEMA = "org.mate.background.monitor";
         private const string MONITOR_PATH = "/org/mate/desktop/background/monitors/";
+        private const string WORKSPACE_SCHEMA = "org.mate.polo.background.workspace";
+        private const string WORKSPACE_PATH = "/org/mate/polo/background/workspaces/";
 
         private Backend.Server server;
         private Policy.Model model;
@@ -28,10 +33,14 @@ namespace Polo.Settings {
         private GLib.SettingsSchema? monitor_schema = null;
         private GLib.HashTable<string, GLib.Settings> monitor_settings =
             new GLib.HashTable<string, GLib.Settings> (GLib.str_hash, GLib.str_equal);
+        private GLib.SettingsSchema? workspace_schema = null;
+        private GLib.GenericArray<GLib.Settings> workspace_settings = new GLib.GenericArray<GLib.Settings> ();
 
         private class Entry {
             public string id = "";
-            public GLib.Settings? effective = null;
+            public GLib.Settings source;
+            public GLib.Settings? drawer = null;
+            public uint64 workspaces;
             public Policy.Output output;
             public Backend.PixelBuffer buffer;
             public Backend.PixelBuffer? previous;
@@ -80,6 +89,7 @@ namespace Polo.Settings {
                 settings = new GLib.Settings.full (schema, null, null);
                 settings.changed.connect (on_settings_changed);
                 monitor_schema = source.lookup (MONITOR_SCHEMA, true);
+                workspace_schema = source.lookup (WORKSPACE_SCHEMA, true);
                 var capabilities = Backend.WallpaperCapabilities.DRAWN | Backend.WallpaperCapabilities.SPANNED;
                 if (monitor_schema != null) {
                     capabilities |= Backend.WallpaperCapabilities.PER_OUTPUT;
@@ -89,10 +99,22 @@ namespace Polo.Settings {
                 Logging.scope (LogDomain.POLO).info ("no %s schema; no wallpaper", SCHEMA);
             }
             layer_shell.arranged.connect (sync);
+            model.notify["current-workspace"].connect (on_workspace_changed);
+            model.notify["n-workspaces"].connect (on_workspace_changed);
+        }
+
+        private void on_workspace_changed (GLib.Object object, GLib.ParamSpec pspec) {
+            if (pspec.name == "n-workspaces") {
+                sync ();
+            } else {
+                place_all ();
+            }
         }
 
         public void shutdown () {
             layer_shell.arranged.disconnect (sync);
+            model.notify["current-workspace"].disconnect (on_workspace_changed);
+            model.notify["n-workspaces"].disconnect (on_workspace_changed);
             if (settings != null) {
                 settings.changed.disconnect (on_settings_changed);
             }
@@ -100,6 +122,10 @@ namespace Polo.Settings {
                 monitor.changed.disconnect (on_settings_changed);
             });
             monitor_settings.remove_all ();
+            foreach (var workspace in workspace_settings) {
+                workspace.changed.disconnect (on_settings_changed);
+            }
+            workspace_settings.remove_range (0, workspace_settings.length);
             if (changed_idle != 0) {
                 GLib.Source.remove (changed_idle);
                 changed_idle = 0;
@@ -151,43 +177,76 @@ namespace Polo.Settings {
             return monitor;
         }
 
-        private GLib.Settings effective_settings (string id) {
+        private unowned GLib.Settings? monitor_override (string id) {
             unowned GLib.Settings? monitor = settings_for_monitor (id);
-            if (monitor != null && !monitor.get_boolean ("use-shared")) {
-                return monitor;
-            }
-            return settings;
+            return monitor != null && !monitor.get_boolean ("use-shared") ? monitor : null;
         }
 
-        private bool refresh_effective () {
-            bool changed = false;
-            foreach (var entry in entries) {
-                string id = monitor_id (entry.output);
-                var effective = effective_settings (id);
-                if (id != entry.id || effective != entry.effective) {
-                    entry.id = id;
-                    entry.effective = effective;
-                    changed = true;
-                }
+        private unowned GLib.Settings? settings_for_workspace (int workspace) {
+            if (workspace_schema == null || workspace < 0) {
+                return null;
             }
-            return changed;
+            while (workspace_settings.length <= workspace) {
+                var created = new GLib.Settings.full (workspace_schema, null,
+                                                      "%s%u/".printf (WORKSPACE_PATH, workspace_settings.length + 1));
+                created.changed.connect (on_settings_changed);
+                workspace_settings.add (created);
+            }
+            return workspace_settings[workspace];
+        }
+
+        private GLib.Settings source_for (string id, int workspace) {
+            unowned GLib.Settings? monitor = monitor_override (id);
+            if (monitor != null) {
+                return monitor;
+            }
+            unowned GLib.Settings? own = settings_for_workspace (workspace);
+            return own != null && !own.get_boolean ("use-shared") ? own : settings;
+        }
+
+        private GLib.Settings drawer_for (string id) {
+            unowned GLib.Settings? monitor = monitor_override (id);
+            return monitor ?? settings;
+        }
+
+        private static bool shows (Entry entry, int workspace) {
+            return workspace >= 0 && workspace < 64 && (entry.workspaces & ((uint64) 1 << workspace)) != 0;
         }
 
         /* ---- Outputs ---------------------------------------------------- */
 
-        public unowned Backend.View? wallpaper_view (Policy.Output output) {
-            var entry = entry_for (output);
+        public unowned Backend.View? wallpaper_view (Policy.Output output, int workspace = -1) {
+            var entry = entry_for (output, workspace);
             return entry != null && entry.buffer != null ? entry.buffer.get_view () : null;
         }
 
         public Backend.PixelBuffer? wallpaper_buffer (Policy.Output output) {
-            var entry = entry_for (output);
+            var entry = entry_for (output, -1);
             return entry != null ? entry.buffer : null;
         }
 
-        private Entry? entry_for (Policy.Output output) {
+        private Entry? entry_for (Policy.Output output, int workspace) {
+            int index = workspace < 0 ? model.current_workspace : workspace;
             foreach (var entry in entries) {
-                if (entry.output == output) {
+                if (entry.output == output && shows (entry, index)) {
+                    return entry;
+                }
+            }
+            return null;
+        }
+
+        private Entry? find (Policy.Output output, GLib.Settings source) {
+            foreach (var entry in entries) {
+                if (entry.output == output && entry.source == source) {
+                    return entry;
+                }
+            }
+            return null;
+        }
+
+        private Entry? shown_on (Policy.Output output) {
+            foreach (var entry in entries) {
+                if (entry.output == output && entry.shown && entry.buffer != null && entry.buffer.is_ready ()) {
                     return entry;
                 }
             }
@@ -201,14 +260,9 @@ namespace Polo.Settings {
             bool changed = false;
             var fresh = new GLib.GenericArray<Entry> ();
             var outputs = model.get_outputs ();
-            for (int i = entries.length - 1; i >= 0; i--) {
-                bool found = false;
-                foreach (var output in outputs) {
-                    found = found || output == entries[i].output;
-                }
-                if (!found) {
-                    entries.remove_index (i);
-                }
+            int n_workspaces = int.min (model.n_workspaces, 64);
+            foreach (var entry in entries) {
+                entry.workspaces = 0;
             }
             foreach (var output in outputs) {
                 var head = desktop.backend_output (output);
@@ -218,42 +272,66 @@ namespace Polo.Settings {
                 int scale = int.max (head.get_scale (), 1);
                 int width = output.rect.width * scale;
                 int height = output.rect.height * scale;
-                var entry = entry_for (output);
-                if (entry != null && entry.width == width && entry.height == height &&
-                    entry.scale == scale) {
-                    if (entry.x != output.rect.x || entry.y != output.rect.y) {
-                        entry.x = output.rect.x;
-                        entry.y = output.rect.y;
+                string id = monitor_id (output);
+                var drawer = drawer_for (id);
+                var stand_in = shown_on (output);
+                for (int workspace = 0; workspace < n_workspaces; workspace++) {
+                    var source = source_for (id, workspace);
+                    var entry = find (output, source);
+                    if (entry != null && entry.workspaces != 0) {
+                        entry.workspaces |= (uint64) 1 << workspace;
+                        continue;
+                    }
+                    if (entry == null) {
+                        entry = new Entry ();
+                        entry.output = output;
+                        entry.source = source;
+                        entries.add (entry);
+                    }
+                    entry.workspaces = (uint64) 1 << workspace;
+                    if (entry.id != id || entry.drawer != drawer) {
+                        entry.id = id;
+                        entry.drawer = drawer;
                         changed = true;
                     }
-                    continue;
+                    if (entry.width == width && entry.height == height && entry.scale == scale) {
+                        if (entry.x != output.rect.x || entry.y != output.rect.y) {
+                            entry.x = output.rect.x;
+                            entry.y = output.rect.y;
+                            changed = true;
+                        }
+                        continue;
+                    }
+                    if (width <= 0 || height <= 0) {
+                        continue;
+                    }
+                    bool current = workspace == model.current_workspace;
+                    if (entry.buffer != null && entry.buffer.is_ready ()) {
+                        entry.previous = entry.buffer;
+                        entry.previous_width = entry.width / entry.scale;
+                        entry.previous_height = entry.height / entry.scale;
+                    } else if (entry.buffer == null && current && stand_in != null && stand_in != entry) {
+                        entry.previous = stand_in.buffer;
+                        entry.previous_width = stand_in.width / stand_in.scale;
+                        entry.previous_height = stand_in.height / stand_in.scale;
+                    } else if (entry.previous == null && current) {
+                        fresh.add (entry);
+                    }
+                    entry.x = output.rect.x;
+                    entry.y = output.rect.y;
+                    entry.width = width;
+                    entry.height = height;
+                    entry.scale = scale;
+                    entry.buffer = new Backend.PixelBuffer (server, width, height, scale);
+                    entry.buffer.ready.connect (place_all);
+                    changed = true;
                 }
-                if (entry == null) {
-                    entry = new Entry ();
-                    entry.output = output;
-                    entries.add (entry);
-                }
-                if (width <= 0 || height <= 0) {
-                    continue;
-                }
-                if (entry.buffer != null && entry.buffer.is_ready ()) {
-                    entry.previous = entry.buffer;
-                    entry.previous_width = entry.width / entry.scale;
-                    entry.previous_height = entry.height / entry.scale;
-                } else if (entry.previous == null) {
-                    fresh.add (entry);
-                }
-                entry.x = output.rect.x;
-                entry.y = output.rect.y;
-                entry.width = width;
-                entry.height = height;
-                entry.scale = scale;
-                entry.buffer = new Backend.PixelBuffer (server, width, height, scale);
-                entry.buffer.ready.connect (place_all);
-                changed = true;
             }
-            if (refresh_effective ()) {
-                changed = true;
+            for (int i = entries.length - 1; i >= 0; i--) {
+                if (entries[i].workspaces == 0) {
+                    hide (entries[i]);
+                    entries.remove_index (i);
+                }
             }
             if (shown_once && fresh.length > 0) {
                 var jobs = make_jobs (fresh);
@@ -269,10 +347,10 @@ namespace Polo.Settings {
         }
 
         private bool should_show (Entry entry) {
-            if (entry.effective == null || layer_shell.covers_output (entry.output)) {
+            if (entry.drawer == null || layer_shell.covers_output (entry.output)) {
                 return false;
             }
-            return !layer_shell.has_desktop (entry.output) || !entry.effective.get_boolean ("draw-background");
+            return !layer_shell.has_desktop (entry.output) || !entry.drawer.get_boolean ("draw-background");
         }
 
         private Backend.BackgroundOwner owner (Entry entry, bool show) {
@@ -281,14 +359,38 @@ namespace Polo.Settings {
             }
             if (layer_shell.covers_output (entry.output) ||
                 (layer_shell.has_desktop (entry.output) &&
-                 (entry.effective == null || entry.effective.get_boolean ("draw-background")))) {
+                 (entry.drawer == null || entry.drawer.get_boolean ("draw-background")))) {
                 return Backend.BackgroundOwner.CLIENT;
             }
             return Backend.BackgroundOwner.NONE;
         }
 
+        private void hide (Entry entry) {
+            unowned Backend.View? view = entry.buffer != null ? entry.buffer.get_view () : null;
+            if (view != null) {
+                view.move_to_layer (null);
+            }
+            if (entry.previous != null) {
+                unowned Backend.View? old = entry.previous.get_view ();
+                if (old != null) {
+                    old.move_to_layer (null);
+                }
+                entry.previous = null;
+            }
+            entry.shown = false;
+        }
+
         private void place_all () {
+            int workspace = model.current_workspace;
             foreach (var entry in entries) {
+                if (!shows (entry, workspace)) {
+                    hide (entry);
+                }
+            }
+            foreach (var entry in entries) {
+                if (!shows (entry, workspace)) {
+                    continue;
+                }
                 bool show = should_show (entry);
                 desktop.set_background_owner (entry.output, owner (entry, show));
                 unowned Backend.View? view = entry.buffer != null ? entry.buffer.get_view () : null;
@@ -371,14 +473,17 @@ namespace Polo.Settings {
             return Marco.Rect () { x = x1, y = y1, width = x2 - x1, height = y2 - y1 };
         }
 
-        private GLib.GenericArray<Job> make_jobs (GLib.GenericArray<Entry> targets) {
-            var shared = new GLib.GenericArray<Policy.Output> ();
+        private Marco.Rect screen_for (GLib.Settings source) {
+            var outputs = new GLib.GenericArray<Policy.Output> ();
             foreach (var entry in entries) {
-                if (entry.effective == null || entry.effective == settings) {
-                    shared.add (entry.output);
+                if (entry.source == source) {
+                    outputs.add (entry.output);
                 }
             }
-            var shared_screen = screen_of (shared);
+            return screen_of (outputs);
+        }
+
+        private GLib.GenericArray<Job> make_jobs (GLib.GenericArray<Entry> targets) {
             var described = new GLib.HashTable<GLib.Settings, Bg.Background> (GLib.direct_hash, GLib.direct_equal);
             var jobs = new GLib.GenericArray<Job> ();
             foreach (var entry in targets) {
@@ -394,14 +499,13 @@ namespace Polo.Settings {
                 job.height = entry.height;
                 job.scale = entry.scale;
                 job.rect = entry.output.rect;
-                bool own = entry.effective != null && entry.effective != settings;
-                var source = own ? entry.effective : settings;
+                var source = entry.source;
                 job.bg = described[source];
                 if (job.bg == null) {
                     job.bg = describe (source);
                     described[source] = job.bg;
                 }
-                job.screen = own ? entry.output.rect : shared_screen;
+                job.screen = source != settings && source == entry.drawer ? entry.output.rect : screen_for (source);
                 if (job.data.length > 0) {
                     jobs.add (job);
                 }

@@ -323,13 +323,13 @@ namespace Polo.Shell {
         }
 
         private void fill (Screen screen) {
-            unowned Backend.View? wallpaper = desktop.background.wallpaper_view (screen.output);
             for (int row = 0; row < state.workspaces.rows; row++) {
                 for (int column = 0; column < state.workspaces.cols; column++) {
                     int workspace = workspace_at (column, row);
                     if (workspace < 0) {
                         continue;
                     }
+                    unowned Backend.View? wallpaper = desktop.background.wallpaper_view (screen.output, workspace);
                     if (wallpaper != null) {
                         add_mirror (screen, wallpaper, null, column, row);
                     }

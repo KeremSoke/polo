@@ -700,7 +700,7 @@ namespace Polo.Shell {
         }
 
         private void fill (Screen screen, Side side, Fx.Cube geometry, uint spacing) {
-            unowned Backend.View? wallpaper = desktop.background.wallpaper_view (screen.output);
+            unowned Backend.View? wallpaper = desktop.background.wallpaper_view (screen.output, side.workspace);
             if (wallpaper != null) {
                 add_tree (screen, side, wallpaper, geometry, spacing);
             }
