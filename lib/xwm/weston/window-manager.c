@@ -1322,6 +1322,7 @@ weston_wm_handle_map_request(struct weston_wm *wm, xcb_generic_event_t *event)
 		window->shsurf = NULL;
 	}
 
+	window->override_redirect = 0;
 	window->map_request_valid = true;
 	window->map_request = window->pos;
 
@@ -1357,6 +1358,7 @@ static void
 weston_wm_handle_map_notify(struct weston_wm *wm, xcb_generic_event_t *event)
 {
 	xcb_map_notify_event_t *map_notify = (xcb_map_notify_event_t *) event;
+	struct weston_wm_window *window;
 
 	if (our_resource(wm, map_notify->window)) {
 		wm_printf(wm, "XCB_MAP_NOTIFY (window %d, ours)\n",
@@ -1366,6 +1368,11 @@ weston_wm_handle_map_notify(struct weston_wm *wm, xcb_generic_event_t *event)
 
 	wm_printf(wm, "XCB_MAP_NOTIFY (window %d%s)\n", map_notify->window,
 		  map_notify->override_redirect ? ", override" : "");
+
+	if (map_notify->override_redirect &&
+	    wm_lookup_window(wm, map_notify->window, &window) &&
+	    window->frame_id == XCB_WINDOW_NONE)
+		window->override_redirect = 1;
 }
 
 static void
