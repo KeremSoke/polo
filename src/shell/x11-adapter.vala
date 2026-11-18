@@ -380,7 +380,9 @@ namespace Polo.Shell {
                     uint mask = (d0 & 0xf00) >> 8;
                     bool move = (mask & 3) != 0;
                     bool resize = (mask & 12) != 0;
-                    model.configure_request (window, move, (int) d1, (int) d2, resize, (int) d3, (int) d4,
+                    model.configure_request (window, move, ((int) d1).clamp (int16.MIN, int16.MAX),
+                                             ((int) d2).clamp (int16.MIN, int16.MAX), resize,
+                                             ((int) d3).clamp (1, int16.MAX), ((int) d4).clamp (1, int16.MAX),
                                              gravity != 0 ? (Marco.Gravity?) gravity : null);
                     break;
                 case "_NET_ACTIVE_WINDOW":
