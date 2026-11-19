@@ -1,0 +1,29 @@
+--- a/libweston/desktop/xdg-shell.c
++++ b/libweston/desktop/xdg-shell.c
+@@ -142,6 +142,7 @@
+ 	bool pending_reposition;
+ 	uint32_t pending_reposition_token;
+ 	bool dismiss_after_configure;
++	bool configure_sent;
+ };
+ 
+ #define weston_desktop_surface_role_biggest_size \
+@@ -1528,6 +1529,10 @@
+ static void
+ weston_desktop_xdg_popup_close(struct weston_desktop_xdg_popup *popup)
+ {
++	if (!popup->configure_sent) {
++		popup->dismiss_after_configure = true;
++		return;
++	}
+ 	xdg_popup_send_popup_done(popup->resource);
+ }
+ 
+@@ -1640,6 +1645,7 @@
+ 		struct weston_desktop_xdg_popup *popup =
+ 			(struct weston_desktop_xdg_popup *) surface;
+ 
++		popup->configure_sent = true;
+ 		if (popup->dismiss_after_configure) {
+ 			popup->dismiss_after_configure = false;
+ 			weston_desktop_surface_popup_dismiss(surface->desktop_surface);

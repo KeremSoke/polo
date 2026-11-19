@@ -447,6 +447,47 @@ test_late_grab_configures_first(struct harness *h)
 	panel_destroy(panel);
 }
 
+/* A menu whose panel unmaps before the menu's first configure is dismissed
+ * only after that configure, as with a late grab. */
+static void
+test_parent_unmap_configures_first(struct harness *h)
+{
+	struct panel *panel = panel_create(
+		h, ANCHOR_TOP | ANCHOR_LEFT | ANCHOR_RIGHT, 0, 30, 30);
+	struct popup *p = calloc(1, sizeof *p);
+	struct xdg_positioner *positioner;
+
+	p->h = h;
+	p->width = 200;
+	p->height = 100;
+	p->surface = wl_compositor_create_surface(h->compositor);
+	p->xdg_surface = xdg_wm_base_get_xdg_surface(h->wm_base, p->surface);
+	xdg_surface_add_listener(p->xdg_surface, &popup_surface_listener, p);
+	positioner = xdg_wm_base_create_positioner(h->wm_base);
+	xdg_positioner_set_size(positioner, 200, 100);
+	xdg_positioner_set_anchor_rect(positioner, 10, 0, 50, 30);
+	xdg_positioner_set_anchor(positioner,
+				  XDG_POSITIONER_ANCHOR_BOTTOM_LEFT);
+	xdg_positioner_set_gravity(positioner,
+				   XDG_POSITIONER_GRAVITY_BOTTOM_RIGHT);
+	p->xdg_popup = xdg_surface_get_popup(p->xdg_surface, NULL, positioner);
+	xdg_popup_add_listener(p->xdg_popup, &popup_listener, p);
+	zwlr_layer_surface_v1_get_popup(panel->layer_surface, p->xdg_popup);
+	xdg_positioner_destroy(positioner);
+	wl_surface_commit(p->surface);
+	wl_surface_attach(panel->surface, NULL, 0, 0);
+	wl_surface_commit(panel->surface);
+	for (int i = 0; i < 4 && !p->done; i++)
+		harness_roundtrip(h);
+	CHECK(p->done, "a menu whose panel unmapped was not dismissed");
+	CHECK(!p->done_unconfigured,
+	      "the menu was dismissed before its first configure");
+
+	popup_destroy(p);
+	panel->mapped = false;
+	panel_destroy(panel);
+}
+
 /* A tooltip centred over a button at the left edge slides right onto the
  * output, as one at the right edge slides left; a popup sticking out above
  * the top slides down. */
@@ -545,6 +586,7 @@ main(int argc, char **argv)
 	test_scale(h);
 	test_menu_returns_focus(h);
 	test_late_grab_configures_first(h);
+	test_parent_unmap_configures_first(h);
 	test_desktop_menu_above_windows(h);
 	test_panel_tooltip_shadow(h);
 	test_slide_off_left_and_top(h);
