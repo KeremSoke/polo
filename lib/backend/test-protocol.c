@@ -301,6 +301,86 @@ count_output(struct wl_resource *resource, void *data)
 	return WL_ITERATOR_CONTINUE;
 }
 
+struct tally {
+	GHashTable *counts;
+	GString *surfaces;
+};
+
+static enum wl_iterator_result
+tally_resource(struct wl_resource *resource, void *data)
+{
+	struct tally *tally_data = data;
+	GHashTable *tally = tally_data->counts;
+	const char *name = wl_resource_get_class(resource);
+
+	if (strcmp(name, "wl_surface") == 0) {
+		struct weston_surface *surface =
+			wl_resource_get_user_data(resource);
+		PoloBackendLayerSurface *layer =
+			polo_backend_layer_surface_from_surface(surface);
+		struct weston_desktop_surface *desktop = surface
+			? weston_surface_get_desktop_surface(surface)
+			: NULL;
+
+		if (layer)
+			g_string_append_printf(
+				tally_data->surfaces, " layer:%s%s",
+				polo_backend_layer_surface_get_namespace(layer),
+				weston_surface_is_mapped(surface)
+					? ""
+					: "(unmapped)");
+		else if (desktop)
+			g_string_append_printf(
+				tally_data->surfaces, " window:'%s'%s",
+				weston_desktop_surface_get_title(desktop)
+					? weston_desktop_surface_get_title(
+						  desktop)
+					: "",
+				weston_surface_is_mapped(surface)
+					? ""
+					: "(unmapped)");
+	}
+
+	g_hash_table_insert(
+		tally, (gpointer)name,
+		GUINT_TO_POINTER(
+			GPOINTER_TO_UINT(g_hash_table_lookup(tally, name)) +
+			1));
+	return WL_ITERATOR_CONTINUE;
+}
+
+static gint
+by_name(gconstpointer a, gconstpointer b)
+{
+	return g_strcmp0(*(const char *const *)a, *(const char *const *)b);
+}
+
+/* The shell UI's objects by interface, for chasing growth in a soak. */
+static void
+log_shell_ui_objects(struct wl_client *shell_ui)
+{
+	GHashTable *tally = g_hash_table_new(g_str_hash, g_str_equal);
+	struct tally tally_data = { tally, g_string_new(NULL) };
+	GPtrArray *names;
+	GString *text = g_string_new(NULL);
+
+	wl_client_for_each_resource(shell_ui, tally_resource, &tally_data);
+	names = g_hash_table_get_keys_as_ptr_array(tally);
+	g_ptr_array_sort(names, by_name);
+	for (guint i = 0; i < names->len; i++)
+		g_string_append_printf(text, " %s=%u",
+				       (const char *)names->pdata[i],
+				       GPOINTER_TO_UINT(g_hash_table_lookup(
+					       tally, names->pdata[i])));
+	polo_log_scope_debug(polo_backend_log_scope("polo"),
+			     "shell UI objects:%s; surfaces:%s", text->str,
+			     tally_data.surfaces->str);
+	g_string_free(text, TRUE);
+	g_string_free(tally_data.surfaces, TRUE);
+	g_ptr_array_unref(names);
+	g_hash_table_unref(tally);
+}
+
 static void
 test_add_input_device(struct wl_client *client, struct wl_resource *resource,
 		      const char *name, uint32_t vendor, uint32_t product,
@@ -362,6 +442,7 @@ test_get_resources(struct wl_client *client, struct wl_resource *resource)
 						    &shell_ui_objects);
 			wl_client_for_each_resource(each, count_output,
 						    &shell_ui_outputs);
+			log_shell_ui_objects(each);
 		}
 	}
 	polo_test_v1_send_resources(resource, clients, objects,
