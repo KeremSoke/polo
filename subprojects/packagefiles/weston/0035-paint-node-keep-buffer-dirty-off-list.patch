@@ -1,0 +1,15 @@
+--- a/libweston/compositor.c
++++ b/libweston/compositor.c
+@@ -601,7 +601,11 @@
+ 	pixman_region32_clear(&pnode->visible);
+ 	pixman_region32_clear(&pnode->clipped_view);
+ 	pixman_region32_clear(&pnode->damage);
+-	pnode->status = WESTON_PAINT_NODE_CLEAN;
++	/* Keep a buffer change the renderer has not attached yet: if the
++	 * view comes back, this paint node is reused and must attach it, or
++	 * the renderer reads the new buffer with the old one's layout. */
++	pnode->status &= WESTON_PAINT_NODE_BUFFER_DIRTY |
++			 WESTON_PAINT_NODE_BUFFER_PARAMS_DIRTY;
+ 	wl_list_remove(&pnode->z_order_link);
+ 	wl_list_init(&pnode->z_order_link);
+ }
