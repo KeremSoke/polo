@@ -487,6 +487,57 @@ test_cycle_panels(struct harness *h)
 
 /* ---- Keyboard interactivity----------------------------------------------- */
 
+/* A desktop holding the keyboard (Caja renaming a file) gets it back when
+ * an on-demand surface that took it on map, such as a notification, goes
+ * away; a click elsewhere meanwhile is the user's choice and stands. */
+static void
+test_on_demand_returns_to_previous_surface(struct harness *h)
+{
+	struct harness_window *w = harness_window_create(h, 300, 200, "other");
+	const struct harness_window_info *info = harness_window_info(w);
+	struct layer_surface *desk, *note;
+	int dx = info->x > 100 ? 20 : HARNESS_OUTPUT_WIDTH - 20;
+	int dy = HARNESS_OUTPUT_HEIGHT - 20;
+
+	desk = layer_surface_create(
+		h, "desktop", LAYER_BOTTOM, NULL,
+		ANCHOR_TOP | ANCHOR_BOTTOM | ANCHOR_LEFT | ANCHOR_RIGHT, -1, -1,
+		-1, -1, -1, -1, KBD_ON_DEMAND, 0, 0);
+	CHECK(h->keyboard_focus == w->surface,
+	      "a bottom on-demand surface took the keyboard on map");
+	harness_click(h, dx, dy);
+	CHECK(h->keyboard_focus == desk->surface,
+	      "a click did not give the desktop the keyboard");
+
+	note = layer_surface_create(h, "note", LAYER_TOP, NULL,
+				    ANCHOR_TOP | ANCHOR_RIGHT, -1, -1, -1, -1,
+				    -1, -1, KBD_ON_DEMAND, 200, 50);
+	CHECK(h->keyboard_focus == note->surface,
+	      "the top on-demand surface did not take the keyboard on map");
+	layer_surface_destroy(note);
+	harness_roundtrip(h);
+	CHECK(h->keyboard_focus == desk->surface,
+	      "the keyboard did not go back to the desktop");
+	harness_key(h, KEY_A, true);
+	harness_key(h, KEY_A, false);
+	CHECK(h->last_key_surface == desk->surface,
+	      "a key after the notification did not reach the desktop");
+
+	note = layer_surface_create(h, "note", LAYER_TOP, NULL,
+				    ANCHOR_TOP | ANCHOR_RIGHT, -1, -1, -1, -1,
+				    -1, -1, KBD_ON_DEMAND, 200, 50);
+	harness_click(h, info->x + info->width / 2, info->y + info->height / 2);
+	CHECK(h->keyboard_focus == w->surface,
+	      "a click on the window did not take the keyboard");
+	layer_surface_destroy(note);
+	harness_roundtrip(h);
+	CHECK(h->keyboard_focus == w->surface,
+	      "the desktop took the keyboard back from the clicked window");
+
+	layer_surface_destroy(desk);
+	harness_window_destroy(w);
+}
+
 static void
 test_keyboard_modes(struct harness *h)
 {
@@ -1035,6 +1086,7 @@ main(int argc, char **argv)
 	test_margins(h);
 	test_exclusive_zones(h);
 	test_keyboard_modes(h);
+	test_on_demand_returns_to_previous_surface(h);
 	test_cycle_panels(h);
 	test_popups(h);
 	test_on_demand_release(h);

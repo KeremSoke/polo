@@ -162,6 +162,9 @@ namespace Polo.Shell {
 
         private void on_destroyed (Entry entry) {
             entries.remove (entry);
+            if (previous_holder == entry) {
+                previous_holder = null;
+            }
             if (focus_holder == entry) {
                 focus_holder = null;
                 hand_back_focus ();
@@ -465,9 +468,12 @@ namespace Polo.Shell {
          * clicks on other clients, so wl_keyboard.leave is how it learns
          * to close. While a surface holds the keyboard no window is
          * focused, as when Marco focuses a desktop or dock window.
-         * Afterwards the previously focused window gets it back.
+         * Afterwards the surface that held it before gets it back (a
+         * desktop renaming a file while a notification comes and goes),
+         * or else the previously focused window.
          */
         private Entry? focus_holder = null;
+        private Entry? previous_holder = null;
         private Window? previous_focus = null;
 
         private bool locked () {
@@ -477,6 +483,9 @@ namespace Polo.Shell {
         private void take_focus (Entry entry) {
             if (focus_holder == null) {
                 previous_focus = model.focused;
+                previous_holder = null;
+            } else if (focus_holder != entry) {
+                previous_holder = focus_holder;
             }
             focus_holder = entry;
             model.focus (null);
@@ -505,12 +514,14 @@ namespace Polo.Shell {
                 }
             }
             int next = at < 0 ? (backward ? panels.length - 1 : 0) : at + (backward ? -1 : 1);
+            previous_holder = null;
             if (next < 0 || next >= panels.length) {
                 focus_holder = null;
                 hand_back_focus ();
                 return;
             }
             take_focus (panels[next]);
+            previous_holder = null;
         }
 
         public unowned Backend.View? exclusive_view () {
@@ -553,6 +564,15 @@ namespace Polo.Shell {
                     return;
                 }
             }
+            var holder = previous_holder;
+            previous_holder = null;
+            if (holder != null && holder.handle.mapped &&
+                holder.handle.keyboard_interactivity == KBD_ON_DEMAND && !locked ()) {
+                focus_holder = holder;
+                model.focus (null);
+                desktop.set_keyboard_focus (holder.view);
+                return;
+            }
             var window = previous_focus;
             previous_focus = null;
             if (window != null && model.is_managed (window) && model.is_showing (window)) {
@@ -581,8 +601,10 @@ namespace Polo.Shell {
             if (entry != null && entry == focus_holder) {
                 return;
             }
+            previous_holder = null;
             if (entry != null && entry.handle.keyboard_interactivity == KBD_ON_DEMAND && entry.handle.mapped) {
                 take_focus (entry);
+                previous_holder = null;
             } else if (focus_holder != null) {
                 focus_holder = null;
                 hand_back_focus ();
@@ -594,6 +616,7 @@ namespace Polo.Shell {
             if (focus_holder != null && exclusive_view () == null) {
                 /* The policy focuses the clicked window next. */
                 focus_holder = null;
+                previous_holder = null;
                 previous_focus = null;
                 desktop.restore_focus ();
             }
@@ -602,6 +625,7 @@ namespace Polo.Shell {
         private void on_focus_changed () {
             if (model.focused != null && focus_holder != null && exclusive_view () == null) {
                 focus_holder = null;
+                previous_holder = null;
                 previous_focus = null;
             }
         }
