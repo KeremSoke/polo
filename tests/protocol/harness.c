@@ -733,8 +733,57 @@ harness_wait_frame(struct harness *h, struct wl_surface *surface)
 	callback = wl_surface_frame(surface);
 	wl_callback_add_listener(callback, &frame_listener, &done);
 	wl_surface_commit(surface);
-	for (i = 0; i < 200 && !done; i++)
-		CHECK(wl_display_dispatch(h->display) >= 0, "connection lost");
+	for (i = 0; i < 200 && !done; i++) {
+		struct timespec timeout = { 10, 0 };
+		int dispatched =
+			wl_display_dispatch_timeout(h->display, &timeout);
+
+		CHECK(dispatched >= 0, "connection lost");
+		if (dispatched == 0)
+			break;
+	}
+	if (!done) {
+		struct harness_window *w = NULL;
+		const struct harness_window_info *info = NULL;
+
+		for (int n = 0; n < h->n_windows; n++)
+			if (h->windows[n]->surface == surface)
+				w = h->windows[n];
+		if (w)
+			info = harness_window_info(w);
+		if (getenv("POLO_TEST_LOG")) {
+			for (int n = 0; n < harness_output_count(h); n++) {
+				char path[600];
+				int width, height;
+				uint32_t *pixels = harness_capture_output(
+					h, n, &width, &height);
+				FILE *file;
+
+				snprintf(path, sizeof path, "%s.noframe-%d.ppm",
+					 getenv("POLO_TEST_LOG"), n);
+				if (!pixels || !(file = fopen(path, "w"))) {
+					free(pixels);
+					continue;
+				}
+				fprintf(file, "P6 %d %d 255\n", width, height);
+				for (int p = 0; p < width * height; p++) {
+					fputc(pixels[p] >> 16 & 0xff, file);
+					fputc(pixels[p] >> 8 & 0xff, file);
+					fputc(pixels[p] & 0xff, file);
+				}
+				fclose(file);
+				free(pixels);
+				fprintf(stderr, "harness: output %d is in %s\n",
+					n, path);
+			}
+		}
+
+		CHECK(info == NULL,
+		      "no frame callback in 10 s for a window known %d at "
+		      "%d,%d %dx%d, layer %d, workspace %d, state 0x%x",
+		      info->known, info->x, info->y, info->width, info->height,
+		      info->layer, info->workspace, info->state);
+	}
 	CHECK(done, "no frame callback");
 }
 
