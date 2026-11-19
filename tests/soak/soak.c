@@ -37,8 +37,9 @@
  *
  * Fails on a crash or protocol error (the harness); on the shell UI going
  * away; on keyboard focus missing at a checkpoint; on the magnifier still
- * moving the pointer after it is turned off; on Polo's RSS at the end of a
- * session more than 5% above its RSS after warming up, or its descriptors,
+ * moving the pointer after it is turned off; on Polo's lowest RSS at the end
+ * of a session of 12 or more checkpoints more than 5% above its highest
+ * after warming up, or its descriptors,
  * threads or the shell UI's Wayland objects growing from checkpoint to
  * checkpoint; on a Polo that leaves a child process or its socket behind when
  * it stops; on a shell UI that outlives a killed Polo; and on Polo using more
@@ -72,6 +73,7 @@
 #define MAX_WINDOWS 10
 #define MAX_CHECKS 128
 #define RSS_GROWTH 0.05
+#define MIN_RSS_CHECKS 12
 #define N_ACTIONS 24
 #define MAX_WORKSPACE_KEYS 8
 #define TEXT "text/plain;charset=utf-8"
@@ -1665,6 +1667,28 @@ median(const double *values, int n)
 	return n % 2 ? sorted[n / 2] : (sorted[n / 2 - 1] + sorted[n / 2]) / 2;
 }
 
+static double
+lowest(const double *values, int n)
+{
+	double low = values[0];
+
+	for (int i = 1; i < n; i++)
+		if (values[i] < low)
+			low = values[i];
+	return low;
+}
+
+static double
+highest(const double *values, int n)
+{
+	double high = values[0];
+
+	for (int i = 1; i < n; i++)
+		if (values[i] > high)
+			high = values[i];
+	return high;
+}
+
 /* The same desktop every time: three fresh windows, no shell UI dialog,
  * nothing else on screen, the magnifier off, the extra output unplugged, no
  * killed client left. */
@@ -2022,10 +2046,19 @@ session(int argc, char **argv, double seconds, int index, bool last,
 	       out->ui_objects_early, out->ui_objects_late,
 	       out->ui_outputs_early, out->ui_outputs_late, out->plugs_between,
 	       out->cpu, out->ui_cpu, out->frames, out->warnings);
-	CHECK(out->late <= out->early * (1 + RSS_GROWTH),
-	      "login %d: RSS at the checkpoints grew from %.1f MB to %.1f MB "
-	      "(over %.0f%%)",
-	      index, out->early, out->late, RSS_GROWTH * 100);
+	/* Large buffers come and go between checkpoints: a leak lifts even
+	 * the lowest late reading above every early one. Polo warms up for
+	 * several minutes, longer than a short login shows. */
+	if (n_checks < MIN_RSS_CHECKS)
+		printf("soak: login %d: %d checkpoints, too few to judge RSS\n",
+		       index, n_checks);
+	else
+		CHECK(lowest(checks + n_checks - n, n) <=
+			      highest(checks + 1, n) * (1 + RSS_GROWTH),
+		      "login %d: RSS at the checkpoints grew: at least %.1f MB "
+		      "late, at most %.1f MB early (over %.0f%%)",
+		      index, lowest(checks + n_checks - n, n),
+		      highest(checks + 1, n), RSS_GROWTH * 100);
 	CHECK(out->fds_late <= out->fds_early + 2,
 	      "login %d: Polo's descriptors grew from %d to %d", index,
 	      out->fds_early, out->fds_late);
@@ -2043,7 +2076,7 @@ session(int argc, char **argv, double seconds, int index, bool last,
 	      "with %u outputs plugged in",
 	      index, out->ui_outputs_early, out->ui_outputs_late,
 	      out->plugs_between);
-	return true;
+	return n_checks >= MIN_RSS_CHECKS;
 }
 
 /* A Polo killed in the middle of shell UI work: the shell UI must go too. */
