@@ -74,6 +74,8 @@ namespace Polo.Settings {
         private GLib.Thread<bool>? worker = null;
         private uint finish_idle = 0;
         private bool redraw_pending = false;
+        private bool redraw_all = false;
+        private GLib.GenericArray<GLib.Settings> dirty = new GLib.GenericArray<GLib.Settings> ();
         private bool shown_once = false;
 
         public Background (Backend.Server server, Policy.Model model, Shell.Desktop desktop,
@@ -147,7 +149,15 @@ namespace Polo.Settings {
             entries.remove_range (0, entries.length);
         }
 
-        private void on_settings_changed (string key) {
+        private void on_settings_changed (GLib.Settings changed, string key) {
+            bool known = key == "draw-background" || key == "use-shared" || key == "show-desktop-icons" ||
+                         key == "background-fade";
+            foreach (var source in dirty) {
+                known = known || source == changed;
+            }
+            if (!known) {
+                dirty.add (changed);
+            }
             if (changed_idle == 0) {
                 changed_idle = GLib.Idle.add (() => {
                     changed_idle = 0;
@@ -342,6 +352,7 @@ namespace Polo.Settings {
             }
             place_all ();
             if (changed) {
+                redraw_all = true;
                 redraw ();
             }
         }
@@ -532,12 +543,25 @@ namespace Polo.Settings {
                 redraw_pending = true;
                 return;
             }
-            if (slideshow_timer != 0) {
+            bool all = redraw_all;
+            var targets = new GLib.GenericArray<Entry> ();
+            foreach (var entry in entries) {
+                bool wanted = all;
+                foreach (var source in dirty) {
+                    wanted = wanted || entry.source == source;
+                }
+                if (wanted) {
+                    targets.add (entry);
+                }
+            }
+            redraw_all = false;
+            dirty.remove_range (0, dirty.length);
+            if (all && slideshow_timer != 0) {
                 GLib.Source.remove (slideshow_timer);
                 slideshow_timer = 0;
             }
 
-            var jobs = make_jobs (entries);
+            var jobs = make_jobs (targets);
             if (jobs.length == 0) {
                 return;
             }
@@ -567,8 +591,12 @@ namespace Polo.Settings {
                 redraw_pending = false;
                 redraw ();
             } else if (timeout != uint.MAX) {
+                if (slideshow_timer != 0) {
+                    GLib.Source.remove (slideshow_timer);
+                }
                 slideshow_timer = GLib.Timeout.add_seconds (uint.max (timeout, 1), () => {
                     slideshow_timer = 0;
+                    redraw_all = true;
                     redraw ();
                     return GLib.Source.REMOVE;
                 });
