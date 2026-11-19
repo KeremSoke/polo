@@ -5,7 +5,8 @@
  * argv[2]: polo-shell-ui. The real helper starts under headless Polo,
  * binds polo_shell_ui_v1, and answers the window menu and dialogs it does
  * not draw yet as dismissed. Alt-Tab shows its popup, with thumbnails;
- * Alt-Space opens the window menu, whose Minimize mnemonic and Escape work.
+ * Alt-Space opens the window menu, whose Minimize mnemonic and Escape work;
+ * menus whose windows close while they map leave the next menu working.
  */
 #include <linux/input-event-codes.h>
 #include <stdlib.h>
@@ -169,6 +170,43 @@ main(int argc, char **argv)
 	harness_key(h, KEY_ESC, true);
 	harness_key(h, KEY_ESC, false);
 	wait_for(h, answered_none, "button menu to close on Escape");
+
+	/* A menu whose window goes while the menu maps: gtk-layer-shell 0.10.0
+	 * must not be left waiting for the popup's first configure. */
+	for (int round = 0; round < 30; round++) {
+		struct harness_window *c =
+			harness_window_create(h, 250, 180, "brief");
+		struct timespec gap = { 0, round * 1000000L };
+
+		polo_test_v1_key(h->test, KEY_LEFTALT,
+				 WL_KEYBOARD_KEY_STATE_PRESSED);
+		polo_test_v1_key(h->test, KEY_SPACE,
+				 WL_KEYBOARD_KEY_STATE_PRESSED);
+		polo_test_v1_key(h->test, KEY_SPACE,
+				 WL_KEYBOARD_KEY_STATE_RELEASED);
+		polo_test_v1_key(h->test, KEY_LEFTALT,
+				 WL_KEYBOARD_KEY_STATE_RELEASED);
+		harness_roundtrip(h);
+		nanosleep(&gap, NULL);
+		harness_window_destroy(c);
+		harness_roundtrip(h);
+	}
+	nanosleep(&ts, NULL);
+	harness_roundtrip(h);
+	h->n_shell_ui_requests = 0;
+	harness_click(h, harness_window_info(b)->x + 20,
+		      harness_window_info(b)->y + 20);
+	harness_key(h, KEY_LEFTALT, true);
+	harness_key(h, KEY_SPACE, true);
+	harness_key(h, KEY_SPACE, false);
+	harness_key(h, KEY_LEFTALT, false);
+	nanosleep(&ts, NULL);
+	harness_roundtrip(h);
+	h->n_shell_ui_requests = 0;
+	harness_key(h, KEY_ESC, true);
+	harness_key(h, KEY_ESC, false);
+	wait_for(h, answered_none,
+		 "a window menu after menus whose windows went");
 
 	harness_window_destroy(a);
 	harness_window_destroy(b);

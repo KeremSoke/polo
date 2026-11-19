@@ -93,6 +93,7 @@ namespace PoloShellUi {
         private GLib.Settings? keybindings = null;
         private string[] workspace_names = {};
         private Menu? current = null;
+        private Menu? mapping = null;
 
         public WindowMenu (Client client) {
             this.client = client;
@@ -288,11 +289,20 @@ namespace PoloShellUi {
             return gtk_menu;
         }
 
+        /* gtk-layer-shell 0.10.0 dispatches events while it waits for a popup's
+         * first configure, and never stops waiting if the popup is unmapped
+         * meanwhile; such a menu is popped down once it has mapped. */
+        private void close (Menu menu) {
+            if (menu != mapping) {
+                menu.menu.popdown ();
+            }
+            answer (menu, OP_NONE, 0);
+        }
+
         private void on_show (uint id, Gdk.Monitor? monitor, int x, int y, uint ops, uint insensitive,
                               uint active_workspace, uint n_workspaces, uint time) {
             if (current != null) {
-                current.menu.popdown ();
-                answer (current, OP_NONE, 0);
+                close (current);
             }
             var menu = new Menu () { id = id };
             current = menu;
@@ -346,8 +356,14 @@ namespace PoloShellUi {
                             trigger.key.window = host.get_window ();
                             trigger.key.time = time;
                             trigger.set_device (host.get_display ().get_default_seat ().get_keyboard ());
+                            mapping = menu;
                             menu.menu.popup_at_rect (host.get_window (), rect, Gdk.Gravity.NORTH_WEST,
                                                      Gdk.Gravity.NORTH_WEST, trigger);
+                            mapping = null;
+                            if (menu.answered) {
+                                menu.menu.popdown ();
+                                return GLib.Source.REMOVE;
+                            }
                             release_window (menu.menu.get_data<Gdk.Window> ("gtk-menu-transfer-window"));
                         }
                         return GLib.Source.REMOVE;
@@ -366,8 +382,7 @@ namespace PoloShellUi {
 
         private void on_hide (uint id) {
             if (current != null && current.id == id) {
-                current.menu.popdown ();
-                answer (current, OP_NONE, 0);
+                close (current);
             }
         }
     }
