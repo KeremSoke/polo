@@ -32,6 +32,12 @@ PoloShellUiClient *
 polo_shell_ui_client_new(GdkDisplay *display, GError **error);
 
 void
+polo_shell_ui_client_hold_events(PoloShellUiClient *client);
+
+void
+polo_shell_ui_client_release_events(PoloShellUiClient *client);
+
+void
 polo_shell_ui_client_switcher_select(PoloShellUiClient *client, guint id);
 
 void

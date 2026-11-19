@@ -26,6 +26,7 @@ struct _PoloShellUiClient {
 	struct wl_display *wl_display;
 	struct polo_shell_ui_v1 *shell_ui;
 	gboolean emitting;
+	guint holds;
 	GQueue held;
 	guint drain_id;
 };
@@ -85,6 +86,10 @@ drain(gpointer data)
 {
 	PoloShellUiClient *self = data;
 
+	if (self->holds) {
+		self->drain_id = 0;
+		return G_SOURCE_REMOVE;
+	}
 	if (!self->emitting)
 		deliver(self, g_queue_pop_head(&self->held));
 	if (!g_queue_is_empty(&self->held))
@@ -123,12 +128,27 @@ emit(PoloShellUiClient *self, guint signal_id, ...)
 		}
 	}
 	va_end(args);
-	if (!self->emitting && g_queue_is_empty(&self->held)) {
+	if (!self->emitting && !self->holds && g_queue_is_empty(&self->held)) {
 		deliver(self, event);
 		return;
 	}
 	g_queue_push_tail(&self->held, event);
-	if (!self->drain_id)
+	if (!self->drain_id && !self->holds)
+		self->drain_id = g_idle_add(drain, self);
+}
+
+void
+polo_shell_ui_client_hold_events(PoloShellUiClient *self)
+{
+	self->holds++;
+}
+
+void
+polo_shell_ui_client_release_events(PoloShellUiClient *self)
+{
+	g_return_if_fail(self->holds > 0);
+	if (--self->holds == 0 && !g_queue_is_empty(&self->held) &&
+	    !self->drain_id)
 		self->drain_id = g_idle_add(drain, self);
 }
 

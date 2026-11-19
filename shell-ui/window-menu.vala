@@ -357,8 +357,10 @@ namespace PoloShellUi {
                             trigger.key.time = time;
                             trigger.set_device (host.get_display ().get_default_seat ().get_keyboard ());
                             mapping = menu;
+                            client.hold_events ();
                             menu.menu.popup_at_rect (host.get_window (), rect, Gdk.Gravity.NORTH_WEST,
                                                      Gdk.Gravity.NORTH_WEST, trigger);
+                            client.release_events ();
                             mapping = null;
                             if (menu.answered) {
                                 menu.menu.popdown ();

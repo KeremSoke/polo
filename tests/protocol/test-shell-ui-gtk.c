@@ -210,17 +210,26 @@ main(int argc, char **argv)
 		 "a window menu after menus whose windows went");
 
 	/* Menus opened, escaped and orphaned at random among windows that
-	 * come and go: none outlives its window's focus. */
+	 * come and go, and dialogs shown meanwhile: none is left open, and
+	 * none outlives its window's focus. */
 	{
 		struct harness_window *ws[4] = { 0 };
 		struct timespec gap;
+		uint32_t base;
 
+		harness_resources(h);
+		base = h->resources.shell_ui_objects -
+			h->resources.shell_ui_outputs;
 		srand(7);
 		for (int round = 0; round < 400; round++) {
 			int k = rand() % 4;
 
 			switch (rand() % 6) {
 			case 5:
+				polo_test_v1_shell_ui_dialog(
+					h->test, 1 + rand() % 3, 2,
+					"{'dialog': <'logout'>, 'seconds': "
+					"<60>}");
 				break;
 			case 0:
 				if (!ws[k])
@@ -261,6 +270,25 @@ main(int argc, char **argv)
 		for (int k = 0; k < 4; k++)
 			if (ws[k])
 				harness_window_close(ws[k]);
+		for (uint32_t id = 1; id <= 3; id++)
+			polo_test_v1_shell_ui_dialog(h->test, id, 2, "[0]");
+		polo_test_v1_key(h->test, KEY_ESC,
+				 WL_KEYBOARD_KEY_STATE_PRESSED);
+		polo_test_v1_key(h->test, KEY_ESC,
+				 WL_KEYBOARD_KEY_STATE_RELEASED);
+		for (int i = 0; i < 30; i++) {
+			struct timespec t = { 0, 100 * 1000000L };
+			nanosleep(&t, NULL);
+			harness_roundtrip(h);
+		}
+		harness_resources(h);
+		CHECK(h->resources.shell_ui_objects -
+				      h->resources.shell_ui_outputs ==
+			      base,
+		      "menus left open: the shell UI has %u objects, %u before",
+		      h->resources.shell_ui_objects -
+			      h->resources.shell_ui_outputs,
+		      base);
 	}
 	harness_window_destroy(a);
 	harness_window_destroy(b);

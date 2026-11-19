@@ -24,6 +24,10 @@ namespace PoloShellUi {
         [CCode (cname = "polo_shell_ui_client_switcher_select")]
         public void switcher_select (uint id);
 
+        [CCode (cname = "polo_shell_ui_client_hold_events")]
+        public void hold_events ();
+        [CCode (cname = "polo_shell_ui_client_release_events")]
+        public void release_events ();
         [CCode (cname = "polo_shell_ui_client_menu_action")]
         public void menu_action (uint window_id, uint op, int workspace);
 
