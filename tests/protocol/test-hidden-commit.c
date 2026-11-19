@@ -5,7 +5,8 @@
  * Under the GL renderer, a window that commits a smaller buffer just before
  * it leaves an output, by a workspace switch or a move to the next monitor
  * and back, shows that buffer when it comes back, rather than having the
- * renderer read it with the old buffer's pitch.
+ * renderer read it with the old buffer's pitch; and a window that comes
+ * back to an output is drawn there, not left out of its damage.
  */
 
 #include <stdlib.h>
@@ -119,13 +120,13 @@ main(int argc, char **argv)
 		harness_wait_frame(h, w->surface);
 	}
 
-	for (int round = 0; round < 15; round++) {
+	for (int round = 0; round < 40; round++) {
 		int width = 300 + round % 7, height = 200 + round % 5;
 
 		replace_buffer(w, width, height, NEW_COLOUR);
 		monitor_keys(h, KEY_E);
 		wl_display_flush(h->display);
-		usleep(1000 * round);
+		usleep(1000 * (round % 25));
 		monitor_keys(h, KEY_W);
 		harness_roundtrip(h);
 		harness_wait_frame(h, w->surface);

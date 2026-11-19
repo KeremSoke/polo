@@ -1,0 +1,35 @@
+--- a/libweston/compositor.c
++++ b/libweston/compositor.c
+@@ -474,22 +474,24 @@
+ 	else
+ 		view->output_visibility_mask &= ~(1u << output->id);
+ 
++	if (plane_dirty) {
++		assert(pnode->plane_next);
++
++		pnode->plane = pnode->plane_next;
++		pnode->plane_next = NULL;
++	}
++
+ 	/* If our visible region was dirty, we should damage the entire
+ 	 * new visible region to ensure a redraw of our content.
+ 	 *
+ 	 * If we changed planes, we need full visible region damage
+-	 * on the new plane now that visibility is updated.
++	 * on the new plane now that visibility is updated. Checked after
++	 * the plane switch: a paint node back in the z-order list has no
++	 * plane until then, and would otherwise never be damaged.
+ 	 */
+ 	if (pnode->plane && (vis_dirty || plane_dirty))
+ 		pixman_region32_copy(&pnode->damage, &pnode->visible);
+ 
+-	if (plane_dirty) {
+-		assert(pnode->plane_next);
+-
+-		pnode->plane = pnode->plane_next;
+-		pnode->plane_next = NULL;
+-	}
+-
+ 	/* Check if we need a hole before we check direct-display, otherwise
+ 	 * we'll end up drawing an opaque placeholder over direct_display
+ 	 * paint nodes when we place them on underlays.
