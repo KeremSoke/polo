@@ -57,13 +57,23 @@ static const struct wl_registry_listener internal_registry_listener = {
 	internal_registry_remove,
 };
 
+int
+polo_backend_client_display_read(struct wl_display *display)
+{
+	if (wl_display_prepare_read(display) == 0 &&
+	    wl_display_read_events(display) < 0 &&
+	    wl_display_get_error(display) != 0)
+		return -1;
+	return wl_display_dispatch_pending(display);
+}
+
 static gboolean
 internal_dispatch(gint fd, GIOCondition condition, gpointer data)
 {
 	struct polo_internal_client *ic = data;
 
 	if ((condition & (G_IO_ERR | G_IO_HUP)) ||
-	    wl_display_dispatch(ic->display) < 0) {
+	    polo_backend_client_display_read(ic->display) < 0) {
 		ic->source = 0;
 		return G_SOURCE_REMOVE;
 	}

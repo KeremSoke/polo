@@ -810,6 +810,11 @@ polo_backend_layer_surface_from_surface(struct weston_surface *surface);
 void
 polo_backend_internal_client_init(PoloBackendServer *server);
 
+/* Reads and dispatches what a compositor-side client's socket already
+ * holds, without blocking: the server it waits on runs on this thread. */
+int
+polo_backend_client_display_read(struct wl_display *display);
+
 void
 polo_backend_internal_client_fini(PoloBackendServer *server);
 

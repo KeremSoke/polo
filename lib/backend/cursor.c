@@ -228,7 +228,7 @@ cursor_dispatch(gint fd, GIOCondition condition, gpointer data)
 {
 	struct polo_cursor *cursor = data;
 	if ((condition & (G_IO_ERR | G_IO_HUP)) ||
-	    wl_display_dispatch(cursor->display) < 0) {
+	    polo_backend_client_display_read(cursor->display) < 0) {
 		cursor->source = 0;
 		return G_SOURCE_REMOVE;
 	}
