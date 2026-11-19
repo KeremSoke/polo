@@ -26,6 +26,13 @@
 #define WAKEUPS_BUDGET 1.0
 #define CPU_BUDGET 1.0
 #define RSS_BUDGET_MB 120.0
+
+/* AddressSanitizer's shadow memory and quarantine more than double the RSS. */
+#if defined(__SANITIZE_ADDRESS__)
+#define SANITIZED 1
+#else
+#define SANITIZED 0
+#endif
 #define ALT_TAB_BUDGET_MS 50.0
 #define KEY_FRAME_BUDGET_MS (1000.0 / 60.0 + 7.0)
 
@@ -214,7 +221,7 @@ run_a(int argc, char **argv, FILE *out, int *missed)
 		fprintf(stderr, "over budget: idle CPU\n");
 		(*missed)++;
 	}
-	if (rss > RSS_BUDGET_MB) {
+	if (rss > RSS_BUDGET_MB && !SANITIZED) {
 		fprintf(stderr, "over budget: memory\n");
 		(*missed)++;
 	}
