@@ -174,6 +174,7 @@ namespace Polo.Shell {
             menu_id = next_id++;
             menu_window = window;
             window.unmanaged.connect (on_unmanaged);
+            model.focus_changed.connect (on_focus_changed);
             shell_ui.show_window_menu (menu_id, output != null ? desktop.backend_output (output) : null, x, y, ops,
                                        insensitive,
                                        window.workspace == -1 ? ON_ALL_WORKSPACES : (uint) window.workspace,
@@ -183,7 +184,15 @@ namespace Polo.Shell {
         private void forget () {
             if (menu_window != null) {
                 menu_window.unmanaged.disconnect (on_unmanaged);
+                model.focus_changed.disconnect (on_focus_changed);
                 menu_window = null;
+            }
+        }
+
+        /* Another window took the keyboard, so the menu's grab is gone. */
+        private void on_focus_changed () {
+            if (model.focused != null && model.focused != menu_window) {
+                on_unmanaged ();
             }
         }
 

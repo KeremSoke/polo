@@ -6,7 +6,8 @@
  * binds polo_shell_ui_v1, and answers the window menu and dialogs it does
  * not draw yet as dismissed. Alt-Tab shows its popup, with thumbnails;
  * Alt-Space opens the window menu, whose Minimize mnemonic and Escape work;
- * menus whose windows close while they map leave the next menu working.
+ * menus whose windows close while they map leave the next menu working,
+ * and none of many menus opened and closed at random stays open.
  */
 #include <linux/input-event-codes.h>
 #include <stdlib.h>
@@ -208,6 +209,59 @@ main(int argc, char **argv)
 	wait_for(h, answered_none,
 		 "a window menu after menus whose windows went");
 
+	/* Menus opened, escaped and orphaned at random among windows that
+	 * come and go: none outlives its window's focus. */
+	{
+		struct harness_window *ws[4] = { 0 };
+		struct timespec gap;
+
+		srand(7);
+		for (int round = 0; round < 400; round++) {
+			int k = rand() % 4;
+
+			switch (rand() % 6) {
+			case 5:
+				break;
+			case 0:
+				if (!ws[k])
+					ws[k] = harness_window_open(h, 200, 150,
+								    "x");
+				break;
+			case 1:
+				if (ws[k]) {
+					harness_window_close(ws[k]);
+					ws[k] = NULL;
+				}
+				break;
+			case 2:
+			case 3:
+				polo_test_v1_key(h->test, KEY_LEFTALT,
+						 WL_KEYBOARD_KEY_STATE_PRESSED);
+				polo_test_v1_key(h->test, KEY_SPACE,
+						 WL_KEYBOARD_KEY_STATE_PRESSED);
+				polo_test_v1_key(
+					h->test, KEY_SPACE,
+					WL_KEYBOARD_KEY_STATE_RELEASED);
+				polo_test_v1_key(
+					h->test, KEY_LEFTALT,
+					WL_KEYBOARD_KEY_STATE_RELEASED);
+				break;
+			default:
+				polo_test_v1_key(h->test, KEY_ESC,
+						 WL_KEYBOARD_KEY_STATE_PRESSED);
+				polo_test_v1_key(
+					h->test, KEY_ESC,
+					WL_KEYBOARD_KEY_STATE_RELEASED);
+				break;
+			}
+			harness_roundtrip(h);
+			gap = (struct timespec){ 0, (rand() % 30) * 1000000L };
+			nanosleep(&gap, NULL);
+		}
+		for (int k = 0; k < 4; k++)
+			if (ws[k])
+				harness_window_close(ws[k]);
+	}
 	harness_window_destroy(a);
 	harness_window_destroy(b);
 	return harness_stop(h);
