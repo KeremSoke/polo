@@ -1,0 +1,98 @@
+--- a/libweston/desktop/internal.h
++++ b/libweston/desktop/internal.h
+@@ -224,7 +224,7 @@
+ 				       struct weston_coord_surface offset, bool use_geometry);
+ void
+ weston_desktop_surface_unset_relative_to(struct weston_desktop_surface *surface);
+-void
++bool
+ weston_desktop_surface_popup_grab(struct weston_desktop_surface *popup,
+ 				  struct weston_desktop_surface *parent,
+ 				  struct weston_desktop_seat *seat,
+--- a/libweston/desktop/surface.c
++++ b/libweston/desktop/surface.c
+@@ -891,7 +891,7 @@
+ 		weston_desktop_view_destroy(view);
+ }
+ 
+-void
++bool
+ weston_desktop_surface_popup_grab(struct weston_desktop_surface *surface,
+ 				  struct weston_desktop_surface *parent,
+ 				  struct weston_desktop_seat *seat,
+@@ -899,10 +899,10 @@
+ {
+ 	struct wl_client *wl_client =
+ 		weston_desktop_client_get_client(surface->client);
+-	if (weston_desktop_seat_popup_grab_start(seat, parent, wl_client, serial))
+-		weston_desktop_seat_popup_grab_add_surface(seat, &surface->grab_link);
+-	else
+-		weston_desktop_surface_popup_dismiss(surface);
++	if (!weston_desktop_seat_popup_grab_start(seat, parent, wl_client, serial))
++		return false;
++	weston_desktop_seat_popup_grab_add_surface(seat, &surface->grab_link);
++	return true;
+ }
+ 
+ void
+--- a/libweston/desktop/xdg-shell-v6.c
++++ b/libweston/desktop/xdg-shell-v6.c
+@@ -865,9 +865,10 @@
+ 	}
+ 
+ 	popup->seat = seat;
+-	weston_desktop_surface_popup_grab(popup->base.desktop_surface,
+-					  popup->parent->desktop_surface,
+-					  popup->seat, serial);
++	if (!weston_desktop_surface_popup_grab(popup->base.desktop_surface,
++					       popup->parent->desktop_surface,
++					       popup->seat, serial))
++		weston_desktop_surface_popup_dismiss(popup->base.desktop_surface);
+ }
+ 
+ static void
+--- a/libweston/desktop/xdg-shell.c
++++ b/libweston/desktop/xdg-shell.c
+@@ -141,6 +141,7 @@
+ 
+ 	bool pending_reposition;
+ 	uint32_t pending_reposition_token;
++	bool dismiss_after_configure;
+ };
+ 
+ #define weston_desktop_surface_role_biggest_size \
+@@ -1392,10 +1393,13 @@
+ 	}
+ 
+ 	popup->seat = seat;
+-	weston_desktop_surface_popup_grab(popup->base.desktop_surface,
+-					  popup->parent != NULL ?
+-					  popup->parent->desktop_surface : NULL,
+-					  popup->seat, serial);
++	/* A popup dismissed before its first configure leaves clients such
++	 * as gtk-layer-shell 0.10.0 waiting for that configure forever. */
++	if (!weston_desktop_surface_popup_grab(popup->base.desktop_surface,
++					       popup->parent != NULL ?
++					       popup->parent->desktop_surface : NULL,
++					       popup->seat, serial))
++		popup->dismiss_after_configure = true;
+ }
+ 
+ static bool
+@@ -1631,6 +1635,16 @@
+ 	}
+ 
+ 	xdg_surface_send_configure(surface->resource, configure->serial);
++
++	if (surface->role == WESTON_DESKTOP_XDG_SURFACE_ROLE_POPUP) {
++		struct weston_desktop_xdg_popup *popup =
++			(struct weston_desktop_xdg_popup *) surface;
++
++		if (popup->dismiss_after_configure) {
++			popup->dismiss_after_configure = false;
++			weston_desktop_surface_popup_dismiss(surface->desktop_surface);
++		}
++	}
+ }
+ 
+ static bool

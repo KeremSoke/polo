@@ -129,6 +129,7 @@ struct popup {
 	struct wl_buffer *buffer;
 	int x, y, width, height; /* from xdg_popup.configure */
 	bool configured;
+	bool done, done_unconfigured;
 };
 
 static int shadow;
@@ -182,6 +183,10 @@ popup_configure(void *data, struct xdg_popup *xdg_popup, int32_t x, int32_t y,
 static void
 popup_done(void *data, struct xdg_popup *xdg_popup)
 {
+	struct popup *p = data;
+
+	p->done = true;
+	p->done_unconfigured = !p->configured;
 }
 
 static void
@@ -409,6 +414,39 @@ test_menu_returns_focus(struct harness *h)
 	panel_destroy(panel);
 }
 
+/* A menu whose grab comes too late is dismissed only after its first
+ * configure: gtk-layer-shell 0.10.0 otherwise waits for that configure
+ * forever. */
+static void
+test_late_grab_configures_first(struct harness *h)
+{
+	struct panel *panel = panel_create(
+		h, ANCHOR_TOP | ANCHOR_LEFT | ANCHOR_RIGHT, 0, 30, 30);
+	struct popup *p;
+	uint32_t stale;
+
+	harness_move_pointer(h, 20, 10);
+	harness_button(h, BTN_LEFT, true);
+	stale = h->last_button_serial;
+	harness_button(h, BTN_LEFT, false);
+	harness_button(h, BTN_LEFT, true);
+	harness_button(h, BTN_LEFT, false);
+
+	grab_serial = stale;
+	p = popup_create(h, NULL, panel, 10, 0, 50, 30,
+			 XDG_POSITIONER_ANCHOR_BOTTOM_LEFT,
+			 XDG_POSITIONER_GRAVITY_BOTTOM_RIGHT, FLIP_Y, 200, 100);
+	grab_serial = 0;
+	for (int i = 0; i < 4 && !p->done; i++)
+		harness_roundtrip(h);
+	CHECK(p->done, "a menu with a stale grab serial was not dismissed");
+	CHECK(!p->done_unconfigured,
+	      "the menu was dismissed before its first configure");
+
+	popup_destroy(p);
+	panel_destroy(panel);
+}
+
 /* A tooltip centred over a button at the left edge slides right onto the
  * output, as one at the right edge slides left; a popup sticking out above
  * the top slides down. */
@@ -506,6 +544,7 @@ main(int argc, char **argv)
 	test_window_menu_work_area(h);
 	test_scale(h);
 	test_menu_returns_focus(h);
+	test_late_grab_configures_first(h);
 	test_desktop_menu_above_windows(h);
 	test_panel_tooltip_shadow(h);
 	test_slide_off_left_and_top(h);
