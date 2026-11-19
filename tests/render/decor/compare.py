@@ -12,7 +12,8 @@ layouts and compares the frame pixel by pixel: the client area and the
 corners Marco's shape removes are left out. The references come from Marco
 without its compositor, where what a theme leaves undrawn is black, so Polo's
 desktop is black here. POLO_TEST_CAPTURE_DIR keeps Polo's frames and the
-differences. Exits 77 without Xwayland, python3-xlib or Pillow.
+differences, and POLO_DECOR_THEMES (comma-separated) limits the themes.
+Exits 77 without Xwayland, python3-xlib or Pillow.
 """
 
 import os
@@ -50,6 +51,7 @@ def run_theme(theme, name, layout, states, polo, polo_input, shell_ui, keep, con
     env.pop("XAUTHORITY", None)
     env["GSETTINGS_BACKEND"] = "keyfile"
     env["XDG_CONFIG_HOME"] = config
+    env["POLO_TEST_CONFIG_HOME"] = config
     env["GTK_THEME"] = theme
     env["POLO_SHELL_UI"] = shell_ui
     env["POLO_TEST_PREFS"] = (f"general/theme='{theme}';general/titlebar-font='Sans Bold 10';"
@@ -132,6 +134,8 @@ def main():
     keep = pathlib.Path(keep) if keep else None
     themes = sorted({p.name.rsplit("-", 1)[0].split("@")[0]
                      for p in (HERE / "reference").glob("*.png")})
+    if os.environ.get("POLO_DECOR_THEMES"):
+        themes = [t for t in themes if t in os.environ["POLO_DECOR_THEMES"].split(",")]
     failures = []
     with tempfile.TemporaryDirectory(prefix="polo-decor-") as config:
         keyfile = pathlib.Path(config) / "glib-2.0" / "settings" / "keyfile"
