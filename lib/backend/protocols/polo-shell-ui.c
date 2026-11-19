@@ -39,6 +39,7 @@ struct _PoloBackendShellUi {
 	struct wl_protocol_logger *logger;
 	uint32_t input_serial;
 	gboolean menu_open;
+	uint32_t menu_id;
 	struct wl_listener resource_created;
 	struct wl_event_source *restore;
 	uint32_t saved_serial;
@@ -83,7 +84,8 @@ handle_menu_action(struct wl_client *client, struct wl_resource *resource,
 {
 	PoloBackendShellUi *self = wl_resource_get_user_data(resource);
 
-	self->menu_open = FALSE;
+	if (window_id == self->menu_id)
+		self->menu_open = FALSE;
 	g_signal_emit(self, signals[SIGNAL_MENU_ACTION], 0, window_id, op,
 		      workspace);
 }
@@ -748,6 +750,7 @@ polo_backend_shell_ui_show_window_menu(PoloBackendShellUi *self,
 	if (!self->resource)
 		return;
 	self->menu_open = TRUE;
+	self->menu_id = window_id;
 	polo_shell_ui_v1_send_show_window_menu(
 		self->resource, window_id, output_resource(self, output), x, y,
 		ops, insensitive, active_workspace, n_workspaces,
