@@ -27,6 +27,8 @@ struct _PoloBackendToplevel {
 	GBytes *icon_pixels;
 	int icon_size;
 	gboolean server_decorated;
+	PoloBackendPixelBuffer *frame_edges[POLO_BACKEND_FRAME_EDGES];
+	int frame_borders[4];
 };
 
 enum {
@@ -566,6 +568,52 @@ polo_backend_toplevel_get_server_decorated(PoloBackendToplevel *toplevel)
 	return toplevel->server_decorated;
 }
 
+void
+polo_backend_toplevel_set_frame(PoloBackendToplevel *toplevel,
+				PoloBackendPixelBuffer *top,
+				PoloBackendPixelBuffer *bottom,
+				PoloBackendPixelBuffer *left,
+				PoloBackendPixelBuffer *right, int border_left,
+				int border_top, int border_right,
+				int border_bottom)
+{
+	PoloBackendPixelBuffer *edges[POLO_BACKEND_FRAME_EDGES] = { top, bottom,
+								    left,
+								    right };
+
+	g_return_if_fail(POLO_BACKEND_IS_TOPLEVEL(toplevel));
+	for (int i = 0; i < POLO_BACKEND_FRAME_EDGES; i++)
+		g_set_weak_pointer(&toplevel->frame_edges[i], edges[i]);
+	toplevel->frame_borders[0] = MAX(border_left, 0);
+	toplevel->frame_borders[1] = MAX(border_top, 0);
+	toplevel->frame_borders[2] = MAX(border_right, 0);
+	toplevel->frame_borders[3] = MAX(border_bottom, 0);
+}
+
+gboolean
+polo_backend_toplevel_get_frame(
+	PoloBackendToplevel *toplevel,
+	struct weston_view *edges[POLO_BACKEND_FRAME_EDGES], int borders[4])
+{
+	gboolean framed = FALSE;
+
+	g_return_val_if_fail(POLO_BACKEND_IS_TOPLEVEL(toplevel), FALSE);
+	for (int i = 0; i < 4; i++) {
+		borders[i] = toplevel->frame_borders[i];
+		framed = framed || borders[i] > 0;
+	}
+	for (int i = 0; i < POLO_BACKEND_FRAME_EDGES; i++) {
+		PoloBackendView *view = toplevel->frame_edges[i]
+			? polo_backend_pixel_buffer_get_view(
+				  toplevel->frame_edges[i])
+			: NULL;
+
+		edges[i] =
+			view ? polo_backend_view_get_weston_view(view) : NULL;
+	}
+	return framed;
+}
+
 gboolean
 polo_backend_toplevel_has_content(PoloBackendToplevel *toplevel)
 {
@@ -782,6 +830,8 @@ polo_backend_toplevel_finalize(GObject *object)
 		g_clear_pointer(&self->subsurface_views, g_ptr_array_unref);
 	}
 
+	for (int i = 0; i < POLO_BACKEND_FRAME_EDGES; i++)
+		g_clear_weak_pointer(&self->frame_edges[i]);
 	g_clear_object(&self->view);
 	g_free(self->icon_name);
 	g_clear_pointer(&self->icon_pixels, g_bytes_unref);

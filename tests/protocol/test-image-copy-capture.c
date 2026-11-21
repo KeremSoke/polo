@@ -568,6 +568,78 @@ main(int argc, char **argv)
 	CHECK(wait_for(c.display, &top.stopped, 3000),
 	      "the toplevel session did not stop");
 
+	struct harness_window *fw =
+		harness_window_create_decorated(h, 160, 120, "framed");
+	const struct harness_window_info *finfo = harness_window_info(fw);
+	struct session framed;
+	struct shm_buffer decorated;
+
+	redraw(h, fw, FIRST_COLOUR);
+	for (int i = 0; i < 10; i++)
+		harness_wait_repaint(h);
+	wl_display_roundtrip(c.display);
+	struct ext_foreign_toplevel_handle_v1 *framed_handle =
+		find_handle(&c, "framed");
+
+	CHECK(framed_handle, "the decorated window is not listed");
+	struct ext_image_capture_source_v1 *framed_source =
+		ext_foreign_toplevel_image_capture_source_manager_v1_create_source(
+			c.toplevel_sources, framed_handle);
+
+	session_open(&c, &framed, framed_source);
+	CHECK(framed.done && !framed.stopped && framed.width > fw->width &&
+		      framed.height > fw->height,
+	      "decorated constraints %dx%d for a %dx%d window", framed.width,
+	      framed.height, fw->width, fw->height);
+	decorated =
+		buffer_new(c.shm, framed.width, framed.height, framed.format);
+	frame_start(&f, &framed, &decorated);
+	CHECK(wait_for(c.display, &f.ready, 3000) && !f.failed,
+	      "the decorated frame did not come");
+	ext_image_copy_capture_frame_v1_destroy(f.proxy);
+
+	int bx = -1, by = -1;
+
+	for (int i = 0; i < framed.width * framed.height && bx < 0; i++) {
+		if (decorated.pixels[i] == FIRST_COLOUR) {
+			bx = i % framed.width;
+			by = i / framed.width;
+		}
+	}
+	CHECK(bx >= 0 && by > 0 && bx + fw->width <= framed.width &&
+		      by + fw->height <= framed.height &&
+		      decorated.pixels[(by + fw->height - 1) * framed.width +
+				       bx + fw->width - 1] == FIRST_COLOUR,
+	      "the window is not inside its frame (at %d,%d)", bx, by);
+
+	frame_start(&f, &out, &screen);
+	CHECK(wait_for(c.display, &f.ready, 3000) && !f.failed,
+	      "no output frame of the decorated window");
+	ext_image_copy_capture_frame_v1_destroy(f.proxy);
+	int opaque = 0, wrong = 0, ox = finfo->x - bx, oy = finfo->y - by;
+
+	for (int y = 0; y < framed.height; y++) {
+		for (int x = 0; x < framed.width; x++) {
+			uint32_t pixel = decorated.pixels[y * framed.width + x];
+
+			if (pixel >> 24 != 0xff || ox + x < 0 || oy + y < 0 ||
+			    ox + x >= out.width || oy + y >= out.height)
+				continue;
+			opaque++;
+			wrong += (pixel & 0xffffff) !=
+				(screen.pixels[(oy + y) * out.width + ox + x] &
+				 0xffffff);
+		}
+	}
+	CHECK(opaque > fw->width * fw->height && wrong == 0,
+	      "%d of %d frame pixels differ from the screen", wrong, opaque);
+	ext_image_copy_capture_session_v1_destroy(framed.proxy);
+	ext_image_capture_source_v1_destroy(framed_source);
+	munmap(decorated.pixels, decorated.size);
+	wl_buffer_destroy(decorated.buffer);
+	harness_window_destroy(fw);
+	harness_roundtrip(h);
+
 	memset(&f, 0, sizeof f);
 	f.proxy = ext_image_copy_capture_session_v1_create_frame(out.proxy);
 	ext_image_copy_capture_frame_v1_capture(f.proxy);

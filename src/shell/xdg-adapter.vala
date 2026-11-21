@@ -311,6 +311,7 @@ namespace Polo.Shell {
         }
 
         private void drop_decor () {
+            toplevel.set_frame (null, null, null, null, 0, 0, 0, 0);
             if (decor != null) {
                 decor.clear ();
                 decor.ready.disconnect (desktop.frames_changed);
@@ -359,14 +360,20 @@ namespace Polo.Shell {
             }
             int x, y;
             frame_origin (out x, out y);
+            var edges = new Backend.PixelBuffer?[Decor.Frame.Edge.COUNT];
             for (int i = 0; i < Decor.Frame.Edge.COUNT; i++) {
                 Marco.Rect rect;
                 unowned Backend.PixelBuffer? edge = decor.get_edge ((Decor.Frame.Edge) i, out rect);
+                edges[i] = edge;
                 unowned Backend.View? view = edge != null ? edge.get_view () : null;
                 if (view != null) {
                     view.set_position (x + rect.x, y + rect.y);
                 }
             }
+            toplevel.set_frame (edges[Decor.Frame.Edge.TOP], edges[Decor.Frame.Edge.BOTTOM],
+                                edges[Decor.Frame.Edge.LEFT], edges[Decor.Frame.Edge.RIGHT],
+                                window.borders.left, window.borders.top, window.borders.right,
+                                window.borders.bottom);
             if (shadow == null) {
                 return;
             }

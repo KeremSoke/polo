@@ -865,6 +865,11 @@ namespace Polo {
             [CCode (cname = "polo_backend_toplevel_get_max_size")]
             public void get_max_size (out int width, out int height);
 
+            /* The frame Polo draws, for window captures. */
+            [CCode (cname = "polo_backend_toplevel_set_frame")]
+            public void set_frame (PixelBuffer? top, PixelBuffer? bottom, PixelBuffer? left, PixelBuffer? right,
+                                   int border_left, int border_top, int border_right, int border_bottom);
+
             [CCode (cname = "polo_backend_toplevel_has_content")]
             public bool has_content ();
 

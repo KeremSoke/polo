@@ -272,6 +272,11 @@ polo_backend_desktop_fini(PoloBackendServer *server);
 PoloBackendToplevel *
 polo_backend_toplevel_from_surface(struct weston_surface *surface);
 
+gboolean
+polo_backend_toplevel_get_frame(
+	PoloBackendToplevel *toplevel,
+	struct weston_view *edges[POLO_BACKEND_FRAME_EDGES], int borders[4]);
+
 /* Records the decoration mode agreed with the client. */
 void
 polo_backend_toplevel_set_server_decorated(struct weston_surface *surface,

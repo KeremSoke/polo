@@ -6,10 +6,12 @@
  * sources (ext-image-capture-source-v1), for xdg-desktop-portal-wlr and
  * grim. Outputs are read back by the renderer on their next repaint
  * (libweston's output capture); toplevels and cursors are copied from the
- * surface's buffer. Only shm buffers are offered. Who may bind is decided
+ * surface's buffer, a toplevel inside the frame Polo draws for it. Only shm
+ * buffers are offered. Who may bind is decided
  * by the global filter.
  */
 
+#include <math.h>
 #include <string.h>
 #include <time.h>
 
@@ -228,6 +230,111 @@ copy_surface(struct weston_surface *surface, struct wl_shm_buffer *dst,
 	uint8_t *out;
 	bool ok = read_surface(surface, pixels, width, height);
 
+	if (ok) {
+		wl_shm_buffer_begin_access(dst);
+		out = wl_shm_buffer_get_data(dst);
+		for (int y = 0; y < height; y++)
+			memcpy(out + (size_t)y * stride,
+			       pixels + (size_t)y * width, (size_t)width * 4);
+		wl_shm_buffer_end_access(dst);
+	}
+	g_free(pixels);
+	return ok;
+}
+
+struct framed_toplevel {
+	struct weston_view *client;
+	struct weston_view *edges[POLO_BACKEND_FRAME_EDGES];
+	double x, y;
+	int width, height, scale;
+};
+
+static bool
+framed_toplevel(struct weston_surface *surface, struct framed_toplevel *framed)
+{
+	PoloBackendToplevel *toplevel =
+		surface ? polo_backend_toplevel_from_surface(surface) : NULL;
+	PoloBackendView *handle;
+	struct weston_coord_global pos;
+	int borders[4], gx, gy, gw, gh;
+
+	if (!toplevel ||
+	    !polo_backend_toplevel_get_frame(toplevel, framed->edges, borders))
+		return false;
+	handle = polo_backend_toplevel_get_view(toplevel);
+	framed->client =
+		handle ? polo_backend_view_get_weston_view(handle) : NULL;
+	polo_backend_toplevel_get_window_geometry(toplevel, &gx, &gy, &gw, &gh);
+	if (!framed->client || gw <= 0 || gh <= 0)
+		return false;
+	pos = weston_view_get_pos_offset_global(framed->client);
+	framed->scale = MAX(surface->buffer_viewport.buffer.scale, 1);
+	framed->x = pos.c.x + gx - borders[0];
+	framed->y = pos.c.y + gy - borders[1];
+	framed->width = gw + borders[0] + borders[2];
+	framed->height = gh + borders[1] + borders[3];
+	return true;
+}
+
+static bool
+blit_view(pixman_image_t *dst, struct weston_view *view,
+	  const struct framed_toplevel *framed)
+{
+	struct weston_surface *surface = view->surface;
+	struct weston_coord_global pos =
+		weston_view_get_pos_offset_global(view);
+	int scale = MAX(surface->buffer_viewport.buffer.scale, 1);
+	pixman_image_t *src;
+	uint32_t *pixels;
+	int width, height;
+	bool ok;
+
+	weston_surface_get_content_size(surface, &width, &height);
+	if (width <= 0 || height <= 0 || !surface->buffer_ref.buffer)
+		return true;
+	pixels = g_new(uint32_t, (size_t)width *height);
+	ok = read_surface(surface, pixels, width, height);
+	if (ok) {
+		src = pixman_image_create_bits(PIXMAN_a8r8g8b8, width, height,
+					       pixels, width * 4);
+		if (scale != framed->scale) {
+			pixman_transform_t transform;
+			pixman_fixed_t ratio = pixman_double_to_fixed(
+				(double)scale / framed->scale);
+
+			pixman_transform_init_scale(&transform, ratio, ratio);
+			pixman_image_set_transform(src, &transform);
+			pixman_image_set_filter(src, PIXMAN_FILTER_BILINEAR,
+						NULL, 0);
+		}
+		pixman_image_composite32(
+			PIXMAN_OP_OVER, src, NULL, dst, 0, 0, 0, 0,
+			(int)lround((pos.c.x - framed->x) * framed->scale),
+			(int)lround((pos.c.y - framed->y) * framed->scale),
+			width * framed->scale / scale,
+			height * framed->scale / scale);
+		pixman_image_unref(src);
+	}
+	g_free(pixels);
+	return ok;
+}
+
+static bool
+copy_framed(const struct framed_toplevel *framed, struct wl_shm_buffer *dst,
+	    int width, int height)
+{
+	uint32_t *pixels = g_new0(uint32_t, (size_t)width *height);
+	pixman_image_t *image = pixman_image_create_bits(
+		PIXMAN_a8r8g8b8, width, height, pixels, width * 4);
+	int32_t stride = wl_shm_buffer_get_stride(dst);
+	uint8_t *out;
+	bool ok = true;
+
+	for (int i = 0; i < POLO_BACKEND_FRAME_EDGES; i++)
+		if (framed->edges[i])
+			ok = blit_view(image, framed->edges[i], framed) && ok;
+	ok = blit_view(image, framed->client, framed) && ok;
+	pixman_image_unref(image);
 	if (ok) {
 		wl_shm_buffer_begin_access(dst);
 		out = wl_shm_buffer_get_data(dst);
@@ -560,10 +667,16 @@ session_surface_size(struct session *session, int *width, int *height)
 	struct weston_surface *surface = session->kind == SESSION_CURSOR
 		? session->sprite.surface
 		: session->target.surface.surface;
+	struct framed_toplevel framed;
 
 	*width = *height = 0;
-	if (surface)
+	if (session->kind == SESSION_SURFACE &&
+	    framed_toplevel(surface, &framed)) {
+		*width = framed.width * framed.scale;
+		*height = framed.height * framed.scale;
+	} else if (surface) {
 		weston_surface_get_content_size(surface, width, height);
+	}
 	if (session->kind == SESSION_CURSOR && (*width <= 0 || *height <= 0))
 		*width = *height = 1;
 }
@@ -571,25 +684,33 @@ session_surface_size(struct session *session, int *width, int *height)
 static void
 session_surface_kick(struct session *session);
 
+static bool
+session_surface_resized(struct session *session)
+{
+	int width, height;
+
+	session_surface_size(session, &width, &height);
+	if (width <= 0 || height <= 0 ||
+	    (width == session->width && height == session->height))
+		return false;
+	session->width = width;
+	session->height = height;
+	session->full_damage = true;
+	g_clear_pointer(&session->idle, wl_event_source_remove);
+	if (session->frame && session->frame->captured)
+		frame_finish_failed(
+			session->frame,
+			EXT_IMAGE_COPY_CAPTURE_FRAME_V1_FAILURE_REASON_BUFFER_CONSTRAINTS);
+	session_send_constraints(session);
+	return true;
+}
+
 static void
 session_surface_committed(struct wl_listener *listener, void *data)
 {
 	struct session *session = wl_container_of(listener, session, commit);
-	int width, height;
 
-	session_surface_size(session, &width, &height);
-	if (width > 0 && height > 0 &&
-	    (width != session->width || height != session->height)) {
-		session->width = width;
-		session->height = height;
-		session->full_damage = true;
-		g_clear_pointer(&session->idle, wl_event_source_remove);
-		if (session->frame && session->frame->captured)
-			frame_finish_failed(
-				session->frame,
-				EXT_IMAGE_COPY_CAPTURE_FRAME_V1_FAILURE_REASON_BUFFER_CONSTRAINTS);
-		session_send_constraints(session);
-	}
+	session_surface_resized(session);
 	session->dirty = true;
 	session_surface_kick(session);
 }
@@ -637,11 +758,15 @@ session_surface_copy(void *data)
 	struct frame *frame = session->frame;
 	struct weston_surface *surface;
 	struct wl_shm_buffer *shm;
+	struct framed_toplevel framed;
 	pixman_region32_t damage;
 	bool ok = true;
 
 	session->idle = NULL;
 	if (!frame || frame->finished)
+		return;
+	if (session->kind == SESSION_SURFACE &&
+	    session_surface_resized(session))
 		return;
 	shm = frame->buffer.resource ? wl_shm_buffer_get(frame->buffer.resource)
 				     : NULL;
@@ -656,7 +781,10 @@ session_surface_copy(void *data)
 	surface = session->kind == SESSION_CURSOR
 		? session->sprite.surface
 		: session->target.surface.surface;
-	if (surface && surface->buffer_ref.buffer)
+	if (session->kind == SESSION_SURFACE &&
+	    framed_toplevel(surface, &framed))
+		ok = copy_framed(&framed, shm, session->width, session->height);
+	else if (surface && surface->buffer_ref.buffer)
 		ok = copy_surface(surface, shm, session->width,
 				  session->height);
 	else

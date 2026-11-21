@@ -972,6 +972,17 @@ polo_backend_toplevel_get_max_size(PoloBackendToplevel *toplevel,
 gboolean
 polo_backend_toplevel_get_server_decorated(PoloBackendToplevel *toplevel);
 
+#define POLO_BACKEND_FRAME_EDGES 4
+
+void
+polo_backend_toplevel_set_frame(PoloBackendToplevel *toplevel,
+				PoloBackendPixelBuffer *top,
+				PoloBackendPixelBuffer *bottom,
+				PoloBackendPixelBuffer *left,
+				PoloBackendPixelBuffer *right, int border_left,
+				int border_top, int border_right,
+				int border_bottom);
+
 /* Whether the surface has a buffer and can be shown. */
 gboolean
 polo_backend_toplevel_has_content(PoloBackendToplevel *toplevel);
