@@ -217,6 +217,11 @@ main(int argc, char **argv)
 		struct timespec gap;
 		uint32_t base;
 
+		for (int i = 0; i < 30; i++) {
+			struct timespec t = { 0, 100 * 1000000L };
+			nanosleep(&t, NULL);
+			harness_roundtrip(h);
+		}
 		harness_resources(h);
 		base = h->resources.shell_ui_objects -
 			h->resources.shell_ui_outputs;
