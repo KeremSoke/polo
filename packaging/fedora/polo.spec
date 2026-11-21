@@ -68,9 +68,7 @@ Requires:       xdg-desktop-portal-wlr
 Requires:       xdg-desktop-portal-gtk
 Requires:       dconf
 Recommends:     mate-screensaver
-Recommends:     grim
-Recommends:     slurp
-Recommends:     wl-clipboard
+Recommends:     mate-utils
 
 Provides:       bundled(libweston) = %{weston_version}
 
@@ -111,7 +109,6 @@ dconf update &>/dev/null || :
 %doc README.md
 %{_bindir}/polo
 %{_bindir}/polo-wayland.sh
-%{_bindir}/polo-screenshot
 %{_libexecdir}/polo-shell-ui
 %{_libexecdir}/polo-share-chooser
 %dir %{_libdir}/polo

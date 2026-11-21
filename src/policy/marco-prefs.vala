@@ -232,6 +232,7 @@ namespace Polo {
             "global-keybindings/run-command-window-screenshot",
             "global-keybindings/run-command-terminal",
             "global-keybindings/rename-workspace",
+            "global-keybindings/run-command-area-screenshot",
             "window-keybindings/activate-window-menu",
             "window-keybindings/toggle-fullscreen",
             "window-keybindings/toggle-maximized",
@@ -298,6 +299,7 @@ namespace Polo {
             "keybinding-commands/command-12",
             "keybinding-commands/command-screenshot",
             "keybinding-commands/command-window-screenshot",
+            "keybinding-commands/command-area-screenshot",
         };
 
         /* GVariant text of each default, in KEYS order. */
@@ -423,6 +425,7 @@ namespace Polo {
             "'<Alt>Print'",
             "'disabled'",
             "'disabled'",
+            "'<Shift>Print'",
             "'<Alt>space'",
             "'disabled'",
             "'<Alt>F10'",
@@ -489,6 +492,7 @@ namespace Polo {
             "' '",
             "'mate-screenshot'",
             "'mate-screenshot --window'",
+            "'mate-screenshot --area'",
         };
 
         /* GVariant type of each key; enums are stored as their nick ("s"). */
@@ -528,6 +532,8 @@ namespace Polo {
             "i",
             "b",
             "b",
+            "s",
+            "s",
             "s",
             "s",
             "s",

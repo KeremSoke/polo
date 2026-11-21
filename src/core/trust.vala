@@ -55,14 +55,14 @@ namespace Polo {
             "/usr/libexec/mate-settings-daemon",
             "/usr/local/libexec/mate-settings-daemon",
             "/usr/bin/caja",
-            "/usr/local/bin/caja"
+            "/usr/local/bin/caja",
+            "/usr/bin/mate-screenshot",
+            "/usr/local/bin/mate-screenshot"
         };
 
         public bool deny_by_default { get; set; default = true; }
 
         public string[] trusted_executables { get; set; }
-
-        private int[] helpers = {};
 
         /* The only client that may see polo_shell_ui_v1. */
         public Backend.Client? shell_ui_client { get; set; default = null; }
@@ -83,27 +83,8 @@ namespace Polo {
             return privileged.contains (interface_name);
         }
 
-        public void add_helper (int pid) {
-            helpers += pid;
-        }
-
-        public void remove_helper (int pid) {
-            int[] kept = {};
-            foreach (int helper in helpers) {
-                if (helper != pid) {
-                    kept += helper;
-                }
-            }
-            helpers = kept;
-        }
-
         private bool is_vouched_for (Backend.Client client) {
-            int pid = client.get_pid ();
-            if (Policy.TrustRules.executable_trusted (client.get_executable (), trusted_executables)) {
-                return true;
-            }
-            return pid > 1 && Policy.TrustRules.has_ancestor (pid, helpers) &&
-                   Policy.TrustRules.root_owned_file (client.get_executable ());
+            return Policy.TrustRules.executable_trusted (client.get_executable (), trusted_executables);
         }
 
         public bool filter (Backend.Client client, string interface_name) {

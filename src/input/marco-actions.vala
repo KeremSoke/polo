@@ -43,6 +43,7 @@ namespace Polo.Input {
             bindings.register ("switch-to-workspace-prev", handle_switch_to_workspace);
             bindings.register ("run-command-screenshot", handle_run_command);
             bindings.register ("run-command-window-screenshot", handle_run_command);
+            bindings.register ("run-command-area-screenshot", handle_run_command);
             bindings.register ("run-command-terminal", handle_run_terminal);
             bindings.register ("panel-run-dialog", (binding, seat, event) => {
                 launch ("mate-panel --run-dialog");
@@ -148,7 +149,7 @@ namespace Polo.Input {
                 show_error (marco ("No command %d has been defined.\n").printf (which));
                 return;
             }
-            run (Policy.Screenshot.command_for (value.get_string (), model.focused));
+            run (value.get_string ());
         }
 
         private void handle_run_terminal (Binding binding, Backend.Seat seat, Backend.KeyEvent event) {

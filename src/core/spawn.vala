@@ -36,21 +36,7 @@ namespace Polo {
                                        string[]? env = null)
                 throws GLib.Error {
             unowned Backend.Client? client;
-            var process = start (argv, SpawnFlags.TRUSTED in flags, out client, cwd, SpawnFlags.X11 in flags, env);
-            if (trust != null && argv.length > 0 && GLib.Path.get_basename (argv[0]) == Policy.Screenshot.WRAPPER) {
-                vouch_for_helper.begin (process);
-            }
-            return process;
-        }
-
-        private async void vouch_for_helper (GLib.Subprocess process) {
-            int pid = int.parse (process.get_identifier () ?? "-1");
-            trust.add_helper (pid);
-            try {
-                yield process.wait_async ();
-            } catch (GLib.Error e) {
-            }
-            trust.remove_helper (pid);
+            return start (argv, SpawnFlags.TRUSTED in flags, out client, cwd, SpawnFlags.X11 in flags, env);
         }
 
         /* client: the trusted socket's server end, until its destroyed signal. */

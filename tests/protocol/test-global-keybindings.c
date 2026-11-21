@@ -103,7 +103,7 @@ main(int argc, char **argv)
 	CHECK(mkdtemp(directory) != NULL, "mkdtemp: %s", strerror(errno));
 	snprintf(log_path, sizeof log_path, "%s/actions", directory);
 	make_recorder(directory, "polo-action-recorder");
-	make_recorder(directory, "polo-screenshot");
+	make_recorder(directory, "mate-screenshot");
 	make_recorder(directory, "mate-panel");
 	make_recorder(directory, "mate-terminal");
 	make_recorder(directory, "zenity");
@@ -118,6 +118,8 @@ main(int argc, char **argv)
 	       "global-keybindings/run-command-screenshot='<Control><Shift>s';"
 	       "global-keybindings/"
 	       "run-command-window-screenshot='<Control><Shift>w';"
+	       "global-keybindings/"
+	       "run-command-area-screenshot='<Control><Shift>a';"
 	       "global-keybindings/run-command-terminal='<Control><Shift>t';"
 	       "global-keybindings/panel-run-dialog='<Control><Shift>r';"
 	       "keybinding-commands/command-1='polo-action-recorder command-1 "
@@ -138,10 +140,12 @@ main(int argc, char **argv)
 	CHECK(tap(h, KEY_W) == 0,
 	      "window screenshot command reached the client");
 	wait_for_lines(log_path, 4);
-	CHECK(tap(h, KEY_R) == 0, "panel run-dialog reached the client");
+	CHECK(tap(h, KEY_A) == 0, "area screenshot command reached the client");
 	wait_for_lines(log_path, 5);
-	CHECK(tap(h, KEY_T) == 0, "terminal command reached the client");
+	CHECK(tap(h, KEY_R) == 0, "panel run-dialog reached the client");
 	wait_for_lines(log_path, 6);
+	CHECK(tap(h, KEY_T) == 0, "terminal command reached the client");
+	wait_for_lines(log_path, 7);
 
 	log = fopen(log_path, "r");
 	CHECK(log != NULL, "fopen %s: %s", log_path, strerror(errno));
@@ -156,10 +160,12 @@ main(int argc, char **argv)
 		      strstr(contents, ":--text:") != NULL &&
 		      strstr(contents, "<tt>") == NULL,
 	      "a blank command did not show Marco's error alone: %s", contents);
-	CHECK(strstr(contents, "polo-screenshot\n") != NULL,
+	CHECK(strstr(contents, "mate-screenshot\n") != NULL,
 	      "screenshot command was not launched: %s", contents);
-	CHECK(strstr(contents, "polo-screenshot:--geometry=") != NULL,
+	CHECK(strstr(contents, "mate-screenshot:--window\n") != NULL,
 	      "window screenshot command was not launched: %s", contents);
+	CHECK(strstr(contents, "mate-screenshot:--area\n") != NULL,
+	      "area screenshot command was not launched: %s", contents);
 	CHECK(strstr(contents, "mate-panel:--run-dialog\n") != NULL,
 	      "panel run dialog was not launched: %s", contents);
 	CHECK(strstr(contents, "mate-terminal\n") != NULL,
@@ -173,7 +179,7 @@ main(int argc, char **argv)
 	snprintf(contents, sizeof contents, "%s/polo-action-recorder",
 		 directory);
 	unlink(contents);
-	snprintf(contents, sizeof contents, "%s/polo-screenshot", directory);
+	snprintf(contents, sizeof contents, "%s/mate-screenshot", directory);
 	unlink(contents);
 	snprintf(contents, sizeof contents, "%s/mate-panel", directory);
 	unlink(contents);

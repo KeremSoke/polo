@@ -17,7 +17,6 @@ policy_sources = files(
   'policy/x11-props.vala',
   'policy/workspace-layout.vala',
   'policy/work-areas.vala',
-  'policy/screenshot.vala',
   'policy/screen-share.vala',
   'policy/lamp-target.vala',
   'policy/expo.vala',

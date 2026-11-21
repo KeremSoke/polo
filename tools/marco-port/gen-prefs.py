@@ -33,6 +33,11 @@ ENUM_TYPES = {
     "org.mate.Marco.placement_type": "Marco.PlacementMode",
 }
 
+EXTRA_KEYS = [
+    ("global-keybindings", "run-command-area-screenshot", "s", "'<Shift>Print'"),
+    ("keybinding-commands", "command-area-screenshot", "s", "'mate-screenshot --area'"),
+]
+
 
 def vala_ident(nick):
     return re.sub(r"[^A-Za-z0-9]+", "_", nick).upper()
@@ -62,6 +67,9 @@ def main():
                                               re.S).group(1).strip())
             kind = k.group(2) or "enum:" + k.group(3)
             keys.append((short, k.group(1), kind, default))
+        for extra in EXTRA_KEYS:
+            if extra[0] == short and not any(k[:2] == extra[:2] for k in keys):
+                keys.append(extra)
 
     out = []
     w = out.append
