@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
  * A cursor shape draws the theme's image, and follows the rules of
- * wl_pointer.set_cursor. Skips without an Xcursor theme.
+ * wl_pointer.set_cursor. Off every window, only Polo's own arrow shows, also
+ * after the window that set a shape goes away. Skips without an Xcursor theme.
  */
 
 #include <errno.h>
@@ -214,6 +215,14 @@ main(int argc, char **argv)
 
 	struct harness_window *w = harness_window_create(h, 400, 300, "shapes");
 	const struct harness_window_info *info = harness_window_info(w);
+	int outside_x = info->x > 60 ? info->x - 40 : info->x + 440;
+
+	pointer_x = outside_x;
+	pointer_y = info->y + 100;
+	harness_move_pointer(h, pointer_x, pointer_y);
+	harness_roundtrip(h);
+	CHECK(h->pointer_focus == NULL, "the pointer is on a window");
+	uint32_t *bare = settled(h);
 
 	pointer_x = info->x + 100;
 	pointer_y = info->y + 100;
@@ -284,12 +293,14 @@ main(int argc, char **argv)
 	CHECK(differ(text, settled(h)) == 0, "the text shape did not come back");
 	int inside_x = pointer_x, inside_y = pointer_y;
 
-	pointer_x = info->x > 60 ? info->x - 40 : info->x + 440;
+	pointer_x = outside_x;
 	pointer_y = inside_y;
 	harness_move_pointer(h, pointer_x, pointer_y);
 	harness_roundtrip(h);
 	CHECK(h->pointer_focus != w->surface, "the pointer did not leave");
 	uint32_t *outside = settled(h);
+
+	CHECK(differ(bare, outside) == 0, "the window's shape stayed after the pointer left it");
 
 	wp_cursor_shape_device_v1_set_shape(device, serial,
 					    WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_TEXT);
@@ -358,6 +369,17 @@ main(int argc, char **argv)
 		harness_roundtrip(h);
 		pause_ms(h, 40);
 	}
+
+	wp_cursor_shape_device_v1_set_shape(device, serial,
+					    WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_CROSSHAIR);
+	CHECK(differ(hidden, settled(h)) > 0, "the crosshair draws nothing");
+	harness_window_destroy(w);
+	harness_roundtrip(h);
+	CHECK(h->pointer_focus == NULL, "the pointer is on a window");
+	pointer_x = outside_x;
+	harness_move_pointer(h, pointer_x, pointer_y);
+	harness_roundtrip(h);
+	CHECK(differ(bare, settled(h)) == 0, "the shape stayed after its window went away");
 
 	/* A shape that does not exist is an error. */
 	wp_cursor_shape_device_v1_set_shape(device, serial, 999);

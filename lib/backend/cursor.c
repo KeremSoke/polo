@@ -130,6 +130,11 @@ static void
 cursor_focus(struct wl_listener *listener, void *data)
 {
 	struct cursor_pointer *cp = wl_container_of(listener, cp, focus);
+	struct weston_pointer *pointer = cp->pointer;
+
+	if (!pointer->focus && pointer->sprite &&
+	    pointer->grab == &pointer->default_grab)
+		weston_pointer_set_sprite(pointer, NULL, 0, 0, NULL);
 	update_pointer(cp);
 }
 static void
