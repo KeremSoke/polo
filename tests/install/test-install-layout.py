@@ -73,7 +73,6 @@ def main():
 
         for program in (os.path.join(bindir, "polo"),
                         os.path.join(bindir, "polo-wayland.sh"),
-                        os.path.join(bindir, "polo-screenshot"),
                         os.path.join(libexecdir, "polo-shell-ui"),
                         os.path.join(libexecdir, "polo-share-chooser")):
             check(os.access(under(program), os.X_OK), "%s is not an installed program" % program)
