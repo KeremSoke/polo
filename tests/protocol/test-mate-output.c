@@ -415,6 +415,20 @@ settle(struct harness *h, struct client *c)
 	}
 }
 
+static void
+settle_until_id(struct harness *h, struct client *c, const char *name,
+		const char *id)
+{
+	for (int i = 0; i < 200; i++) {
+		struct head *head = head_named(c, name);
+
+		if (head && strcmp(head->id, id) == 0)
+			return;
+		usleep(10000);
+		settle(h, c);
+	}
+}
+
 static struct client *
 connect_client(struct harness *h)
 {
@@ -725,6 +739,7 @@ main(int argc, char **argv)
 
 	harness_remove_output(h, "DP-1");
 	settle(h, c);
+	settle_until_id(h, c, "DP-2", "PNP_QQA_-Twin");
 	CHECK(head_named(c, "DP-2"), "lost DP-2");
 	int finished = 0;
 
