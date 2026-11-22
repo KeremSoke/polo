@@ -625,6 +625,7 @@ polo_backend_server_start(PoloBackendServer *server,
 	server->compositor = weston_compositor_create(
 		server->display, polo_backend_log_get_context(), server, NULL);
 	if (server->compositor) {
+		server->compositor->vt_switching = true;
 		server->compositor->key_prefilter =
 			polo_backend_seat_prefilter_key;
 		server->compositor->key_prefilter_data = server;
