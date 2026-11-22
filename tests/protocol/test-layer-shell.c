@@ -604,6 +604,45 @@ test_keyboard_modes(struct harness *h)
 	harness_window_destroy(w);
 }
 
+static void
+test_vt_switch(struct harness *h)
+{
+	const uint32_t modes[] = { KBD_EXCLUSIVE, KBD_ON_DEMAND };
+	struct harness_window *w = harness_window_create(h, 400, 300, "vt");
+
+	for (size_t i = 0; i < sizeof modes / sizeof modes[0]; i++) {
+		struct layer_surface *s =
+			layer_surface_create(h, "vt-holder", LAYER_TOP, NULL,
+					     ANCHOR_TOP | ANCHOR_LEFT, -1, -1,
+					     -1, -1, -1, -1, modes[i], 200, 50);
+
+		harness_roundtrip(h);
+		CHECK(h->keyboard_focus == s->surface,
+		      "the %s surface did not take the keyboard",
+		      modes[i] == KBD_EXCLUSIVE ? "exclusive" : "on-demand");
+		harness_set_session_active(h, false);
+		harness_roundtrip(h);
+		harness_set_session_active(h, true);
+		for (int j = 0; j < 20 && h->keyboard_focus != s->surface; j++)
+			harness_roundtrip(h);
+		CHECK(h->keyboard_focus == s->surface,
+		      "the %s surface lost the keyboard after a VT switch",
+		      modes[i] == KBD_EXCLUSIVE ? "exclusive" : "on-demand");
+		harness_key(h, KEY_A, true);
+		harness_key(h, KEY_A, false);
+		CHECK(h->last_key_surface == s->surface,
+		      "a key did not reach the %s surface after a VT switch",
+		      modes[i] == KBD_EXCLUSIVE ? "exclusive" : "on-demand");
+		CHECK(!(harness_window_info(w)->state & STATE_ACTIVE),
+		      "the window became active after a VT switch");
+		layer_surface_destroy(s);
+		harness_roundtrip(h);
+		CHECK(h->keyboard_focus == w->surface,
+		      "the window did not get the keyboard back");
+	}
+	harness_window_destroy(w);
+}
+
 /* ---- Popups (get_popup)--------------------------------------------------- */
 
 struct popup {
@@ -1088,6 +1127,7 @@ main(int argc, char **argv)
 	test_keyboard_modes(h);
 	test_on_demand_returns_to_previous_surface(h);
 	test_cycle_panels(h);
+	test_vt_switch(h);
 	test_popups(h);
 	test_on_demand_release(h);
 	test_errors(h);

@@ -2961,6 +2961,15 @@ main(int argc, char **argv)
 	harness_key(h, KEY_A, false);
 	wait_for_line(h, "key 38");
 
+	int typed = count_lines_with("key 38");
+
+	harness_set_session_active(h, false);
+	pause_ms(h, 100);
+	harness_set_session_active(h, true);
+	pause_ms(h, 300);
+	CHECK(keys_after_pressing(h) > typed,
+	      "the X window took no keys after a VT switch");
+
 	harness_move_pointer(h, x + 20, y + 20);
 	pause_ms(h, 300);
 	harness_move_pointer(h, x + 25, y + 25);

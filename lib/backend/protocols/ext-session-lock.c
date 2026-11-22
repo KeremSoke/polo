@@ -788,6 +788,14 @@ polo_backend_session_lock_active(PoloBackendServer *server)
 		server->session_lock->state != POLO_BACKEND_LOCK_UNLOCKED;
 }
 
+void
+polo_backend_session_lock_refocus(PoloBackendServer *server)
+{
+	if (polo_backend_session_lock_active(server) &&
+	    server->session_lock->lock)
+		focus_lock_surfaces(server->session_lock);
+}
+
 gboolean
 polo_backend_session_lock_allows_focus(PoloBackendServer *server,
 				       struct weston_surface *surface)

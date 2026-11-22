@@ -316,7 +316,9 @@
     <request name="set_session_active" since="12">
       <description summary="leave or come back to this session's VT">
         What the launcher does on a VT switch: the session goes inactive or
-        active again and its listeners hear of it.
+        active again and its listeners hear of it. As with the DRM backend,
+        held keys are released and the seat has no keyboard or pointer
+        while inactive; input requests do nothing then.
       </description>
       <arg name="active" type="uint"/>
     </request>

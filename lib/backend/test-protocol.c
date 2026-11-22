@@ -18,6 +18,7 @@
 #include <malloc.h>
 
 #include <libweston/libweston.h>
+#include "libweston-internal.h"
 
 #include "backend.h"
 #include <libweston/backend-headless.h>
@@ -222,7 +223,7 @@ test_button(struct wl_client *client, struct wl_resource *resource,
 	struct weston_pointer_button_event event;
 	struct timespec time;
 
-	if (!seat)
+	if (!seat || !weston_seat_get_pointer(seat))
 		return;
 
 	weston_compositor_get_time(&time);
@@ -458,7 +459,7 @@ test_pointer_axis(struct wl_client *client, struct wl_resource *resource,
 	struct weston_pointer_axis_event event;
 	struct timespec time;
 
-	if (!seat)
+	if (!seat || !weston_seat_get_pointer(seat))
 		return;
 	weston_compositor_get_time(&time);
 	weston_pointer_axis_event_init(&event, &time, seat, 0, value, true,
@@ -490,7 +491,7 @@ test_key(struct wl_client *client, struct wl_resource *resource, uint32_t key,
 	struct weston_key_event event;
 	struct timespec time;
 
-	if (!seat)
+	if (!seat || !weston_seat_get_keyboard(seat))
 		return;
 
 	weston_compositor_get_time(&time);
@@ -572,8 +573,43 @@ test_set_session_active(struct wl_client *client, struct wl_resource *resource,
 			uint32_t active)
 {
 	PoloBackendServer *server = wl_resource_get_user_data(resource);
+	struct weston_seat *seat = first_seat(server);
+	bool was_active = server->compositor->session_active;
 
 	server->compositor->session_active = active != 0;
+	if (seat && was_active && !active) {
+		struct weston_keyboard *keyboard =
+			weston_seat_get_keyboard(seat);
+
+		if (keyboard) {
+			struct wl_array held;
+			uint32_t *key;
+			struct weston_key_event event;
+			struct timespec time;
+
+			wl_array_init(&held);
+			wl_array_copy(&held, &keyboard->keys);
+			weston_compositor_get_time(&time);
+			wl_array_for_each(key, &held)
+			{
+				weston_key_event_init(
+					&event, &time, seat, *key,
+					WL_KEYBOARD_KEY_STATE_RELEASED,
+					STATE_UPDATE_AUTOMATIC);
+				notify_key(&event);
+			}
+			wl_array_release(&held);
+		}
+		while (seat->keyboard_device_count > 0)
+			weston_seat_release_keyboard(seat);
+		while (seat->pointer_device_count > 0)
+			weston_seat_release_pointer(seat);
+	} else if (seat && !was_active && active) {
+		if (seat->pointer_state && seat->pointer_device_count == 0)
+			weston_seat_init_pointer(seat);
+		if (seat->keyboard_state && seat->keyboard_device_count == 0)
+			weston_seat_init_keyboard(seat, NULL);
+	}
 	wl_signal_emit(&server->compositor->session_signal, server->compositor);
 	if (active)
 		weston_compositor_damage_all(server->compositor);
@@ -758,6 +794,24 @@ test_get_setting(struct wl_client *client, struct wl_resource *resource,
 			resource, schema, key,
 			names[polo_backend_server_get_lock_state(
 				wl_resource_get_user_data(resource))]);
+		return;
+	}
+	if (strcmp(schema, "polo-test") == 0 &&
+	    strcmp(key, "lock-has-keyboard") == 0) {
+		PoloBackendServer *server = wl_resource_get_user_data(resource);
+		struct weston_seat *seat = first_seat(server);
+		struct weston_keyboard *keyboard =
+			seat ? weston_seat_get_keyboard(seat) : NULL;
+
+		polo_test_v1_send_setting(
+			resource, schema, key,
+			keyboard && keyboard->focus &&
+					polo_backend_session_lock_active(
+						server) &&
+					polo_backend_session_lock_allows_focus(
+						server, keyboard->focus)
+				? "true"
+				: "false");
 		return;
 	}
 	if (strcmp(schema, "polo-test") == 0 &&

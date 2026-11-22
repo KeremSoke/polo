@@ -49,6 +49,8 @@ struct _PoloBackendSeat {
 	struct wl_listener keyboard_focus_listener;
 	gboolean dropping_focus;
 	guint focus_lost_source;
+	gboolean had_keyboard;
+	gboolean keyboard_gone;
 	PoloBackendKeyFilter key_filter;
 	gpointer key_filter_data;
 	GDestroyNotify key_filter_destroy;
@@ -981,12 +983,35 @@ unwrap_pointer(PoloBackendSeat *self)
 }
 
 static void
+keyboard_returned(PoloBackendSeat *self)
+{
+	struct weston_keyboard *keyboard = weston_seat_get_keyboard(self->seat);
+
+	if (!keyboard || keyboard->focus)
+		return;
+	if (polo_backend_session_lock_active(self->server)) {
+		polo_backend_session_lock_refocus(self->server);
+		return;
+	}
+	if (!self->focus_lost_source)
+		self->focus_lost_source = g_idle_add(focus_lost_idle, self);
+}
+
+static void
 seat_caps_changed(struct wl_listener *listener, void *data)
 {
 	PoloBackendSeat *self = wl_container_of(listener, self, caps_listener);
+	gboolean has_keyboard = weston_seat_get_keyboard(self->seat) != NULL;
 
 	wrap_pointer(self);
 	wrap_keyboard(self);
+	if (self->had_keyboard && !has_keyboard)
+		self->keyboard_gone = TRUE;
+	self->had_keyboard = has_keyboard;
+	if (has_keyboard && self->keyboard_gone) {
+		self->keyboard_gone = FALSE;
+		keyboard_returned(self);
+	}
 }
 
 struct polo_gestures *

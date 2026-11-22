@@ -225,6 +225,9 @@ main(int argc, char **argv)
 	count(h, 0, WINDOW_RGB, &seen, &lit);
 	CHECK(seen == 0, "the window shows while locked (%d pixels)", seen);
 
+	CHECK(strcmp(harness_get_setting(h, "polo-test", "lock-has-keyboard"),
+		     "true") == 0,
+	      "the lock surface does not have the keyboard");
 	harness_set_session_active(h, false);
 	harness_key(h, KEY_A, true);
 	harness_key(h, KEY_A, false);
@@ -232,6 +235,9 @@ main(int argc, char **argv)
 	pause_ms(h, 200);
 	CHECK(strcmp(state(h), "locked") == 0, "a VT switch unlocked (%s)",
 	      state(h));
+	CHECK(strcmp(harness_get_setting(h, "polo-test", "lock-has-keyboard"),
+		     "true") == 0,
+	      "the lock surface lost the keyboard after a VT switch");
 	CHECK(!key_reaches(h, w->surface),
 	      "a key reached the window after a VT switch");
 	count(h, 0, WINDOW_RGB, &seen, &lit);

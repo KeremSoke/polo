@@ -995,6 +995,9 @@ namespace Polo.Shell {
         }
 
         private void on_keyboard_focus_lost () {
+            if (layer_shell != null && layer_shell.give_back_keyboard ()) {
+                return;
+            }
             var window = model.focused;
             if (window != null && window.has_state (WindowState.MAPPED) && model.is_showing (window)) {
                 window.adapter.take_focus ();

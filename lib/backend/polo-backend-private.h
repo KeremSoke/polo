@@ -491,6 +491,9 @@ polo_backend_session_lock_allows_focus(PoloBackendServer *server,
 				       struct weston_surface *surface);
 
 void
+polo_backend_session_lock_refocus(PoloBackendServer *server);
+
+void
 polo_backend_server_emit_lock_state(PoloBackendServer *server,
 				    PoloBackendLockState state);
 

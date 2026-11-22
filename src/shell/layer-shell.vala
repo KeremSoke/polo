@@ -524,6 +524,14 @@ namespace Polo.Shell {
             previous_holder = null;
         }
 
+        public bool give_back_keyboard () {
+            if (focus_holder == null || !focus_holder.handle.mapped || locked ()) {
+                return false;
+            }
+            desktop.set_keyboard_focus (focus_holder.view);
+            return true;
+        }
+
         public unowned Backend.View? exclusive_view () {
             if (focus_holder != null &&
                 focus_holder.handle.keyboard_interactivity == KBD_EXCLUSIVE) {

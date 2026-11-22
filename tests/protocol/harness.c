@@ -233,6 +233,16 @@ seat_capabilities(void *data, struct wl_seat *seat, uint32_t caps)
 {
 	struct harness *h = data;
 
+	if (!(caps & WL_SEAT_CAPABILITY_POINTER) && h->pointer) {
+		wl_pointer_release(h->pointer);
+		h->pointer = NULL;
+		h->pointer_focus = NULL;
+	}
+	if (!(caps & WL_SEAT_CAPABILITY_KEYBOARD) && h->keyboard) {
+		wl_keyboard_release(h->keyboard);
+		h->keyboard = NULL;
+		h->keyboard_focus = NULL;
+	}
 	if ((caps & WL_SEAT_CAPABILITY_POINTER) && !h->pointer) {
 		h->pointer = wl_seat_get_pointer(seat);
 		wl_pointer_add_listener(h->pointer, &pointer_listener, h);
