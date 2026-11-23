@@ -1,5 +1,5 @@
 # Headless integration tests. Need -Dtest-protocol=true.
-wayland_client_dep = dependency('wayland-client')
+wayland_client_dep = dependency('wayland-client', version: '>= 1.24')
 wayland_protocols_dir = dependency('wayland-protocols').get_variable(pkgconfig: 'pkgdatadir')
 
 client_protocols = {
