@@ -123,6 +123,8 @@ struct _PoloBackendServer {
 	struct wl_global *input_method_global;
 	struct wl_global *virtual_keyboard_global;
 	struct wl_global *idle_inhibit_global;
+	struct wl_global *fractional_scale_global;
+	struct wl_list fractional_scales;
 	struct wl_list idle_inhibitors;
 	struct wl_global *idle_notifier_global;
 	struct polo_session_lock *session_lock;
@@ -355,6 +357,12 @@ polo_backend_idle_inhibit_init(PoloBackendServer *server, GError **error);
 
 void
 polo_backend_idle_inhibit_fini(PoloBackendServer *server);
+
+gboolean
+polo_backend_fractional_scale_init(PoloBackendServer *server, GError **error);
+
+void
+polo_backend_fractional_scale_fini(PoloBackendServer *server);
 
 void
 polo_backend_idle_init(PoloBackendServer *server);

@@ -24,6 +24,7 @@ client_protocols = {
   'mate-input-device-v1': meson.project_source_root() / 'protocol' / 'mate-input-device-v1.xml',
   'keyboard-shortcuts-inhibit-unstable-v1': wayland_protocols_dir / 'unstable' / 'keyboard-shortcuts-inhibit' / 'keyboard-shortcuts-inhibit-unstable-v1.xml',
   'cursor-shape-v1': wayland_protocols_dir / 'staging' / 'cursor-shape' / 'cursor-shape-v1.xml',
+  'fractional-scale-v1': wayland_protocols_dir / 'staging' / 'fractional-scale' / 'fractional-scale-v1.xml',
   'tablet-v2': wayland_protocols_dir / 'stable' / 'tablet' / 'tablet-v2.xml',
   'pointer-gestures-unstable-v1': wayland_protocols_dir / 'unstable' / 'pointer-gestures' / 'pointer-gestures-unstable-v1.xml',
   'xdg-foreign-unstable-v2': wayland_protocols_dir / 'unstable' / 'xdg-foreign' / 'xdg-foreign-unstable-v2.xml',
@@ -359,6 +360,15 @@ foreach mode : ['pixman', 'gl', 'hidpi']
   test(mode == 'pixman' ? 'magnifier' : 'magnifier-' + mode, magnifier_exe,
     args: [polo_exe, mode],
     env: magic_lamp_env,
+    suite: 'protocol',
+    timeout: 60,
+  )
+endforeach
+fractional_scale_exe = executable('test-fractional-scale', 'test-fractional-scale.c', dependencies: harness_dep)
+foreach scale : ['1', '2']
+  test(scale == '1' ? 'fractional-scale' : 'fractional-scale-hidpi', fractional_scale_exe,
+    args: [polo_exe, scale],
+    env: protocol_test_env,
     suite: 'protocol',
     timeout: 60,
   )

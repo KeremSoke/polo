@@ -718,6 +718,9 @@ polo_backend_server_start(PoloBackendServer *server,
 	if (!polo_backend_idle_inhibit_init(server, error))
 		return FALSE;
 
+	if (!polo_backend_fractional_scale_init(server, error))
+		return FALSE;
+
 	polo_backend_idle_init(server);
 	if (!polo_backend_idle_notify_init(server, error))
 		return FALSE;
@@ -941,6 +944,7 @@ polo_backend_server_stop(PoloBackendServer *server)
 		polo_backend_output_management_fini(server);
 		polo_backend_idle_notify_fini(server);
 		polo_backend_idle_fini(server);
+		polo_backend_fractional_scale_fini(server);
 		polo_backend_idle_inhibit_fini(server);
 		polo_backend_shortcuts_inhibit_fini(server);
 		polo_backend_cursor_shape_fini(server);
