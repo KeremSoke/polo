@@ -1,0 +1,61 @@
+--- a/libweston/desktop/xdg-shell.c
++++ b/libweston/desktop/xdg-shell.c
+@@ -125,6 +125,7 @@
+ 		struct weston_desktop_xdg_toplevel_state state;
+ 		struct weston_size min_size, max_size;
+ 	} current;
++	bool size_mismatch_logged;
+ };
+ 
+ struct weston_desktop_xdg_popup {
+@@ -1192,32 +1193,26 @@
+ 	struct weston_geometry geometry =
+ 		weston_desktop_surface_get_geometry(toplevel->base.desktop_surface);
+ 
+-	if (toplevel->next.state.maximized &&
+-	    (toplevel->next.size.width != geometry.width ||
+-	     toplevel->next.size.height != geometry.height)) {
+-		if (client_resource)
+-			wl_resource_post_error(client_resource,
+-					       XDG_WM_BASE_ERROR_INVALID_SURFACE_STATE,
+-					       "xdg_surface geometry (%" PRIi32 " x %" PRIi32 ") "
+-					       "does not match the configured maximized state (%" PRIi32 " x %" PRIi32 ")",
+-					       geometry.width, geometry.height,
+-					       toplevel->next.size.width,
+-					       toplevel->next.size.height);
+-		return;
+-	}
++	if (!toplevel->size_mismatch_logged &&
++	    ((toplevel->next.state.maximized &&
++	      (toplevel->next.size.width != geometry.width ||
++	       toplevel->next.size.height != geometry.height)) ||
++	     (toplevel->next.state.fullscreen &&
++	      (toplevel->next.size.width < geometry.width ||
++	       toplevel->next.size.height < geometry.height)))) {
++		pid_t pid = 0;
+ 
+-	if (toplevel->next.state.fullscreen &&
+-	    (toplevel->next.size.width < geometry.width ||
+-	     toplevel->next.size.height < geometry.height)) {
+ 		if (client_resource)
+-			wl_resource_post_error(client_resource,
+-					       XDG_WM_BASE_ERROR_INVALID_SURFACE_STATE,
+-					       "xdg_surface geometry (%" PRIi32 " x %" PRIi32 ") "
+-					       "is larger than the configured fullscreen state (%" PRIi32 " x %" PRIi32 ")",
+-					       geometry.width, geometry.height,
+-					       toplevel->next.size.width,
+-					       toplevel->next.size.height);
+-		return;
++			wl_client_get_credentials(wl_resource_get_client(client_resource),
++						  &pid, NULL, NULL);
++		toplevel->size_mismatch_logged = true;
++		weston_log("xdg_surface geometry (%" PRIi32 " x %" PRIi32 ") "
++			   "does not fit the configured %s state (%" PRIi32 " x %" PRIi32 "), "
++			   "tolerated (pid %d)\n",
++			   geometry.width, geometry.height,
++			   toplevel->next.state.maximized ? "maximized" : "fullscreen",
++			   toplevel->next.size.width, toplevel->next.size.height,
++			   (int) pid);
+ 	}
+ 
+ 	toplevel->current.state = toplevel->next.state;
