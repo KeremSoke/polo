@@ -39,69 +39,71 @@ foreach name, spec : vapi_tests
   )
 endforeach
 
-test('session', python,
-  args: [files('session/test-session.py'), polo_exe, get_option('systemd') ? 'systemd' : 'no-systemd'],
-  env: vapi_test_env,
-  suite: 'session',
-  timeout: 90,
-  is_parallel: false,
-)
-
-test('watchdog', python,
-  args: [files('session/test-watchdog.py'), polo_exe],
-  env: vapi_test_env,
-  suite: 'session',
-  timeout: 120,
-)
-
-test('crash-report', python,
-  args: [files('session/test-crash-report.py'), polo_exe],
-  env: vapi_test_env,
-  suite: 'session',
-  timeout: 120,
-)
-
-test('sm-abi', python,
-  args: [files('session/test-sm-abi.py'), polo_exe, meson.project_source_root() / 'data' / 'dbus' / 'fixtures'],
-  env: vapi_test_env,
-  suite: 'session',
-  timeout: 60,
-  is_parallel: false,
-)
-
-test('sm-manager', python,
-  args: [files('session/test-sm-manager.py'), polo_exe],
-  env: vapi_test_env,
-  suite: 'session',
-  timeout: 60,
-  is_parallel: false,
-)
-
-if have_xsmp
-  xsmp_test_client = executable('xsmp-test-client', 'session/xsmp-test-client.c',
-    dependencies: [dependency('sm'), dependency('ice')])
-  test('xsmp', python,
-    args: [files('session/test-xsmp.py'), polo_exe, xsmp_test_client],
-    env: vapi_test_env,
-    suite: 'session',
-    timeout: 90,
-    is_parallel: false,
-  )
-endif
-
 test('dconf-profile', python,
   args: [files('session/test-dconf-profile.py'), meson.project_source_root()],
   suite: 'session',
   timeout: 30,
 )
 
-test('saved-session', python,
-  args: [files('session/test-saved-session.py'), polo_exe],
-  env: vapi_test_env,
-  suite: 'session',
-  timeout: 60,
-  is_parallel: false,
-)
+if get_option('test-protocol')
+  test('session', python,
+    args: [files('session/test-session.py'), polo_exe, get_option('systemd') ? 'systemd' : 'no-systemd'],
+    env: vapi_test_env,
+    suite: 'session',
+    timeout: 90,
+    is_parallel: false,
+  )
+
+  test('watchdog', python,
+    args: [files('session/test-watchdog.py'), polo_exe],
+    env: vapi_test_env,
+    suite: 'session',
+    timeout: 120,
+  )
+
+  test('crash-report', python,
+    args: [files('session/test-crash-report.py'), polo_exe],
+    env: vapi_test_env,
+    suite: 'session',
+    timeout: 120,
+  )
+
+  test('sm-abi', python,
+    args: [files('session/test-sm-abi.py'), polo_exe, meson.project_source_root() / 'data' / 'dbus' / 'fixtures'],
+    env: vapi_test_env,
+    suite: 'session',
+    timeout: 60,
+    is_parallel: false,
+  )
+
+  test('sm-manager', python,
+    args: [files('session/test-sm-manager.py'), polo_exe],
+    env: vapi_test_env,
+    suite: 'session',
+    timeout: 60,
+    is_parallel: false,
+  )
+
+  if have_xsmp
+    xsmp_test_client = executable('xsmp-test-client', 'session/xsmp-test-client.c',
+      dependencies: [dependency('sm'), dependency('ice')])
+    test('xsmp', python,
+      args: [files('session/test-xsmp.py'), polo_exe, xsmp_test_client],
+      env: vapi_test_env,
+      suite: 'session',
+      timeout: 90,
+      is_parallel: false,
+    )
+  endif
+
+  test('saved-session', python,
+    args: [files('session/test-saved-session.py'), polo_exe],
+    env: vapi_test_env,
+    suite: 'session',
+    timeout: 60,
+    is_parallel: false,
+  )
+endif
 
 autostart_dump = executable('autostart-dump',
   'session/autostart-dump.vala', meson.project_source_root() / 'src/session/autostart.vala',
