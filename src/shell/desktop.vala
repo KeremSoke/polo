@@ -84,6 +84,10 @@ namespace Polo.Shell {
             if (interface_settings != null) {
                 interface_settings.changed["font-name"].connect (load_decorations);
             }
+            font_rendering_settings = settings ("org.mate.font-rendering");
+            if (font_rendering_settings != null) {
+                font_rendering_settings.changed["dpi"].connect (load_decorations);
+            }
             load_decorations ();
             decorations.changed.connect (on_decorations_changed);
             /* In the body: construct blocks run before layer_shell exists. */
@@ -102,12 +106,14 @@ namespace Polo.Shell {
 
         /* org.mate.interface font-name: the title font when titlebar-uses-system-font is set. */
         private GLib.Settings? interface_settings = null;
+        private GLib.Settings? font_rendering_settings = null;
 
         /* Marco's prefs_changed_callback (): the theme, the title font and the button layout. */
         private void load_decorations () {
             var prefs = model.prefs;
             decorations.set_fonts (interface_settings != null ? interface_settings.get_string ("font-name") : null,
                                    prefs.titlebar_uses_system_font ? null : prefs.titlebar_font);
+            decorations.set_dpi (font_rendering_settings != null ? font_rendering_settings.get_double ("dpi") : 0);
             decorations.set_button_layout (prefs.button_layout);
             decorations.set_icon_size (prefs.icon_size);
             decorations.set_theme (prefs.theme);

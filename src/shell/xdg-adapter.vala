@@ -214,7 +214,7 @@ namespace Polo.Shell {
                 return !equal_borders (old, window.borders);
             }
             int text_height = theme.text_height (type, flags, desktop.decorations.system_font,
-                                                 desktop.decorations.titlebar_font, Decor.Decorations.DPI);
+                                                 desktop.decorations.titlebar_font, desktop.decorations.dpi);
             Marco.ThemeBorders borders;
             theme.get_frame_borders (type, text_height, flags, out borders);
             window.borders = Marco.FrameBorders () {

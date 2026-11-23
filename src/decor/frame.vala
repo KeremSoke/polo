@@ -217,7 +217,7 @@ namespace Polo.Decor {
                 return false;
             }
             int text_height = theme.text_height (type, flags, decorations.system_font, decorations.titlebar_font,
-                                                 Decorations.DPI);
+                                                 decorations.dpi);
             theme.calc_geometry (type, text_height, flags, client_width, client_height,
                                  decorations.button_layout, out geometry);
             unowned Marco.Border total = geometry.borders.total;
@@ -275,7 +275,7 @@ namespace Polo.Decor {
                 return;
             }
             theme.render (decorations.get_colors (), type, flags, client_width, client_height, title,
-                          decorations.system_font, decorations.titlebar_font, Decorations.DPI,
+                          decorations.system_font, decorations.titlebar_font, decorations.dpi,
                           decorations.button_layout, button_states, rect.x, rect.y, pixels,
                           rect.width * scale, rect.height * scale, stride, scale,
                           icon != null ? icon.mini_icon : null, icon != null ? icon.icon : null);

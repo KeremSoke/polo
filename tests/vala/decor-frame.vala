@@ -153,7 +153,7 @@ void test_rounded_corners () {
     decorations.set_fonts ("Sans 10", null);
     var normal = Polo.Marco.FrameType.NORMAL;
     unowned Polo.Marco.Theme theme = decorations.get_theme ();
-    int text_height = theme.text_height (normal, FLAGS, "Sans 10", null, Polo.Decor.Decorations.DPI);
+    int text_height = theme.text_height (normal, FLAGS, "Sans 10", null, Polo.Decor.Decorations.DEFAULT_DPI);
     Polo.Marco.FrameGeometry geometry;
     theme.calc_geometry (normal, text_height, FLAGS, 300, 200, decorations.button_layout, out geometry);
     int width = geometry.width;
@@ -162,7 +162,7 @@ void test_rounded_corners () {
     var pixels = new uint8[stride * height];
     var states = new Polo.Marco.ButtonState[Polo.Marco.ButtonType.LAST];
     theme.render (decorations.get_colors (), normal, FLAGS, 300, 200, "A title", "Sans 10", null,
-                  Polo.Decor.Decorations.DPI, decorations.button_layout, states, 0, 0, pixels,
+                  Polo.Decor.Decorations.DEFAULT_DPI, decorations.button_layout, states, 0, 0, pixels,
                   width, height, stride, 1);
     int left = geometry.borders.invisible.left;
     int right = width - geometry.borders.invisible.right - 1;
@@ -186,7 +186,7 @@ void test_shadow () {
     assert (decorations.load_theme ("Menta"));
     var normal = Polo.Marco.FrameType.NORMAL;
     unowned Polo.Marco.Theme theme = decorations.get_theme ();
-    int text_height = theme.text_height (normal, FLAGS, "Sans 10", null, Polo.Decor.Decorations.DPI);
+    int text_height = theme.text_height (normal, FLAGS, "Sans 10", null, Polo.Decor.Decorations.DEFAULT_DPI);
     Polo.Marco.FrameGeometry geometry;
     theme.calc_geometry (normal, text_height, FLAGS, 300, 200, decorations.button_layout, out geometry);
     unowned Polo.Marco.Border invisible = geometry.borders.invisible;
@@ -230,7 +230,7 @@ void test_huge_shadow () {
     assert (decorations.load_theme ("Menta"));
     var normal = Polo.Marco.FrameType.NORMAL;
     unowned Polo.Marco.Theme theme = decorations.get_theme ();
-    int text_height = theme.text_height (normal, FLAGS, "Sans 10", null, Polo.Decor.Decorations.DPI);
+    int text_height = theme.text_height (normal, FLAGS, "Sans 10", null, Polo.Decor.Decorations.DEFAULT_DPI);
     Polo.Marco.FrameGeometry geometry;
     theme.calc_geometry (normal, text_height, FLAGS, 40000, 30000, decorations.button_layout, out geometry);
     assert (Polo.Marco.ShadowMask.create (Polo.Marco.ShadowType.MEDIUM, Polo.Marco.SHADOW_OPACITY,
@@ -274,7 +274,7 @@ void test_scale () {
     var pixels = new uint8[stride * buffer_height];
     var states = new Polo.Marco.ButtonState[Polo.Marco.ButtonType.LAST];
     theme.render (decorations.get_colors (), normal, FLAGS, 300, 200, "A title", "Sans 10", null,
-                  Polo.Decor.Decorations.DPI, decorations.button_layout, states, 0, 0, pixels,
+                  Polo.Decor.Decorations.DEFAULT_DPI, decorations.button_layout, states, 0, 0, pixels,
                   buffer_width, buffer_height, stride, 2);
     int cut_row0 = 0, cut_row1 = 0;
     while (alpha_at (pixels, stride, left + cut_row0, top) == 0) {

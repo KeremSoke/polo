@@ -6,8 +6,12 @@
 namespace Polo.Decor {
     /* Holds the theme, colours, fonts, layout, and a serial that changes with them. */
     public class Decorations : GLib.Object {
-        /* Marco's default Xft DPI, used until Polo owns XSETTINGS. */
-        public const double DPI = 96;
+        public const double DEFAULT_DPI = 96;
+        private const double MIN_DPI = 50;
+        private const double MAX_DPI = 500;
+
+        private double _dpi = DEFAULT_DPI;
+        public double dpi { get { return _dpi; } }
 
         private Marco.Theme? theme = null;
         private Marco.ThemeColors colors = new Marco.ThemeColors ();
@@ -184,7 +188,7 @@ namespace Polo.Decor {
             if (theme == null || theme.get_frame_style (Marco.FrameType.NORMAL, 0) == null) {
                 return Marco.FrameBorders ();
             }
-            int text_height = theme.text_height (Marco.FrameType.NORMAL, 0, system_font, titlebar_font, DPI);
+            int text_height = theme.text_height (Marco.FrameType.NORMAL, 0, system_font, titlebar_font, dpi);
             Marco.ThemeBorders borders;
             theme.get_frame_borders (Marco.FrameType.NORMAL, text_height, 0, out borders);
             return Marco.FrameBorders () {
@@ -199,6 +203,15 @@ namespace Polo.Decor {
             }
             this.system_font = system_font;
             this.titlebar_font = titlebar_font;
+            bump ();
+        }
+
+        public void set_dpi (double value) {
+            double next = value > 0 ? value.clamp (MIN_DPI, MAX_DPI) : DEFAULT_DPI;
+            if (next == _dpi) {
+                return;
+            }
+            _dpi = next;
             bump ();
         }
 
