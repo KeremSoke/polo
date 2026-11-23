@@ -30,7 +30,7 @@ shell_ui_exe = executable('polo-shell-ui',
   link_with: shell_ui_client_lib,
   dependencies: [glib_dep, gobject_dep, gio_dep, gio_unix_dep, gtk_dep, dependency('gtk-layer-shell-0'),
                  dependency('mate-desktop-2.0'),
-                 dependency('wayland-client')],
+                 dependency('wayland-client'), cc.find_library('m')],
   install: true,
   install_dir: get_option('libexecdir'),
 )

@@ -58,7 +58,7 @@ backend_sources = files(
   'version.c',
   'view.c',
 )
-backend_deps = [glib_dep, gobject_dep, libweston_dep, dependency('libdisplay-info'), dependency('xcursor'), dependency('wayland-client'), dependency('xkbcommon'), dependency('xkbregistry'), dependency('libinput'), dependency('pixman-1'), dependency('libudev')]
+backend_deps = [glib_dep, gobject_dep, libweston_dep, dependency('libdisplay-info'), dependency('xcursor'), dependency('wayland-client'), dependency('xkbcommon'), dependency('xkbregistry'), dependency('libinput'), dependency('pixman-1'), dependency('libudev'), cc.find_library('m')]
 backend_c_args = []
 if get_option('debug-kill')
   backend_c_args += '-DPOLO_HAVE_DEBUG_KILL'
@@ -191,5 +191,5 @@ backend_lib = static_library('polo-backend',
 polo_backend_dep = declare_dependency(
   link_with: [backend_lib, weston_proj.get_variable('lib_weston')],
   include_directories: include_directories('.'),
-  dependencies: [glib_dep, gobject_dep, cc.find_library('Xcursor'), cc.find_library('wayland-client'), cc.find_library('xkbcommon'), cc.find_library('xkbregistry')],
+  dependencies: [glib_dep, gobject_dep, cc.find_library('Xcursor'), cc.find_library('wayland-client'), cc.find_library('xkbcommon'), cc.find_library('xkbregistry'), cc.find_library('m')],
 )
