@@ -3,45 +3,84 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+#include <string.h>
+
 #include "polo-fx.h"
 
 static void
-box_line(guint8 *line, int count, int step, int radius, guint32 *scratch)
+box_row(guint8 *line, int count, int radius, guint32 *scratch)
 {
 	int window = 2 * radius + 1;
+	guint32 sum[4] = { 0, 0, 0, 0 };
 
-	for (int c = 0; c < 4; c++) {
-		guint32 sum = 0;
+	for (int i = -radius; i <= radius; i++)
+		for (int c = 0; c < 4; c++)
+			sum[c] += line[CLAMP(i, 0, count - 1) * 4 + c];
+	for (int i = 0; i < count; i++) {
+		const guint8 *in = line + MIN(i + radius + 1, count - 1) * 4;
+		const guint8 *out = line + MAX(i - radius, 0) * 4;
 
-		for (int i = -radius; i <= radius; i++)
-			sum += line[CLAMP(i, 0, count - 1) * step + c];
-		for (int i = 0; i < count; i++) {
-			scratch[i] = (sum + window / 2) / window;
-			sum += line[MIN(i + radius + 1, count - 1) * step + c];
-			sum -= line[MAX(i - radius, 0) * step + c];
+		for (int c = 0; c < 4; c++) {
+			scratch[i * 4 + c] = (sum[c] + window / 2) / window;
+			sum[c] += in[c];
+			sum[c] -= out[c];
 		}
-		for (int i = 0; i < count; i++)
-			line[i * step + c] = (guint8)scratch[i];
+	}
+	for (int i = 0; i < count * 4; i++)
+		line[i] = (guint8)scratch[i];
+}
+
+static void
+box_columns(guint8 *pixels, int width, int height, int stride, int radius,
+	    guint8 *copy, guint32 *sums)
+{
+	int window = 2 * radius + 1, bytes = width * 4;
+
+	for (int y = 0; y < height; y++)
+		memcpy(copy + (gsize)y * bytes, pixels + (gsize)y * stride,
+		       bytes);
+	memset(sums, 0, (gsize)bytes * sizeof *sums);
+	for (int i = -radius; i <= radius; i++) {
+		const guint8 *row =
+			copy + (gsize)CLAMP(i, 0, height - 1) * bytes;
+
+		for (int x = 0; x < bytes; x++)
+			sums[x] += row[x];
+	}
+	for (int y = 0; y < height; y++) {
+		guint8 *out = pixels + (gsize)y * stride;
+		const guint8 *in =
+			copy + (gsize)MIN(y + radius + 1, height - 1) * bytes;
+		const guint8 *old = copy + (gsize)MAX(y - radius, 0) * bytes;
+
+		for (int x = 0; x < bytes; x++) {
+			out[x] = (guint8)((sums[x] + window / 2) / window);
+			sums[x] += in[x];
+			sums[x] -= old[x];
+		}
 	}
 }
 
 void
 polo_fx_blur(guint8 *pixels, int width, int height, int stride, int radius)
 {
-	guint32 *scratch;
+	guint32 *scratch, *sums;
+	guint8 *copy;
 
 	g_return_if_fail(pixels != NULL);
 	if (radius <= 0 || width <= 0 || height <= 0)
 		return;
-	scratch = g_new(guint32, MAX(width, height));
+	scratch = g_new(guint32, (gsize)width * 4);
+	sums = g_new(guint32, (gsize)width * 4);
+	copy = g_malloc((gsize)width * 4 * height);
 	for (int pass = 0; pass < 3; pass++) {
 		for (int y = 0; y < height; y++)
-			box_line(pixels + (gsize)y * stride, width, 4, radius,
-				 scratch);
-		for (int x = 0; x < width; x++)
-			box_line(pixels + (gsize)x * 4, height, stride, radius,
-				 scratch);
+			box_row(pixels + (gsize)y * stride, width, radius,
+				scratch);
+		box_columns(pixels, width, height, stride, radius, copy, sums);
 	}
+	g_free(copy);
+	g_free(sums);
 	g_free(scratch);
 }
 
@@ -82,8 +121,12 @@ polo_fx_downscale(const guint8 *src, int width, int height, int stride,
 					(gsize)(y * factor + j) * stride +
 					(gsize)x * factor * 4;
 
-				for (int i = 0; i < factor * 4; i++)
-					sum[i % 4] += in[i];
+				for (int i = 0; i < factor; i++, in += 4) {
+					sum[0] += in[0];
+					sum[1] += in[1];
+					sum[2] += in[2];
+					sum[3] += in[3];
+				}
 			}
 			for (int c = 0; c < 4; c++)
 				out[x * 4 + c] =

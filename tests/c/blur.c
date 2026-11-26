@@ -4,6 +4,7 @@
  */
 
 #include <glib.h>
+#include <string.h>
 
 #include "polo-fx.h"
 
@@ -92,6 +93,112 @@ test_downscale(void)
 	g_free(pixels);
 }
 
+static void
+reference_line(guint8 *line, int count, int step, int radius)
+{
+	int window = 2 * radius + 1;
+	guint8 *copy = g_new(guint8, (gsize)count * 4);
+
+	for (int i = 0; i < count; i++)
+		memcpy(copy + i * 4, line + (gsize)i * step, 4);
+	for (int i = 0; i < count; i++)
+		for (int c = 0; c < 4; c++) {
+			guint32 sum = 0;
+
+			for (int k = i - radius; k <= i + radius; k++)
+				sum += copy[CLAMP(k, 0, count - 1) * 4 + c];
+			line[(gsize)i * step + c] =
+				(guint8)((sum + window / 2) / window);
+		}
+	g_free(copy);
+}
+
+static void
+reference_blur(guint8 *pixels, int width, int height, int stride, int radius)
+{
+	for (int pass = 0; pass < 3; pass++) {
+		for (int y = 0; y < height; y++)
+			reference_line(pixels + (gsize)y * stride, width, 4,
+				       radius);
+		for (int x = 0; x < width; x++)
+			reference_line(pixels + (gsize)x * 4, height, stride,
+				       radius);
+	}
+}
+
+static void
+test_matches_reference(void)
+{
+	GRand *rand = g_rand_new_with_seed(7);
+
+	for (int round = 0; round < 200; round++) {
+		int width = g_rand_int_range(rand, 1, 40);
+		int height = g_rand_int_range(rand, 1, 40);
+		int stride = width * 4 + g_rand_int_range(rand, 0, 3) * 4;
+		int radius = g_rand_int_range(rand, 1, 60);
+		gsize size = (gsize)stride * height;
+		guint8 *pixels = g_malloc(size), *expected = g_malloc(size);
+
+		for (gsize i = 0; i < size; i++)
+			pixels[i] = expected[i] = (guint8)g_rand_int(rand);
+		polo_fx_blur(pixels, width, height, stride, radius);
+		reference_blur(expected, width, height, stride, radius);
+		g_assert_cmpmem(pixels, size, expected, size);
+		g_free(pixels);
+		g_free(expected);
+	}
+	g_rand_free(rand);
+}
+
+static void
+test_downscale_matches_reference(void)
+{
+	GRand *rand = g_rand_new_with_seed(11);
+
+	for (int round = 0; round < 200; round++) {
+		int factor = g_rand_int_range(rand, 1, 6);
+		int width = g_rand_int_range(rand, factor, 50);
+		int height = g_rand_int_range(rand, factor, 50);
+		int stride = width * 4 + g_rand_int_range(rand, 0, 3) * 4;
+		int small_width = width / factor,
+		    small_height = height / factor;
+		int small_stride = small_width * 4 + 4;
+		gsize small_size = (gsize)small_stride * small_height;
+		guint8 *source = g_malloc((gsize)stride * height);
+		guint8 *small = g_malloc0(small_size);
+		guint8 *expected = g_malloc0(small_size);
+
+		for (gsize i = 0; i < (gsize)stride * height; i++)
+			source[i] = (guint8)g_rand_int(rand);
+		for (int y = 0; y < small_height; y++)
+			for (int x = 0; x < small_width; x++)
+				for (int c = 0; c < 4; c++) {
+					guint32 sum = 0, area = factor * factor;
+
+					for (int j = 0; j < factor; j++)
+						for (int i = 0; i < factor; i++)
+							sum += source
+								[(gsize)(y * factor +
+									 j) *
+									 stride +
+								 (x * factor +
+								  i) * 4 +
+								 c];
+					expected[(gsize)y * small_stride +
+						 x * 4 + c] =
+						(guint8)((sum + area / 2) /
+							 area);
+				}
+		polo_fx_downscale(source, width, height, stride, factor, small,
+				  small_stride);
+		g_assert_cmpmem(small, small_size, expected, small_size);
+		g_free(source);
+		g_free(small);
+		g_free(expected);
+	}
+	g_rand_free(rand);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -100,5 +207,8 @@ main(int argc, char **argv)
 	g_test_add_func("/blur/spread", test_spreads_and_keeps_energy);
 	g_test_add_func("/blur/dim", test_dim);
 	g_test_add_func("/blur/downscale", test_downscale);
+	g_test_add_func("/blur/reference", test_matches_reference);
+	g_test_add_func("/blur/downscale-reference",
+			test_downscale_matches_reference);
 	return g_test_run();
 }
