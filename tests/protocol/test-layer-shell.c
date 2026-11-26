@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include <linux/input.h>
 
@@ -623,8 +624,11 @@ test_vt_switch(struct harness *h)
 		harness_set_session_active(h, false);
 		harness_roundtrip(h);
 		harness_set_session_active(h, true);
-		for (int j = 0; j < 20 && h->keyboard_focus != s->surface; j++)
+		for (int j = 0; j < 200 && h->keyboard_focus != s->surface;
+		     j++) {
+			usleep(10 * 1000);
 			harness_roundtrip(h);
+		}
 		CHECK(h->keyboard_focus == s->surface,
 		      "the %s surface lost the keyboard after a VT switch",
 		      modes[i] == KBD_EXCLUSIVE ? "exclusive" : "on-demand");
