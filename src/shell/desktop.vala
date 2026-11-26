@@ -51,6 +51,7 @@ namespace Polo.Shell {
         public Switcher switcher { get; private set; }
         public ShareChooser share_chooser { get; private set; }
         public Expo expo { get; private set; }
+        public Scale scale { get; private set; }
         public Magnifier magnifier { get; private set; }
         public Cube cube { get; private set; }
         public DisplaySwitcher display_switcher { get; private set; }
@@ -146,6 +147,7 @@ namespace Polo.Shell {
             switcher = new Switcher (server, model, this, bindings);
             share_chooser = new ShareChooser (server, model, this);
             expo = new Expo (server, model, this, bindings);
+            scale = new Scale (server, model, this, bindings);
             magnifier = new Magnifier (server, model, bindings);
             cube = new Cube (server, model, this, bindings);
             display_switcher = new DisplaySwitcher (server, this, bindings);
@@ -268,6 +270,7 @@ namespace Polo.Shell {
             switcher.shutdown ();
             share_chooser.shutdown ();
             expo.shutdown ();
+            scale.shutdown ();
             magnifier.shutdown ();
             cube.shutdown ();
             display_switcher.shutdown ();
@@ -1026,7 +1029,7 @@ namespace Polo.Shell {
 
         public bool grab_active {
             get {
-                return move_resize.active || switcher.active || share_chooser.active || expo.active ||
+                return move_resize.active || switcher.active || share_chooser.active || expo.active || scale.active ||
                        cube.grabbing || display_switcher.active || workspace_switcher.active || frame_input.active;
             }
         }
@@ -1045,6 +1048,9 @@ namespace Polo.Shell {
             }
             if (expo.active) {
                 names += "expo";
+            }
+            if (scale.active) {
+                names += "scale";
             }
             if (cube.grabbing) {
                 names += "cube";
@@ -1110,6 +1116,8 @@ namespace Polo.Shell {
                     grabbed = share_chooser.key (seat, event);
                 } else if (expo.active) {
                     grabbed = expo.key (seat, event);
+                } else if (scale.active) {
+                    grabbed = scale.key (seat, event);
                 } else if (cube.grabbing) {
                     grabbed = cube.key (seat, event);
                 } else if (display_switcher.active) {

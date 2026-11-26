@@ -129,6 +129,7 @@ polo_sources = files(
   'shell/expo.vala',
   'shell/hot-corners.vala',
   'shell/magnifier.vala',
+  'shell/scale.vala',
   'shell/frame-input.vala',
   'shell/window-menu.vala',
   'shell/workspace-switcher.vala',

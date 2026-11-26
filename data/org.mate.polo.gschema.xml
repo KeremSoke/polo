@@ -428,6 +428,26 @@
       <summary>Magnify less</summary>
       <description>Lowers mag-factor by one, down to 1, in Marco's accelerator syntax ("disabled" for none).</description>
     </key>
+    <key name="scale" type="s">
+      <default>'&lt;Mod4&gt;w'</default>
+      <summary>Scale the windows of this workspace</summary>
+      <description>Spreads out the windows of the current workspace to pick one, in Marco's accelerator syntax ("disabled" for none). Pressing it again closes Scale.</description>
+    </key>
+    <key name="scale-all-workspaces" type="s">
+      <default>'&lt;Mod4&gt;&lt;Shift&gt;w'</default>
+      <summary>Scale the windows of every workspace</summary>
+      <description>Spreads out the windows of every workspace to pick one, in Marco's accelerator syntax ("disabled" for none).</description>
+    </key>
+    <key name="scale-application" type="s">
+      <default>'disabled'</default>
+      <summary>Scale the windows of the focused application</summary>
+      <description>Spreads out the windows of the focused window's application on the current workspace, in Marco's accelerator syntax ("disabled" for none).</description>
+    </key>
+    <key name="scale-application-all-workspaces" type="s">
+      <default>'disabled'</default>
+      <summary>Scale the windows of the focused application on every workspace</summary>
+      <description>Spreads out the windows of the focused window's application on every workspace, in Marco's accelerator syntax ("disabled" for none).</description>
+    </key>
   </schema>
   <schema id="org.mate.polo.hot-corners" path="/org/mate/polo/hot-corners/">
     <key name="enabled" type="b">
@@ -438,7 +458,7 @@
     <key name="top-left" type="s">
       <default>'none'</default>
       <summary>Top left corner</summary>
-      <description>What the top left corner does: "none", "expo", "cube", "show-desktop", "window-switcher", "lock-screen", "run-dialog", or "command:" followed by a command line.</description>
+      <description>What the top left corner does: "none", "expo", "cube", "scale", "scale-all-workspaces", "scale-application", "scale-application-all-workspaces", "show-desktop", "window-switcher", "lock-screen", "run-dialog", or "command:" followed by a command line.</description>
     </key>
     <key name="top-right" type="s">
       <default>'none'</default>
@@ -599,6 +619,136 @@
       <default>'none'</default>
       <summary>Right edge</summary>
       <description>What this screen's right edge does.</description>
+    </key>
+  </schema>
+  <schema id="org.mate.polo.scale" path="/org/mate/polo/scale/">
+    <key name="enabled" type="b">
+      <default>true</default>
+      <summary>Enable Scale</summary>
+      <description>Lets the scale keys of org.mate.polo.keybindings and the scale hot corner actions spread out windows to pick one.</description>
+    </key>
+    <key name="screens" type="s">
+      <choices>
+        <choice value="summoned"/>
+        <choice value="each"/>
+        <choice value="mirrored"/>
+      </choices>
+      <default>'each'</default>
+      <summary>Which screens show Scale</summary>
+      <description>"summoned": only the screen under the pointer, or the hot corner's screen; summoned-windows decides which windows it shows. "each": every screen shows the windows on it. "mirrored": every screen shows every window.</description>
+    </key>
+    <key name="summoned-windows" type="s">
+      <choices>
+        <choice value="this-screen"/>
+        <choice value="every-screen"/>
+      </choices>
+      <default>'this-screen'</default>
+      <summary>Windows shown on the summoned screen</summary>
+      <description>With screens "summoned": "this-screen" shows only the windows on that screen, "every-screen" gathers the windows of every screen there.</description>
+    </key>
+    <key name="mode-screens" type="a{ss}">
+      <default>{}</default>
+      <summary>Screens per mode</summary>
+      <description>Overrides screens for the modes named: "workspace", "all-workspaces", "application" and "application-all-workspaces", for example {'all-workspaces': 'summoned'}.</description>
+    </key>
+    <key name="layout" type="s">
+      <choices>
+        <choice value="natural"/>
+        <choice value="grid"/>
+      </choices>
+      <default>'natural'</default>
+      <summary>How windows are arranged</summary>
+      <description>"natural": windows stay near where they are, pushed apart until none overlap. "grid": rows of windows, most recently used first.</description>
+    </key>
+    <key name="all-workspaces-layout" type="s">
+      <choices>
+        <choice value="grouped"/>
+        <choice value="mixed"/>
+      </choices>
+      <default>'grouped'</default>
+      <summary>Windows of every workspace</summary>
+      <description>"grouped": one band per workspace, with its name. "mixed": all windows together.</description>
+    </key>
+    <key name="spacing" type="u">
+      <range min="0" max="200"/>
+      <default>16</default>
+      <summary>Space between windows</summary>
+      <description>Pixels kept between windows and around them.</description>
+    </key>
+    <key name="duration-ms" type="u">
+      <range min="1" max="5000"/>
+      <default>250</default>
+      <summary>Animation duration</summary>
+      <description>Milliseconds Scale takes to open and to close.</description>
+    </key>
+    <key name="minimized" type="s">
+      <choices>
+        <choice value="show"/>
+        <choice value="dimmed"/>
+        <choice value="hide"/>
+      </choices>
+      <default>'show'</default>
+      <summary>Minimized windows</summary>
+      <description>Whether Scale shows minimized windows ("show"), shows them half transparent ("dimmed"), or leaves them out ("hide").</description>
+    </key>
+    <key name="window-titles" type="b">
+      <default>true</default>
+      <summary>Window titles</summary>
+      <description>Shows each window's title on it.</description>
+    </key>
+    <key name="background" type="s">
+      <choices>
+        <choice value="solid"/>
+        <choice value="wallpaper"/>
+        <choice value="blurred-wallpaper"/>
+      </choices>
+      <default>'blurred-wallpaper'</default>
+      <summary>Scale background</summary>
+      <description>What Scale shows behind the windows: a solid dark grey ("solid"), the desktop background ("wallpaper"), or the desktop background blurred ("blurred-wallpaper").</description>
+    </key>
+    <key name="background-blur" type="u">
+      <range min="1" max="100"/>
+      <default>40</default>
+      <summary>Background blur radius</summary>
+      <description>How far, in pixels, the "blurred-wallpaper" background is blurred.</description>
+    </key>
+    <key name="background-dim" type="d">
+      <range min="0.0" max="1.0"/>
+      <default>0.3</default>
+      <summary>Background dimming</summary>
+      <description>How much darker the wallpaper behind Scale is drawn, from 0 (as is) to 1 (black).</description>
+    </key>
+    <key name="other-workspace" type="s">
+      <choices>
+        <choice value="switch"/>
+        <choice value="bring"/>
+      </choices>
+      <default>'switch'</default>
+      <summary>Picking a window on another workspace</summary>
+      <description>"switch": go to the window's workspace. "bring": move the window to the current workspace.</description>
+    </key>
+    <key name="empty-click" type="s">
+      <choices>
+        <choice value="close"/>
+        <choice value="show-desktop"/>
+      </choices>
+      <default>'close'</default>
+      <summary>Clicking between windows</summary>
+      <description>What a click where there is no window does: close Scale ("close"), or close it and show the desktop ("show-desktop").</description>
+    </key>
+    <key name="middle-click" type="s">
+      <choices>
+        <choice value="close-window"/>
+        <choice value="none"/>
+      </choices>
+      <default>'close-window'</default>
+      <summary>Middle click on a window</summary>
+      <description>"close-window" asks the window to close; "none" does nothing.</description>
+    </key>
+    <key name="hold" type="b">
+      <default>false</default>
+      <summary>Hold the key</summary>
+      <description>When true, Scale opened with a key stays open only while that key's modifier is held, and letting go of it picks the selected window, as Alt+Tab does.</description>
     </key>
   </schema>
 </schemalist>

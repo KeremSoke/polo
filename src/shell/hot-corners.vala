@@ -258,7 +258,8 @@ namespace Polo.Shell {
         private bool closes (string action) {
             return (action == "expo" && desktop.expo.active) ||
                    (action == "cube" && (desktop.cube.active || desktop.expo.active)) ||
-                   (action == "window-switcher" && desktop.switcher.active);
+                   (action == "window-switcher" && desktop.switcher.active) ||
+                   (action.has_prefix ("scale") && desktop.scale.active);
         }
 
         private bool covered_by_fullscreen (Policy.HotRegion region) {
@@ -324,6 +325,14 @@ namespace Polo.Shell {
                     } else {
                         desktop.expo.toggle (seat);
                     }
+                    break;
+                case "scale":
+                case "scale-all-workspaces":
+                case "scale-application":
+                case "scale-application-all-workspaces":
+                    Policy.ScaleMode mode;
+                    Policy.ScaleMode.from_key (action, out mode);
+                    desktop.scale.toggle (seat, mode);
                     break;
                 case "show-desktop":
                     if (model.showing_desktop) {
