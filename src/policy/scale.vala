@@ -301,18 +301,18 @@ namespace Polo.Policy {
                     }
                 };
                 Marco.Rect[] members = {};
-                int[] indices = {};
+                var indices = new GLib.Array<int> ();
                 for (int i = 0; i < windows.length; i++) {
                     if (window_workspaces[i] == workspaces[b]) {
                         members += windows[i];
-                        indices += i;
+                        indices.append_val (i);
                     }
                 }
                 var local = arrangement == ScaleArrangement.GRID
                             ? grid (band.area, members, spacing)
                             : natural (band.area, members, spacing);
                 foreach (var slot in local) {
-                    slot.index = indices[slot.index];
+                    slot.index = indices.index (slot.index);
                     band.slots.add (slot);
                 }
                 bands.add (band);
