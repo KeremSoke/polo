@@ -57,6 +57,7 @@ namespace Polo.Shell {
         public WindowMenu window_menu { get; private set; }
         private FrameInput frame_input;
         public WorkspaceSwitcher workspace_switcher { get; private set; }
+        public HotCorners hot_corners { get; private set; }
         private TilePreview tile_preview;
         public Decor.Decorations decorations { get; private set; }
 
@@ -151,6 +152,7 @@ namespace Polo.Shell {
             window_menu = new WindowMenu (server, model, this, bindings);
             frame_input = new FrameInput (this, model);
             workspace_switcher = new WorkspaceSwitcher (server, model, this, bindings);
+            hot_corners = new HotCorners (server, model, this);
             model.keyboard_move_handler = (window) => {
                 foreach (var seat in seats) {
                     move_resize.begin_keyboard (seat, window, Input.GrabOp.KEYBOARD_MOVING,
@@ -271,6 +273,7 @@ namespace Polo.Shell {
             display_switcher.shutdown ();
             store.finish ();
             workspace_switcher.shutdown ();
+            hot_corners.shutdown ();
 #if POLO_HAVE_XWAYLAND
             if (ewmh != null) {
                 ewmh.shutdown ();
@@ -955,6 +958,16 @@ namespace Polo.Shell {
             return null;
         }
 
+        public GLib.GenericArray<string> monitor_ids_of (Policy.Output output) {
+            var ids = new GLib.GenericArray<string> ();
+            foreach (var head in heads) {
+                if (outputs.lookup (head) == output) {
+                    ids.add (monitor_id (head));
+                }
+            }
+            return ids;
+        }
+
         public string monitor_id (Backend.Output head) {
             var connected = new GLib.GenericArray<Polo.Output> ();
             Polo.Output? own = null;
@@ -994,6 +1007,7 @@ namespace Polo.Shell {
             seat.set_key_filter (on_key);
             seat.motion.connect (on_motion);
             seat.keyboard_focus_lost.connect (on_keyboard_focus_lost);
+            hot_corners.add_seat (seat);
             keyboard.add_seat (seat);
             double x, y;
             seat.get_pointer_position (out x, out y);
@@ -1124,12 +1138,29 @@ namespace Polo.Shell {
             restack ();
         }
 
+        private Input.CommandLauncher? command_launcher = null;
+        private Input.ErrorDialog? error_dialog = null;
+
         public void set_command_launcher (owned Input.CommandLauncher? launcher) {
-            actions.set_launcher ((owned) launcher);
+            command_launcher = (owned) launcher;
+            if (command_launcher != null) {
+                actions.set_launcher ((command) => command_launcher (command));
+                hot_corners.set_launcher ((command) => command_launcher (command));
+            } else {
+                actions.set_launcher (null);
+                hot_corners.set_launcher (null);
+            }
         }
 
         public void set_error_dialog (owned Input.ErrorDialog? dialog) {
-            actions.set_error_dialog ((owned) dialog);
+            error_dialog = (owned) dialog;
+            if (error_dialog != null) {
+                actions.set_error_dialog ((message) => error_dialog (message));
+                hot_corners.set_error_dialog ((message) => error_dialog (message));
+            } else {
+                actions.set_error_dialog (null);
+                hot_corners.set_error_dialog (null);
+            }
         }
 
         private XdgWindow? frame_owner (Backend.View view) {
@@ -1226,6 +1257,9 @@ namespace Polo.Shell {
                 locate_pointer.button ();
             }
             if (cube.drag_button (seat, event)) {
+                return Backend.FilterResult.CONSUME;
+            }
+            if (!grab_active && hot_corners.button (seat, event)) {
                 return Backend.FilterResult.CONSUME;
             }
             if (switcher.active) {

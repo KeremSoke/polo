@@ -416,6 +416,11 @@ namespace Polo {
                     logind.lock_shown ();
                 }
             });
+            desktop.hot_corners.set_lock_screen (() => {
+                if (session_lock != null) {
+                    session_lock.lock_screen.begin ();
+                }
+            });
             media_key_actions = new Shell.MediaKeyActions (server, model, desktop, spawn, logind, () => {
                 if (session_lock != null) {
                     session_lock.lock_screen.begin ();
@@ -436,6 +441,7 @@ namespace Polo {
             media_keys = null;
             media_key_actions.shutdown ();
             media_key_actions = null;
+            desktop.hot_corners.set_lock_screen (null);
             session_lock.shutdown ();
             session_lock = null;
             if (window_states != null) {
