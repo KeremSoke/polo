@@ -6,7 +6,8 @@
  * each shows its part of the picture, also after an output moves left of
  * the other (to negative coordinates); caja's desktop hides the fallback
  * on its output, and it comes back when that desktop goes, as when
- * show-desktop-icons is turned off.
+ * show-desktop-icons is turned off. A tiled picture with transparent
+ * pixels shows the colour MATE stores as rgb() through them.
  */
 #include <cairo.h>
 #include <stdio.h>
@@ -35,6 +36,22 @@ write_picture(const char *path)
 	cairo_set_source_rgb(cr, 0, 0, 1);
 	cairo_rectangle(cr, HARNESS_OUTPUT_WIDTH, 0, HARNESS_OUTPUT_WIDTH,
 			HARNESS_OUTPUT_HEIGHT);
+	cairo_fill(cr);
+	cairo_destroy(cr);
+	CHECK(cairo_surface_write_to_png(surface, path) == CAIRO_STATUS_SUCCESS,
+	      "cannot write %s", path);
+	cairo_surface_destroy(surface);
+}
+
+static void
+write_pattern(const char *path)
+{
+	cairo_surface_t *surface =
+		cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 16, 16);
+	cairo_t *cr = cairo_create(surface);
+
+	cairo_set_source_rgb(cr, 1, 0, 0);
+	cairo_rectangle(cr, 0, 0, 2, 2);
 	cairo_fill(cr);
 	cairo_destroy(cr);
 	CHECK(cairo_surface_write_to_png(surface, path) == CAIRO_STATUS_SUCCESS,
@@ -147,6 +164,19 @@ main(int argc, char **argv)
 	harness_roundtrip(h);
 	expect(h, 0, BLUE, "after caja's desktop went");
 
+	unlink(path);
+	snprintf(path, sizeof path, "%s/pattern.png", h->runtime_dir);
+	write_pattern(path);
+	snprintf(value, sizeof value, "'%s'", path);
+	harness_set_setting(h, "org.mate.background", "color-shading-type",
+			    "'solid'");
+	harness_set_setting(h, "org.mate.background", "primary-color",
+			    "'rgb(88,145,188)'");
+	harness_set_setting(h, "org.mate.background", "picture-options",
+			    "'wallpaper'");
+	harness_set_setting(h, "org.mate.background", "picture-filename",
+			    value);
+	expect(h, 0, 0x5891bcu, "rgb() colour behind a transparent tile");
 	unlink(path);
 	CHECK(harness_stop(h) == 0, "polo did not stop cleanly");
 	return 0;

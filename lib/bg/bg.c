@@ -19,6 +19,7 @@
  * at a time (tile phase and spanned offset from the screen origin).
  */
 
+#include <errno.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -76,15 +77,96 @@ struct _PoloBg {
 
 /* ---- Colours ----------------------------------------------------------- */
 
-/* MateBG color_from_string: gdk_rgba_parse () falls back to
- * pango_color_parse () for everything MATE stores; black if unparsable. */
+/* MateBG color_from_string: gdk_rgba_parse (), whose rgb() and rgba()
+ * forms MATE stores, falling back to pango_color_parse (); black if
+ * unparsable. */
+static const char *
+skip_spaces(const char *p)
+{
+	while (g_ascii_isspace(*p))
+		p++;
+	return p;
+}
+
+static gboolean
+parse_number(const char **p, double *number)
+{
+	char *end;
+
+	errno = 0;
+	*number = g_ascii_strtod(*p, &end);
+	if (errno == ERANGE || end == *p || isinf(*number) || isnan(*number))
+		return FALSE;
+	*p = end;
+	return TRUE;
+}
+
+static gboolean
+parse_rgb_value(const char **p, double *value)
+{
+	const char *q;
+
+	if (!parse_number(p, value))
+		return FALSE;
+	q = skip_spaces(*p);
+	if (*q == '%') {
+		*p = q + 1;
+		*value = CLAMP(*value / 100.0, 0.0, 1.0);
+	} else {
+		*value = CLAMP(*value / 255.0, 0.0, 1.0);
+	}
+	return TRUE;
+}
+
+static gboolean
+parse_css_rgb(const char *p, BgColor *color)
+{
+	double values[3], alpha;
+	gboolean has_alpha = strncmp(p, "rgba", 4) == 0;
+
+	p = skip_spaces(p + (has_alpha ? 4 : 3));
+	if (*p++ != '(')
+		return FALSE;
+	for (int i = 0; i < 3; i++) {
+		p = skip_spaces(p);
+		if (i > 0) {
+			if (*p++ != ',')
+				return FALSE;
+			p = skip_spaces(p);
+		}
+		if (!parse_rgb_value(&p, &values[i]))
+			return FALSE;
+	}
+	if (has_alpha) {
+		p = skip_spaces(p);
+		if (*p++ != ',')
+			return FALSE;
+		p = skip_spaces(p);
+		if (!parse_number(&p, &alpha))
+			return FALSE;
+	}
+	p = skip_spaces(p);
+	if (*p++ != ')' || *skip_spaces(p) != '\0')
+		return FALSE;
+	color->red = values[0];
+	color->green = values[1];
+	color->blue = values[2];
+	return TRUE;
+}
+
 static void
 color_from_string(const char *string, BgColor *color)
 {
+	const char *p = string ? string : "";
 	PangoColor pc;
 
-	if (!string || *string == '\0' || !pango_color_parse(&pc, string))
+	if (strncmp(p, "rgb", 3) == 0) {
+		if (parse_css_rgb(p, color))
+			return;
 		pango_color_parse(&pc, "#000000");
+	} else if (*p == '\0' || !pango_color_parse(&pc, p)) {
+		pango_color_parse(&pc, "#000000");
+	}
 	color->red = pc.red / 65535.0;
 	color->green = pc.green / 65535.0;
 	color->blue = pc.blue / 65535.0;

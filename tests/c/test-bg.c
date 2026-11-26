@@ -122,6 +122,82 @@ test_solid(void)
 }
 
 static void
+test_css_colours(void)
+{
+	static const struct {
+		const char *text;
+		guint32 pixel;
+	} cases[] = {
+		{ "rgb(88,145,188)", 0x5891bc },
+		{ "rgb( 88 , 145 , 188 )", 0x5891bc },
+		{ "RGB(88,145,188)", 0x000000 },
+		{ "rgba(88,145,188,0.5)", 0x5891bc },
+		{ "rgb(100%,0%,50%)", 0xff007f },
+		{ "rgb(300,-5,0)", 0xff0000 },
+		{ "rgb(60.4,143,37)", 0x3c8f25 },
+		{ "rgb(1,2)", 0x000000 },
+		{ "rgb(1,2,3", 0x000000 },
+		{ "rgb(1,2,3)x", 0x000000 },
+		{ "rgba(1,2,3)", 0x000000 },
+		{ "rgb(a,2,3)", 0x000000 },
+		{ " rgb(1,2,3)", 0x000000 },
+		{ "rgb(1,2,3) ", 0x010203 },
+		{ "rgb (1,2,3)", 0x010203 },
+		{ "rgb(1e2,+2,3)", 0x640203 },
+		{ "rgba(1,2,3, 0.5 )", 0x010203 },
+		{ "", 0x000000 },
+		{ "#3C8F25", 0x3c8f25 },
+		{ "blue", 0x0000ff },
+	};
+	PoloBg *bg = polo_bg_new();
+
+	for (size_t i = 0; i < G_N_ELEMENTS(cases); i++) {
+		Frame f;
+
+		polo_bg_set_color(bg, POLO_BG_COLOR_SOLID, cases[i].text, NULL);
+		f = draw(bg, 2, 2, 1, 0, 0, 2, 2);
+		g_assert_cmphex(at(f, 1, 1), ==,
+				rgb(cases[i].pixel >> 16,
+				    cases[i].pixel >> 8 & 0xff,
+				    cases[i].pixel & 0xff));
+		g_free(f.pixels);
+	}
+	polo_bg_unref(bg);
+}
+
+static void
+test_transparent_tile(void)
+{
+	GdkPixbuf *pb = gdk_pixbuf_new(GDK_COLORSPACE_RGB, TRUE, 8, 4, 4);
+	char *path = g_build_filename(tmpdir, "pattern.png", NULL);
+	PoloBg *bg = polo_bg_new();
+	Frame f;
+
+	gdk_pixbuf_fill(pb, 0x00000000);
+	gdk_pixbuf_get_pixels(pb)[0] = 0xff;
+	gdk_pixbuf_get_pixels(pb)[3] = 0xff;
+	g_assert_true(gdk_pixbuf_save(pb, path, "png", NULL, NULL));
+	g_object_unref(pb);
+	polo_bg_set_color(bg, POLO_BG_COLOR_SOLID, "rgb(88,145,188)",
+			  "rgb(60,143,37)");
+	polo_bg_set_placement(bg, POLO_BG_PLACEMENT_TILED);
+	polo_bg_set_filename(bg, path);
+	f = draw(bg, 8, 8, 1, 0, 0, 8, 8);
+	g_assert_cmphex(at(f, 0, 0), ==, rgb(255, 0, 0));
+	g_assert_cmphex(at(f, 4, 4), ==, rgb(255, 0, 0));
+	g_assert_cmphex(at(f, 1, 1), ==, rgb(0x58, 0x91, 0xbc));
+	g_assert_cmphex(at(f, 6, 2), ==, rgb(0x58, 0x91, 0xbc));
+	g_free(f.pixels);
+	polo_bg_set_color(bg, POLO_BG_COLOR_V_GRADIENT, "rgb(0,0,0)",
+			  "rgb(255,255,255)");
+	f = draw(bg, 8, 8, 1, 0, 0, 8, 8);
+	g_assert_cmpuint(at(f, 1, 7) & 0xff, >, at(f, 1, 1) & 0xff);
+	g_free(f.pixels);
+	polo_bg_unref(bg);
+	g_free(path);
+}
+
+static void
 test_gradients(void)
 {
 	PoloBg *bg = polo_bg_new();
@@ -387,6 +463,8 @@ main(int argc, char **argv)
 	g_assert_nonnull(tmpdir);
 
 	g_test_add_func("/bg/solid", test_solid);
+	g_test_add_func("/bg/css-colours", test_css_colours);
+	g_test_add_func("/bg/transparent-tile", test_transparent_tile);
 	g_test_add_func("/bg/gradients", test_gradients);
 	g_test_add_func("/bg/placements", test_placements);
 	g_test_add_func("/bg/slideshow", test_slideshow);
