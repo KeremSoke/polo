@@ -58,6 +58,7 @@ namespace Polo.Shell {
             public GLib.GenericArray<Window> old_stacking;
             public bool showing = false;
             public uint columns;
+            public bool pointer = false;
         }
 
         private Backend.Server server;
@@ -196,6 +197,54 @@ namespace Polo.Shell {
             }
         }
 
+        public void open_for_pointer (Backend.Seat seat) {
+            if (desktop.grab_active || !server.get_shell_ui ().is_bound ()) {
+                return;
+            }
+            var type = Policy.TabList.NORMAL;
+            var initial = Policy.TabChain.get_tab_next (model, type, model.current_workspace, null, false);
+            if (initial == null) {
+                initial = Policy.TabChain.get_tab_current (model, type, model.current_workspace);
+            }
+            if (initial == null) {
+                return;
+            }
+            grab = new Grab () {
+                seat = seat,
+                type = type,
+                tabbing = true,
+                primary = 0,
+                mask = 0,
+                entries = Policy.TabChain.get_tab_list (model, type, model.current_workspace),
+                old_stacking = model.get_stack_positions (),
+                columns = (uint) int.max (model.prefs.alt_tab_max_columns, 1),
+                pointer = true
+            };
+            server.get_shell_ui ().switcher_select.connect (on_switcher_select);
+            select (initial);
+            show_popup_now ();
+        }
+
+        public void close () {
+            if (grab == null) {
+                return;
+            }
+            restore_stacking ();
+            reminimize (selected ());
+            end_grab ();
+        }
+
+        private void commit () {
+            var target = selected ();
+            if (target != null && managed (target)) {
+                target.tab_unminimized = false;
+                end_grab ();
+                activate (target);
+                return;
+            }
+            end_grab ();
+        }
+
         private void show_popup_now () {
             var shell_ui = server.get_shell_ui ();
             if (!shell_ui.is_bound ()) {
@@ -312,6 +361,9 @@ namespace Polo.Shell {
             }
             grab.current = (int) id - 1;
             display_entry ();
+            if (grab.pointer) {
+                commit ();
+            }
         }
 
         /* ---- process_tab_grab () ------------------------------------------- */
@@ -345,6 +397,10 @@ namespace Polo.Shell {
             if (!event.pressed) {
                 return Backend.FilterResult.CONSUME;
             }
+            if (grab.pointer && (event.keysym == 0xff0d || event.keysym == 0xff8d || event.keysym == 0x20)) {
+                commit ();
+                return Backend.FilterResult.CONSUME;
+            }
             if (!process_tab_grab (event)) {
                 end_grab ();
             }
@@ -352,6 +408,16 @@ namespace Polo.Shell {
         }
 
         private void restore_stacking () {
+            var current = model.get_stack_positions ();
+            if (current.length != grab.old_stacking.length) {
+                return;
+            }
+            foreach (var window in grab.old_stacking) {
+                uint index;
+                if (!current.find (window, out index)) {
+                    return;
+                }
+            }
             model.set_stack_positions (grab.old_stacking);
         }
 
@@ -484,14 +550,7 @@ namespace Polo.Shell {
             if (grab == null || seat != grab.seat || grab.primary in modifiers) {
                 return;
             }
-            var target = selected ();
-            if (target != null && managed (target)) {
-                target.tab_unminimized = false;
-                end_grab ();
-                activate (target);
-                return;
-            }
-            end_grab ();
+            commit ();
         }
 
         /* A press outside the popup ends the grab with the old stacking. */
