@@ -494,6 +494,15 @@ test('window-animations-squeezimize', window_animations_test,
   suite: 'protocol',
   timeout: 60,
 )
+scale_exe = executable('test-scale', 'test-scale.c', dependencies: harness_dep)
+foreach mode : ['single', 'screens']
+  test('scale-' + mode, scale_exe,
+    args: [polo_exe, mode],
+    env: magic_lamp_env,
+    suite: 'protocol',
+    timeout: 120,
+  )
+endforeach
 hot_corners_exe = executable('test-hot-corners', 'test-hot-corners.c', dependencies: harness_dep)
 foreach mode : ['triggers', 'screens', 'actions']
   test('hot-corners-' + mode, hot_corners_exe,
