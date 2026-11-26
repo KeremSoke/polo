@@ -226,6 +226,16 @@ if get_option('shell-ui')
     timeout: 300,
     is_parallel: false,
   )
+  hot_corners_soak_env = soak_env
+  hot_corners_soak_env.set('SOAK_MODE', 'hot-corners')
+  hot_corners_soak_env.set('SOAK_CHECK_SECONDS', '15')
+  test('soak-hot-corners', executable('soak-hot-corners', '../soak/soak.c', dependencies: harness_dep),
+    args: [polo_exe, shell_ui_exe, '120', '120', '1'],
+    env: hot_corners_soak_env,
+    suite: 'soak',
+    timeout: 300,
+    is_parallel: false,
+  )
   test('alt-tab-hide', executable('test-alt-tab-hide', 'test-alt-tab-hide.c', dependencies: harness_dep),
     args: [polo_exe, shell_ui_exe],
     env: shell_ui_gtk_env,

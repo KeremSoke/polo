@@ -35,6 +35,18 @@
  * keep their full pauses. Every action, with what it changed, goes to
  * actions.log in the log directory.
  *
+ * SOAK_MODE=hot-corners soaks the hot corners instead: random layouts of one
+ * to three screens (portrait or landscape, touching at random offsets, now
+ * and then at mixed scales), every org.mate.polo.hot-corners key and each
+ * screen's own corners set at random, the pointer pushed, rested, jumped and
+ * clicked at corners, edges and the seams between screens, a screen plugged,
+ * unplugged or moved and the settings changed in the middle of a push or a
+ * hover, mixed with windows, fullscreen, expo, the magnifier and Alt+Tab.
+ * Now and then every corner and edge is set to a recorded command and every
+ * corner and edge midpoint of every screen is tried; what fires must match
+ * the rules for the layout and screens chosen, or the soak fails.
+ * SOAK_CHECK_SECONDS sets the time between checkpoints.
+ *
  * Fails on a crash or protocol error (the harness); on the shell UI going
  * away; on keyboard focus missing at a checkpoint; on the magnifier still
  * moving the pointer after it is turned off; on Polo's lowest RSS at the end
@@ -118,6 +130,8 @@ static int n_windows;
 static unsigned long actions, counts[N_ACTIONS];
 static char log_dir[256], log_path[300];
 static bool own_log_dir;
+static bool hc_mode;
+static bool hc_second_on = true;
 static struct harness_output_state outs[3];
 static int n_outs;
 static bool plugged;
@@ -831,23 +845,39 @@ struct monitor_query {
 	int n;
 };
 
+static struct wl_registry *ids_registry;
+static struct mate_output_manager_v1 *ids_manager;
+static uint32_t ids_outputs[16];
+static int n_ids_outputs;
+static int ids_pid;
+
 static void
 query_global(void *data, struct wl_registry *r, uint32_t name,
 	     const char *interface, uint32_t version)
 {
-	struct monitor_query *q = data;
-
-	if (strcmp(interface, mate_output_manager_v1_interface.name) == 0)
-		q->manager = wl_registry_bind(
+	if (strcmp(interface, mate_output_manager_v1_interface.name) == 0 &&
+	    !ids_manager)
+		ids_manager = wl_registry_bind(
 			r, name, &mate_output_manager_v1_interface, 1);
-	else if (strcmp(interface, wl_output_interface.name) == 0 && q->n < 8)
-		q->wl[q->n++] =
-			wl_registry_bind(r, name, &wl_output_interface, 3);
+	else if (strcmp(interface, wl_output_interface.name) == 0 &&
+		 n_ids_outputs < 16)
+		ids_outputs[n_ids_outputs++] = name;
+}
+
+static void
+query_global_remove(void *data, struct wl_registry *r, uint32_t name)
+{
+	for (int i = 0; i < n_ids_outputs; i++) {
+		if (ids_outputs[i] != name)
+			continue;
+		ids_outputs[i] = ids_outputs[--n_ids_outputs];
+		break;
+	}
 }
 
 static const struct wl_registry_listener query_registry_listener = {
 	query_global,
-	global_remove,
+	query_global_remove,
 };
 
 static void
@@ -899,11 +929,21 @@ static int
 monitor_ids(struct harness *h, char ids[][128], int max)
 {
 	struct monitor_query q = { 0 };
-	struct wl_registry *r = wl_display_get_registry(h->display);
 	int n = 0;
 
-	wl_registry_add_listener(r, &query_registry_listener, &q);
+	if (ids_pid != h->pid) {
+		ids_pid = h->pid;
+		ids_manager = NULL;
+		n_ids_outputs = 0;
+		ids_registry = wl_display_get_registry(h->display);
+		wl_registry_add_listener(ids_registry, &query_registry_listener,
+					 NULL);
+	}
 	harness_roundtrip(h);
+	for (int i = 0; i < n_ids_outputs && q.n < 8; i++)
+		q.wl[q.n++] = wl_registry_bind(ids_registry, ids_outputs[i],
+					       &wl_output_interface, 3);
+	q.manager = ids_manager;
 	for (int i = 0; q.manager && i < q.n; i++) {
 		q.mate[i] =
 			mate_output_manager_v1_get_output(q.manager, q.wl[i]);
@@ -919,9 +959,6 @@ monitor_ids(struct harness *h, char ids[][128], int max)
 		if (q.ids[i][0] && n < max)
 			snprintf(ids[n++], 128, "%s", q.ids[i]);
 	}
-	if (q.manager)
-		mate_output_manager_v1_destroy(q.manager);
-	wl_registry_destroy(r);
 	harness_roundtrip(h);
 	return n;
 }
@@ -1532,10 +1569,18 @@ progress(void)
 }
 
 static void
+hc_act(struct harness *h);
+
+static void
 act(struct harness *h)
 {
-	int what = pick_action();
+	int what;
 
+	if (hc_mode) {
+		hc_act(h);
+		return;
+	}
+	what = pick_action();
 	progress();
 
 	if (getenv("SOAK_TRACE"))
@@ -1620,12 +1665,745 @@ act(struct harness *h)
 	harness_roundtrip(h);
 }
 
+/* ---- Hot corners -------------------------------------------------------- */
+
+#define HC "org.mate.polo.hot-corners"
+#define HC_SCREEN                                                              \
+	"org.mate.polo.hot-corners.screen:/org/mate/polo/hot-corners/screens/"
+#define HC_SPOTS 8
+
+static char hc_log[320];
+static unsigned hc_layouts, hc_settings, hc_pokes, hc_plug_during, hc_verifies,
+	hc_points_checked, hc_fired_checked;
+
+static const char *const HC_SPOT_KEYS[HC_SPOTS] = {
+	"top-left", "top-right", "bottom-left", "bottom-right",
+	"top",      "bottom",    "left",        "right",
+};
+static const int HC_DIR_X[HC_SPOTS] = { -1, 1, -1, 1, 0, 0, -1, 1 };
+static const int HC_DIR_Y[HC_SPOTS] = { -1, -1, 1, 1, -1, 1, 0, 0 };
+
+struct hc_rect {
+	int x, y, w, h;
+};
+
+struct hc_region {
+	int spot, screen, x, y, w, h;
+	bool wall_x, wall_y;
+};
+
+static int
+base_scale(void)
+{
+	const char *s = getenv("SOAK_SCALE");
+	const char *eq = s ? strchr(s, '=') : NULL;
+
+	return eq && atoi(eq + 1) > 0 ? atoi(eq + 1) : 1;
+}
+
+static int
+hc_count(const char *prefix)
+{
+	FILE *file = fopen(hc_log, "r");
+	char line[256];
+	int n = 0;
+
+	if (!file)
+		return 0;
+	while (fgets(line, sizeof line, file)) {
+		line[strcspn(line, "\n")] = '\0';
+		if (!prefix || strcmp(line, prefix) == 0)
+			n++;
+	}
+	fclose(file);
+	return n;
+}
+
+static bool
+hc_on_any(const struct hc_rect *r, int n, int px, int py)
+{
+	for (int i = 0; i < n; i++)
+		if (px >= r[i].x && px < r[i].x + r[i].w && py >= r[i].y &&
+		    py < r[i].y + r[i].h)
+			return true;
+	return false;
+}
+
+static struct hc_region
+hc_corner(const struct hc_rect *r, int n, int i, int spot)
+{
+	struct hc_region c = { .spot = spot, .screen = i, .w = 1, .h = 1 };
+
+	c.x = HC_DIR_X[spot] < 0 ? r[i].x : r[i].x + r[i].w - 1;
+	c.y = HC_DIR_Y[spot] < 0 ? r[i].y : r[i].y + r[i].h - 1;
+	c.wall_x = !hc_on_any(r, n, c.x + HC_DIR_X[spot], c.y);
+	c.wall_y = !hc_on_any(r, n, c.x, c.y + HC_DIR_Y[spot]);
+	return c;
+}
+
+static int
+hc_compute(const struct hc_rect *r, int n, const bool *allowed,
+	   const char *layout, struct hc_region *out, int max)
+{
+	int count = 0;
+
+	if (n <= 0)
+		return 0;
+	if (strcmp(layout, "whole-area") == 0) {
+		int left = r[0].x, top = r[0].y, right = r[0].x + r[0].w - 1,
+		    bottom = r[0].y + r[0].h - 1;
+
+		for (int i = 1; i < n; i++) {
+			if (r[i].x < left)
+				left = r[i].x;
+			if (r[i].y < top)
+				top = r[i].y;
+			if (r[i].x + r[i].w - 1 > right)
+				right = r[i].x + r[i].w - 1;
+			if (r[i].y + r[i].h - 1 > bottom)
+				bottom = r[i].y + r[i].h - 1;
+		}
+		for (int spot = 0; spot < 4; spot++) {
+			int px = HC_DIR_X[spot] < 0 ? left : right;
+			int py = HC_DIR_Y[spot] < 0 ? top : bottom;
+			struct hc_region best = { .screen = -1 };
+			long long best_d = -1, best_a = -1;
+
+			for (int i = 0; i < n; i++) {
+				struct hc_region c = hc_corner(r, n, i, spot);
+				long long dx = c.x - px, dy = c.y - py;
+				long long d = dx * dx + dy * dy;
+				long long a = (long long)r[i].w * r[i].h;
+
+				if (!c.wall_x || !c.wall_y)
+					continue;
+				if (best_d < 0 || d < best_d ||
+				    (d == best_d && a > best_a)) {
+					best = c;
+					best_d = d;
+					best_a = a;
+				}
+			}
+			if (best.screen >= 0 && allowed[best.screen] &&
+			    count < max)
+				out[count++] = best;
+		}
+	} else {
+		bool every = strcmp(layout, "every-screen") == 0;
+
+		for (int i = 0; i < n; i++) {
+			if (!allowed[i])
+				continue;
+			for (int spot = 0; spot < 4; spot++) {
+				struct hc_region c = hc_corner(r, n, i, spot);
+				bool keep = every ? c.wall_x || c.wall_y
+						  : c.wall_x && c.wall_y;
+
+				if (keep && count < max)
+					out[count++] = c;
+			}
+		}
+	}
+	for (int i = 0; i < n; i++) {
+		if (!allowed[i])
+			continue;
+		for (int spot = 4; spot < HC_SPOTS; spot++) {
+			bool horizontal = HC_DIR_Y[spot] != 0;
+			int start = horizontal ? r[i].x : r[i].y;
+			int end = start + (horizontal ? r[i].w : r[i].h);
+			int line = horizontal
+				? (HC_DIR_Y[spot] < 0 ? r[i].y
+						      : r[i].y + r[i].h - 1)
+				: (HC_DIR_X[spot] < 0 ? r[i].x
+						      : r[i].x + r[i].w - 1);
+			int run = -1;
+
+			for (int along = start; along <= end; along++) {
+				bool free = false;
+
+				if (along < end)
+					free = horizontal
+						? !hc_on_any(
+							  r, n, along,
+							  line + HC_DIR_Y[spot])
+						: !hc_on_any(
+							  r, n,
+							  line + HC_DIR_X[spot],
+							  along);
+				if (free && run < 0) {
+					run = along;
+				} else if (!free && run >= 0) {
+					struct hc_region e = {
+						.spot = spot,
+						.screen = i,
+						.x = horizontal ? run : line,
+						.y = horizontal ? line : run,
+						.w = horizontal ? along - run
+								: 1,
+						.h = horizontal ? 1
+								: along - run,
+						.wall_x = !horizontal,
+						.wall_y = horizontal,
+					};
+
+					if (count < max)
+						out[count++] = e;
+					run = -1;
+				}
+			}
+		}
+	}
+	return count;
+}
+
+static bool
+hc_hover_contains(const struct hc_region *c, int px, int py)
+{
+	int dx, dy;
+
+	if (c->spot >= 4)
+		return px >= c->x && px < c->x + c->w && py >= c->y &&
+			py < c->y + c->h;
+	dx = (c->x - px) * HC_DIR_X[c->spot];
+	dy = (c->y - py) * HC_DIR_Y[c->spot];
+	return dx >= 0 && dx < 2 && dy >= 0 && dy < 2;
+}
+
+static bool
+hc_pressure_contains(const struct hc_region *c, int px, int py)
+{
+	int dx, dy;
+
+	if (c->spot >= 4)
+		return hc_hover_contains(c, px, py);
+	dx = (c->x - px) * HC_DIR_X[c->spot];
+	dy = (c->y - py) * HC_DIR_Y[c->spot];
+	return (dx == 0 && dy >= 0 && dy < 10) ||
+		(dy == 0 && dx >= 0 && dx < 10);
+}
+
+static int
+hc_expected(const struct hc_region *regions, int n, int px, int py)
+{
+	for (int i = 0; i < n; i++) {
+		if (hc_hover_contains(&regions[i], px, py) ||
+		    hc_pressure_contains(&regions[i], px, py))
+			return hc_hover_contains(&regions[i], px, py)
+				? regions[i].spot
+				: -1;
+	}
+	return -1;
+}
+
+static void
+hc_set(struct harness *h, const char *key, const char *value)
+{
+	harness_set_setting(h, HC, key, value);
+	trace("  hot-corners %s = %s", key, value);
+}
+
+static void
+hc_screen_set(struct harness *h, const char *id, const char *key,
+	      const char *value)
+{
+	char schema[800];
+
+	snprintf(schema, sizeof schema, "%s%s/", HC_SCREEN, id);
+	harness_set_setting(h, schema, key, value);
+	trace("  screen %s %s = %s", id, key, value);
+}
+
+static const char *
+hc_random_action(char *buffer, size_t size, const char *spot)
+{
+	switch (rand() % 8) {
+	case 0:
+	case 1:
+		return "'none'";
+	case 2:
+		return "'expo'";
+	case 3:
+		return "'cube'";
+	case 4:
+		return "'show-desktop'";
+	case 5:
+		return "'window-switcher'";
+	default:
+		snprintf(buffer, size, "'command:hc fuzz-%s'", spot);
+		return buffer;
+	}
+}
+
+static void
+hc_escape(struct harness *h)
+{
+	key_tap(h, KEY_ESC);
+	key_tap(h, KEY_ESC);
+	pause_ms(h, 80);
+}
+
+static void
+hc_place(struct harness *h, int n, bool mixed)
+{
+	static const int sizes[][2] = { { 1024, 768 },
+					{ 1024, 768 },
+					{ 1280, 720 } };
+	struct hc_rect placed[3];
+	int transform[3], scale[3];
+	char line[256] = "";
+	int base = base_scale();
+
+	for (int i = 0; i < n; i++) {
+		int w = sizes[i][0], hgt = sizes[i][1];
+
+		transform[i] = rand() % 3 == 0 ? (rand() % 2 ? 1 : 3) : 0;
+		scale[i] = mixed ? 1 + rand() % 3 : base;
+		if (transform[i] % 2) {
+			int t = w;
+
+			w = hgt;
+			hgt = t;
+		}
+		placed[i].w = w / scale[i];
+		placed[i].h = hgt / scale[i];
+		if (i == 0) {
+			placed[i].x = 0;
+			placed[i].y = 0;
+			continue;
+		}
+		for (int tries = 0; tries < 200; tries++) {
+			const struct hc_rect *to = &placed[rand() % i];
+			int side = rand() % 4;
+			struct hc_rect c = placed[i];
+			bool clash = false;
+
+			if (side < 2) {
+				c.x = side == 0 ? to->x + to->w : to->x - c.w;
+				c.y = to->y - c.h + 1 +
+					rand() % (to->h + c.h - 1);
+			} else {
+				c.y = side == 2 ? to->y + to->h : to->y - c.h;
+				c.x = to->x - c.w + 1 +
+					rand() % (to->w + c.w - 1);
+			}
+			for (int j = 0; j < i; j++)
+				if (c.x < placed[j].x + placed[j].w &&
+				    placed[j].x < c.x + c.w &&
+				    c.y < placed[j].y + placed[j].h &&
+				    placed[j].y < c.y + c.h)
+					clash = true;
+			if (!clash) {
+				placed[i] = c;
+				break;
+			}
+			if (tries == 199) {
+				placed[i].x = placed[i - 1].x + placed[i - 1].w;
+				placed[i].y = placed[i - 1].y;
+			}
+		}
+	}
+	for (int i = 0; i < n; i++) {
+		polo_test_v1_configure_output(h->test, i, scale[i],
+					      transform[i], placed[i].x,
+					      placed[i].y);
+		harness_roundtrip(h);
+		snprintf(line + strlen(line), sizeof line - strlen(line),
+			 " %d:%dx%d@%d,%d t%d s%d", i, placed[i].w, placed[i].h,
+			 placed[i].x, placed[i].y, transform[i], scale[i]);
+	}
+	trace("  layout%s", line);
+}
+
+static void
+hc_plug(struct harness *h, bool on)
+{
+	static const int modes[][3] = { { 1280, 720, 60000 } };
+
+	if (on == plugged)
+		return;
+	if (on)
+		harness_add_output(h, "HDMI-A-1", "DEL", 0x4321, 7, "Soak",
+				   false, 527, 296, modes, 1);
+	else
+		harness_remove_output(h, "HDMI-A-1");
+	plugs += on;
+	plugged = on;
+	trace("  HDMI-A-1 %s", on ? "plugged" : "unplugged");
+	pause_ms(h, 150);
+}
+
+static void
+hc_layout(struct harness *h)
+{
+	int n = 1 + rand() % 3;
+
+	hc_layouts++;
+	hc_plug(h, n == 3);
+	if (n == 1) {
+		polo_test_v1_disable_output(h->test, 1);
+		hc_second_on = false;
+	} else if (!hc_second_on) {
+		plugs++;
+		hc_second_on = true;
+	}
+	harness_roundtrip(h);
+	hc_place(h, n, rand() % 4 == 0);
+	pause_ms(h, 200);
+	read_outputs(h);
+}
+
+static void
+hc_standard_layout(struct harness *h)
+{
+	int s = base_scale();
+
+	hc_plug(h, false);
+	if (!hc_second_on) {
+		plugs++;
+		hc_second_on = true;
+	}
+	polo_test_v1_configure_output(h->test, 0, s, 0, 0, 0);
+	polo_test_v1_configure_output(h->test, 1, s, 0, 1024 / s, 0);
+	harness_roundtrip(h);
+	pause_ms(h, 200);
+	read_outputs(h);
+}
+
+static void
+hc_random_settings(struct harness *h)
+{
+	char value[400], ids[4][128];
+	int n_ids = monitor_ids(h, ids, 4);
+	static const char *const layouts[] = { "'outer'", "'every-screen'",
+					       "'whole-area'" };
+	static const char *const screens[] = { "'all'", "'primary'",
+					       "'selected'" };
+
+	hc_settings++;
+	hc_set(h, "enabled", rand() % 8 ? "true" : "false");
+	for (int i = 0; i < HC_SPOTS; i++)
+		hc_set(h, HC_SPOT_KEYS[i],
+		       hc_random_action(value, sizeof value, HC_SPOT_KEYS[i]));
+	hc_set(h, "trigger", rand() % 2 ? "'pressure'" : "'hover'");
+	snprintf(value, sizeof value, "uint32 %d", 10 + rand() % 400);
+	hc_set(h, "pressure-threshold", value);
+	snprintf(value, sizeof value, "uint32 %d", 50 + rand() % 2000);
+	hc_set(h, "pressure-time", value);
+	snprintf(value, sizeof value, "uint32 %d", rand() % 500);
+	hc_set(h, "hover-delay", value);
+	snprintf(value, sizeof value, "{'%s': uint32 %d, '%s': uint32 %d}",
+		 HC_SPOT_KEYS[rand() % HC_SPOTS], rand() % 300,
+		 HC_SPOT_KEYS[rand() % HC_SPOTS], rand() % 300);
+	hc_set(h, "corner-delays", rand() % 2 ? value : "@a{su} {}");
+	snprintf(value, sizeof value, "uint32 %d", rand() % 800);
+	hc_set(h, "cooldown", value);
+	hc_set(h, "click", rand() % 2 ? "true" : "false");
+	hc_set(h, "fullscreen", rand() % 2 ? "true" : "false");
+	hc_set(h, "animation", rand() % 2 ? "true" : "false");
+	hc_set(h, "layout", layouts[rand() % 3]);
+	hc_set(h, "screens", screens[rand() % 3]);
+	if (n_ids > 1 && rand() % 2)
+		snprintf(value, sizeof value, "['%s', '%s']", ids[0], ids[1]);
+	else if (n_ids > 0)
+		snprintf(value, sizeof value, "['%s'%s]", ids[rand() % n_ids],
+			 rand() % 2 ? ", 'gone-monitor'" : "");
+	else
+		snprintf(value, sizeof value, "@as []");
+	hc_set(h, "selected-screens", value);
+	for (int i = 0; i < n_ids; i++) {
+		hc_screen_set(h, ids[i], "use-shared",
+			      rand() % 3 ? "true" : "false");
+		for (int s = 0; s < HC_SPOTS; s++)
+			if (rand() % 3 == 0)
+				hc_screen_set(
+					h, ids[i], HC_SPOT_KEYS[s],
+					hc_random_action(value, sizeof value,
+							 HC_SPOT_KEYS[s]));
+	}
+}
+
+static void
+hc_spot_point(const struct harness_output_state *o, int spot, int *x, int *y)
+{
+	int along = 3 + rand() % 20;
+
+	*x = HC_DIR_X[spot] < 0 ? o->x
+				: (HC_DIR_X[spot] > 0 ? o->x + o->width - 1
+						      : o->x + o->width / 2);
+	*y = HC_DIR_Y[spot] < 0 ? o->y
+				: (HC_DIR_Y[spot] > 0 ? o->y + o->height - 1
+						      : o->y + o->height / 2);
+	if (spot >= 4 && rand() % 2) {
+		if (HC_DIR_Y[spot] != 0)
+			*x = o->x + (rand() % 2 ? along : o->width - 1 - along);
+		else
+			*y = o->y +
+				(rand() % 2 ? along : o->height - 1 - along);
+	}
+}
+
+static void
+hc_poke(struct harness *h)
+{
+	const struct harness_output_state *o;
+	int spot = rand() % HC_SPOTS, x, y;
+
+	if (n_outs == 0)
+		return;
+	o = &outs[rand() % n_outs];
+	hc_spot_point(o, spot, &x, &y);
+	hc_pokes++;
+	trace("  poke %s %s at %d,%d", o->name, HC_SPOT_KEYS[spot], x, y);
+	switch (rand() % 8) {
+	case 0:
+		pointer_to(h, x, y);
+		for (int i = 0, n = 1 + rand() % 20; i < n; i++)
+			pointer_to(h, x + HC_DIR_X[spot] * (5 + rand() % 40),
+				   y + HC_DIR_Y[spot] * (5 + rand() % 40));
+		break;
+	case 1:
+		pointer_to(h, x, y);
+		pause_ms(h, rand() % 600);
+		break;
+	case 2:
+		polo_test_v1_move_pointer_absolute(h->test, x, y);
+		harness_roundtrip(h);
+		pause_ms(h, rand() % 600);
+		break;
+	case 3:
+		pointer_to(h, x, y);
+		button(h, true);
+		button(h, false);
+		break;
+	case 4:
+		pointer_to(h, x, y);
+		button(h, true);
+		for (int i = 0; i < 10; i++)
+			pointer_to(h, x + HC_DIR_X[spot] * 30,
+				   y + HC_DIR_Y[spot] * 30);
+		button(h, false);
+		break;
+	case 5:
+		pointer_to(h, x, y);
+		for (int i = 0; i < 3; i++)
+			pointer_to(h, x + HC_DIR_X[spot] * 10,
+				   y + HC_DIR_Y[spot] * 10);
+		hc_plug_during++;
+		if (rand() % 2)
+			hc_plug(h, !plugged);
+		else
+			hc_layout(h);
+		for (int i = 0; i < 10; i++)
+			pointer_to(h, x + HC_DIR_X[spot] * 30,
+				   y + HC_DIR_Y[spot] * 30);
+		break;
+	case 6:
+		polo_test_v1_move_pointer_absolute(h->test, x, y);
+		harness_roundtrip(h);
+		pause_ms(h, rand() % 150);
+		hc_plug_during++;
+		if (rand() % 2)
+			hc_random_settings(h);
+		else
+			hc_plug(h, !plugged);
+		pause_ms(h, rand() % 500);
+		break;
+	default:
+		for (int i = 0; i < 6; i++) {
+			int s = rand() % HC_SPOTS;
+
+			o = &outs[rand() % n_outs];
+			hc_spot_point(o, s, &x, &y);
+			pointer_to(h, x, y);
+			pointer_to(h, x + HC_DIR_X[s] * 200,
+				   y + HC_DIR_Y[s] * 200);
+		}
+		break;
+	}
+	read_outputs(h);
+	if (rand() % 3 == 0)
+		hc_escape(h);
+}
+
+static void
+hc_verify(struct harness *h)
+{
+	struct hc_rect rects[3] = { { 0 } };
+	bool allowed[3] = { false };
+	struct hc_region regions[64];
+	char ids[4][128], value[400];
+	int n, n_ids, n_regions;
+	bool primary_only = rand() % 3 == 0;
+	static const char *const layouts[] = { "outer", "every-screen",
+					       "whole-area" };
+	const char *layout = layouts[rand() % 3];
+
+	hc_verifies++;
+	hc_escape(h);
+	pause_ms(h, 700);
+	hc_escape(h);
+	pause_ms(h, 700);
+	harness_set_setting(h, "org.gnome.desktop.a11y.applications",
+			    "screen-magnifier-enabled", "false");
+	n_ids = monitor_ids(h, ids, 4);
+	for (int i = 0; i < n_ids; i++)
+		hc_screen_set(h, ids[i], "use-shared", "true");
+	for (int i = 0; i < HC_SPOTS; i++) {
+		snprintf(value, sizeof value, "'command:hc %s'",
+			 HC_SPOT_KEYS[i]);
+		hc_set(h, HC_SPOT_KEYS[i], value);
+	}
+	hc_set(h, "trigger", "'pressure'");
+	hc_set(h, "hover-delay", "uint32 0");
+	hc_set(h, "corner-delays", "@a{su} {}");
+	hc_set(h, "cooldown", "uint32 0");
+	hc_set(h, "click", "false");
+	hc_set(h, "fullscreen", "true");
+	hc_set(h, "animation", rand() % 2 ? "true" : "false");
+	snprintf(value, sizeof value, "'%s'", layout);
+	hc_set(h, "layout", value);
+	hc_set(h, "screens", primary_only ? "'primary'" : "'all'");
+	hc_set(h, "enabled", "true");
+	read_outputs(h);
+	n = n_outs;
+	for (int i = 0; i < n; i++) {
+		rects[i] = (struct hc_rect){ outs[i].x, outs[i].y,
+					     outs[i].width, outs[i].height };
+		allowed[i] = !primary_only || outs[i].primary;
+	}
+	n_regions = hc_compute(rects, n, allowed, layout, regions, 64);
+	for (int i = 0; i < n; i++) {
+		for (int spot = 0; spot < HC_SPOTS; spot++) {
+			int x = HC_DIR_X[spot] < 0
+				? rects[i].x
+				: (HC_DIR_X[spot] > 0
+					   ? rects[i].x + rects[i].w - 1
+					   : rects[i].x + rects[i].w / 2);
+			int y = HC_DIR_Y[spot] < 0
+				? rects[i].y
+				: (HC_DIR_Y[spot] > 0
+					   ? rects[i].y + rects[i].h - 1
+					   : rects[i].y + rects[i].h / 2);
+			int want = hc_expected(regions, n_regions, x, y);
+			int before = hc_count(NULL), got = -1;
+
+			polo_test_v1_move_pointer_absolute(
+				h->test, rects[i].x + rects[i].w / 2,
+				rects[i].y + rects[i].h / 2);
+			harness_roundtrip(h);
+			polo_test_v1_move_pointer_absolute(h->test, x, y);
+			harness_roundtrip(h);
+			for (int t = 0; t < (want >= 0 ? 40 : 8) &&
+			     hc_count(NULL) == before;
+			     t++)
+				pause_ms(h, 10);
+			if (want < 0)
+				pause_ms(h, 60);
+			if (hc_count(NULL) > before) {
+				FILE *file = fopen(hc_log, "r");
+				char last[256] = "", buffer[256];
+
+				while (file &&
+				       fgets(buffer, sizeof buffer, file))
+					snprintf(last, sizeof last, "%s",
+						 buffer);
+				if (file)
+					fclose(file);
+				last[strcspn(last, "\n")] = '\0';
+				for (int s = 0; s < HC_SPOTS; s++)
+					if (strncmp(last, "hc:", 3) == 0 &&
+					    strcmp(last + 3, HC_SPOT_KEYS[s]) ==
+						    0)
+						got = s;
+				if (got < 0)
+					got = 99;
+			}
+			hc_points_checked++;
+			hc_fired_checked += got >= 0;
+			if (got != want) {
+				printf("soak: hot corners: layout %s, %s, %d "
+				       "screens:\n",
+				       layout, primary_only ? "primary" : "all",
+				       n);
+				for (int j = 0; j < n; j++)
+					printf("soak:   %s %dx%d at %d,%d%s\n",
+					       outs[j].name, rects[j].w,
+					       rects[j].h, rects[j].x,
+					       rects[j].y,
+					       outs[j].primary ? " (primary)"
+							       : "");
+			}
+			CHECK(got == want,
+			      "hot corners: %s of %s at %d,%d fired %s, "
+			      "expected %s",
+			      HC_SPOT_KEYS[spot], outs[i].name, x, y,
+			      got == 99          ? "something else"
+				      : got >= 0 ? HC_SPOT_KEYS[got]
+						 : "nothing",
+			      want >= 0 ? HC_SPOT_KEYS[want] : "nothing");
+		}
+	}
+	trace("  verified %d regions on %d screens", n_regions, n);
+}
+
+static void
+hc_act(struct harness *h)
+{
+	int what = rand() % 100;
+
+	progress();
+	if (what < 38) {
+		trace("%lu hc-poke", actions);
+		hc_poke(h);
+	} else if (what < 48) {
+		trace("%lu hc-settings", actions);
+		hc_random_settings(h);
+	} else if (what < 58) {
+		trace("%lu hc-layout", actions);
+		hc_layout(h);
+	} else if (what < 64) {
+		trace("%lu hc-plug", actions);
+		hc_plug(h, !plugged);
+		read_outputs(h);
+	} else if (what < 69) {
+		trace("%lu hc-verify", actions);
+		hc_verify(h);
+	} else if (what < 76) {
+		trace("%lu open", actions);
+		open_window(h);
+	} else if (what < 81) {
+		trace("%lu close", actions);
+		close_window(h);
+	} else if (what < 85) {
+		trace("%lu fullscreen", actions);
+		fullscreen(h);
+	} else if (what < 89) {
+		trace("%lu expo", actions);
+		expo(h);
+	} else if (what < 93) {
+		trace("%lu magnifier", actions);
+		magnifier(h);
+	} else if (what < 97) {
+		trace("%lu alt-tab", actions);
+		alt_tab(h);
+	} else {
+		trace("%lu workspace", actions);
+		switch_workspace(h);
+	}
+	actions++;
+	harness_roundtrip(h);
+}
+
 /* ---- Sessions ----------------------------------------------------------- */
 
 static void
 configure(struct harness *h)
 {
 	harness_set_setting(h, "org.mate.Marco.general", "num-workspaces", "4");
+	if (hc_mode) {
+		hc_set(h, "enabled", "true");
+		hc_set(h, "top-left", "'command:hc fuzz-top-left'");
+	}
 	harness_set_setting(h, "org.gnome.desktop.a11y.magnifier", "mag-factor",
 			    "2.0");
 	if (reader_path[0])
@@ -1699,6 +2477,11 @@ standard_state(struct harness *h, int index)
 
 	if (crash_child > 0)
 		crash_client(h);
+	if (hc_mode) {
+		harness_set_setting(h, HC, "enabled", "false");
+		hc_escape(h);
+		hc_standard_layout(h);
+	}
 	while (n_windows)
 		harness_window_close(windows[--n_windows]);
 	/* A dialog shown under an open one's id replaces it; an end-session
@@ -1734,6 +2517,8 @@ standard_state(struct harness *h, int index)
 	CHECK(h->keyboard_focus == windows[2]->surface,
 	      "login %d: the newest window does not have keyboard focus",
 	      index);
+	if (hc_mode)
+		harness_set_setting(h, HC, "enabled", "true");
 }
 
 static void
@@ -1895,6 +2680,8 @@ session(int argc, char **argv, double seconds, int index, bool last,
 		every = 12;
 	if (every > 60)
 		every = 60;
+	if (getenv("SOAK_CHECK_SECONDS"))
+		every = atof(getenv("SOAK_CHECK_SECONDS"));
 	snprintf(socket_path, sizeof socket_path, "%s/%s", h->runtime_dir,
 		 h->socket);
 	configure(h);
@@ -2197,6 +2984,31 @@ main(int argc, char **argv)
 	}
 	if (getenv("SOAK_FAST"))
 		pause_scale = 0.1;
+	hc_mode = getenv("SOAK_MODE") &&
+		strcmp(getenv("SOAK_MODE"), "hot-corners") == 0;
+	if (hc_mode) {
+		char path[700], recorder[400];
+		FILE *file;
+
+		snprintf(hc_log, sizeof hc_log, "%s/hot-corners.log", log_dir);
+		snprintf(recorder, sizeof recorder, "%s/hc", log_dir);
+		file = fopen(recorder, "w");
+		CHECK(file, "cannot write %s", recorder);
+		fputs("#!/bin/sh\nline=hc\nfor arg in \"$@\"; do "
+		      "line=\"$line:$arg\"; "
+		      "done\nprintf '%s\\n' \"$line\" >> \"$SOAK_HC_LOG\"\n",
+		      file);
+		fclose(file);
+		chmod(recorder, 0700);
+		snprintf(path, sizeof path, "%s:%s", log_dir,
+			 getenv("PATH") ? getenv("PATH") : "/usr/bin");
+		setenv("PATH", path, 1);
+		setenv("SOAK_HC_LOG", hc_log, 1);
+		setenv("DBUS_SESSION_BUS_ADDRESS",
+		       "unix:path=/nonexistent/polo-soak-bus", 1);
+		if (!getenv("SOAK_STALL"))
+			setenv("SOAK_STALL", "60", 1);
+	}
 	snprintf(images[0], sizeof images[0], "%s/wide.ppm", log_dir);
 	snprintf(images[1], sizeof images[1], "%s/small.ppm", log_dir);
 	write_image(images[0], 1600, 900, 40);
@@ -2265,6 +3077,14 @@ main(int argc, char **argv)
 		print_idle("before", &idle_before);
 		print_idle("after", &idle_after);
 	}
+	if (hc_mode)
+		printf("soak: hot corners: %u layouts, %u settings, %u pokes "
+		       "(%u with a plug, layout or settings change mid-way), "
+		       "%u screens plugged, %u verifications of %u points "
+		       "(%u fired), %d commands run\n",
+		       hc_layouts, hc_settings, hc_pokes, hc_plug_during, plugs,
+		       hc_verifies, hc_points_checked, hc_fired_checked,
+		       hc_count(NULL));
 	printf("soak: done: %.1f min in all, %d logins, %lu actions, %s, seed "
 	       "%u\n",
 	       (now_s() - start) / 60, index, actions,
