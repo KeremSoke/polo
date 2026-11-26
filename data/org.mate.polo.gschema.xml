@@ -429,4 +429,176 @@
       <description>Lowers mag-factor by one, down to 1, in Marco's accelerator syntax ("disabled" for none).</description>
     </key>
   </schema>
+  <schema id="org.mate.polo.hot-corners" path="/org/mate/polo/hot-corners/">
+    <key name="enabled" type="b">
+      <default>false</default>
+      <summary>Use hot corners and edges</summary>
+      <description>Turns every hot corner and edge on or off.</description>
+    </key>
+    <key name="top-left" type="s">
+      <default>'none'</default>
+      <summary>Top left corner</summary>
+      <description>What the top left corner does: "none", "expo", "cube", "show-desktop", "window-switcher", "lock-screen", "run-dialog", or "command:" followed by a command line.</description>
+    </key>
+    <key name="top-right" type="s">
+      <default>'none'</default>
+      <summary>Top right corner</summary>
+      <description>What the top right corner does, as for top-left.</description>
+    </key>
+    <key name="bottom-left" type="s">
+      <default>'none'</default>
+      <summary>Bottom left corner</summary>
+      <description>What the bottom left corner does, as for top-left.</description>
+    </key>
+    <key name="bottom-right" type="s">
+      <default>'none'</default>
+      <summary>Bottom right corner</summary>
+      <description>What the bottom right corner does, as for top-left.</description>
+    </key>
+    <key name="top" type="s">
+      <default>'none'</default>
+      <summary>Top edge</summary>
+      <description>What the top edge does, as for top-left. Edges exist only where nothing lies beyond them.</description>
+    </key>
+    <key name="bottom" type="s">
+      <default>'none'</default>
+      <summary>Bottom edge</summary>
+      <description>What the bottom edge does, as for top-left.</description>
+    </key>
+    <key name="left" type="s">
+      <default>'none'</default>
+      <summary>Left edge</summary>
+      <description>What the left edge does, as for top-left.</description>
+    </key>
+    <key name="right" type="s">
+      <default>'none'</default>
+      <summary>Right edge</summary>
+      <description>What the right edge does, as for top-left.</description>
+    </key>
+    <key name="trigger" type="s">
+      <choices>
+        <choice value="pressure"/>
+        <choice value="hover"/>
+      </choices>
+      <default>'pressure'</default>
+      <summary>How a corner fires</summary>
+      <description>"pressure": pushing the pointer against the screen edge at the corner; resting there does nothing. "hover": resting there for hover-delay. Corners between two screens, and pointers that cannot push (tablets, touch, virtual machines), always use hover-delay.</description>
+    </key>
+    <key name="pressure-threshold" type="u">
+      <range min="10" max="2000"/>
+      <default>100</default>
+      <summary>How hard to push</summary>
+      <description>Pixels of pointer motion pushed against the edge that fire a corner. Lower is more sensitive.</description>
+    </key>
+    <key name="pressure-time" type="u">
+      <range min="50" max="10000"/>
+      <default>1000</default>
+      <summary>Time to push</summary>
+      <description>Milliseconds within which pressure-threshold must be reached.</description>
+    </key>
+    <key name="hover-delay" type="u">
+      <range min="0" max="10000"/>
+      <default>150</default>
+      <summary>Hover delay</summary>
+      <description>Milliseconds the pointer must stay in a corner before it fires, in hover mode.</description>
+    </key>
+    <key name="corner-delays" type="a{su}">
+      <default>{}</default>
+      <summary>Hover delay per corner</summary>
+      <description>Overrides hover-delay for the corners and edges named, for example {'top-left': 0}.</description>
+    </key>
+    <key name="cooldown" type="u">
+      <range min="0" max="10000"/>
+      <default>350</default>
+      <summary>Cooldown</summary>
+      <description>Milliseconds before the same corner can fire again.</description>
+    </key>
+    <key name="click" type="b">
+      <default>false</default>
+      <summary>Fire on click</summary>
+      <description>A left click on the corner fires it too. The click does not reach the window or panel under it.</description>
+    </key>
+    <key name="fullscreen" type="b">
+      <default>false</default>
+      <summary>Fire over fullscreen windows</summary>
+      <description>When false, a corner covered by a fullscreen window does nothing.</description>
+    </key>
+    <key name="animation" type="b">
+      <default>false</default>
+      <summary>Ripple when a corner fires</summary>
+      <description>Shows circles growing out of a corner, as locate pointer does around the pointer, when the corner fires: a quarter circle in a corner, a half circle on an edge.</description>
+    </key>
+    <key name="layout" type="s">
+      <choices>
+        <choice value="outer"/>
+        <choice value="every-screen"/>
+        <choice value="whole-area"/>
+      </choices>
+      <default>'outer'</default>
+      <summary>Which corners exist</summary>
+      <description>"outer": every screen corner where the pointer stops, none between screens. "every-screen": all four corners of every screen, also between screens. "whole-area": the four corners of the whole arrangement of screens.</description>
+    </key>
+    <key name="screens" type="s">
+      <choices>
+        <choice value="all"/>
+        <choice value="primary"/>
+        <choice value="selected"/>
+      </choices>
+      <default>'all'</default>
+      <summary>Which screens have hot corners</summary>
+      <description>"all": every screen, including screens plugged in later. "primary": the primary screen only. "selected": only the screens in selected-screens.</description>
+    </key>
+    <key name="selected-screens" type="as">
+      <default>[]</default>
+      <summary>Selected screens</summary>
+      <description>MATE monitor ids of the screens that have hot corners when screens is "selected"; mate-monitor-info shows them.</description>
+    </key>
+  </schema>
+  <schema id="org.mate.polo.hot-corners.screen">
+    <key name="use-shared" type="b">
+      <default>true</default>
+      <summary>Use the shared corners</summary>
+      <description>When true, this screen's corners and edges do what org.mate.polo.hot-corners says. When false, they do what this schema's own keys say. Found at /org/mate/polo/hot-corners/screens/ID/, where ID is the screen's MATE monitor id.</description>
+    </key>
+    <key name="top-left" type="s">
+      <default>'none'</default>
+      <summary>Top left corner</summary>
+      <description>What this screen's top left corner does, as in org.mate.polo.hot-corners.</description>
+    </key>
+    <key name="top-right" type="s">
+      <default>'none'</default>
+      <summary>Top right corner</summary>
+      <description>What this screen's top right corner does.</description>
+    </key>
+    <key name="bottom-left" type="s">
+      <default>'none'</default>
+      <summary>Bottom left corner</summary>
+      <description>What this screen's bottom left corner does.</description>
+    </key>
+    <key name="bottom-right" type="s">
+      <default>'none'</default>
+      <summary>Bottom right corner</summary>
+      <description>What this screen's bottom right corner does.</description>
+    </key>
+    <key name="top" type="s">
+      <default>'none'</default>
+      <summary>Top edge</summary>
+      <description>What this screen's top edge does.</description>
+    </key>
+    <key name="bottom" type="s">
+      <default>'none'</default>
+      <summary>Bottom edge</summary>
+      <description>What this screen's bottom edge does.</description>
+    </key>
+    <key name="left" type="s">
+      <default>'none'</default>
+      <summary>Left edge</summary>
+      <description>What this screen's left edge does.</description>
+    </key>
+    <key name="right" type="s">
+      <default>'none'</default>
+      <summary>Right edge</summary>
+      <description>What this screen's right edge does.</description>
+    </key>
+  </schema>
 </schemalist>
