@@ -484,6 +484,15 @@ test('window-animations-squeezimize', window_animations_test,
   suite: 'protocol',
   timeout: 60,
 )
+hot_corners_exe = executable('test-hot-corners', 'test-hot-corners.c', dependencies: harness_dep)
+foreach mode : ['triggers', 'screens', 'actions']
+  test('hot-corners-' + mode, hot_corners_exe,
+    args: [polo_exe, mode, fake_shell_ui],
+    env: magic_lamp_env,
+    suite: 'protocol',
+    timeout: 120,
+  )
+endforeach
 test('display-switcher', executable('test-display-switcher', 'test-display-switcher.c', dependencies: harness_dep),
   args: [polo_exe, fake_shell_ui],
   env: cube_env,
