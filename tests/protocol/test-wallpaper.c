@@ -89,6 +89,33 @@ expect(struct harness *h, int index, uint32_t colour, const char *what)
 }
 
 static void
+expect_behind(struct harness *h, int index, uint32_t colour, uint32_t tile,
+	      const char *what)
+{
+	int width = 0, height = 0, matching = 0, tiled = 0;
+
+	for (int i = 0; i < 100; i++) {
+		uint32_t *pixels =
+			harness_capture_output(h, index, &width, &height);
+
+		CHECK(pixels, "cannot capture output %d", index);
+		matching = tiled = 0;
+		for (int p = 0; p < width * height; p++) {
+			matching += (pixels[p] & 0xffffff) == colour;
+			tiled += (pixels[p] & 0xffffff) == tile;
+		}
+		free(pixels);
+		if (matching * 10 >= width * height * 9 && tiled > 0)
+			return;
+		harness_roundtrip(h);
+		usleep(20000);
+	}
+	CHECK(false,
+	      "%s: output %d shows 0x%06x on %d and 0x%06x on %d of %d pixels",
+	      what, index, colour, matching, tile, tiled, width * height);
+}
+
+static void
 desktop_configure(void *data, struct zwlr_layer_surface_v1 *layer_surface,
 		  uint32_t serial, uint32_t width, uint32_t height)
 {
@@ -176,7 +203,9 @@ main(int argc, char **argv)
 			    "'wallpaper'");
 	harness_set_setting(h, "org.mate.background", "picture-filename",
 			    value);
-	expect(h, 0, 0x5891bcu, "rgb() colour behind a transparent tile");
+	expect_behind(h, 0, 0x5891bcu, RED,
+		      "rgb() colour behind a transparent tile");
+	expect_behind(h, 1, 0x5891bcu, RED, "rgb() colour on the other output");
 	unlink(path);
 	CHECK(harness_stop(h) == 0, "polo did not stop cleanly");
 	return 0;
