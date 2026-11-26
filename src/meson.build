@@ -24,6 +24,7 @@ policy_sources = files(
   'policy/window-animation.vala',
   'policy/trust-rules.vala',
   'policy/rate-limit.vala',
+  'policy/hot-corners.vala',
 )
 policy_lib = static_library('polo-policy',
   policy_sources,

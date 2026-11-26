@@ -243,6 +243,13 @@ expo_test = executable('test-expo', 'expo.vala',
 )
 test('expo', expo_test, suite: 'unit-vala', protocol: 'tap', args: ['--tap'])
 
+hot_corners_test = executable('test-hot-corners', 'hot-corners.vala',
+  vala_args: vala_args + ['--pkg', 'polo-marco'],
+  c_args: vala_c_args,
+  dependencies: [polo_policy_dep, cc.find_library('m')],
+)
+test('hot-corners', hot_corners_test, suite: 'unit-vala', protocol: 'tap', args: ['--tap'])
+
 cube_test = executable('test-cube', 'cube.vala',
   vala_args: vala_args + ['--pkg', 'polo-marco', '--pkg', 'polo-fx'],
   c_args: vala_c_args,
