@@ -298,6 +298,16 @@ main(int argc, char **argv)
 			      12,
 	      "the blurred backdrop's corner is 0x%06x over a 0x%06x wallpaper",
 	      corner, wallpaper);
+	uint32_t blurred = corner;
+	struct harness_window *late =
+		harness_window_create(h, 200, 150, "late");
+
+	pause_ms(h, 300);
+	window_pixels(h, &corner);
+	CHECK(corner == blurred,
+	      "after a window mapped the backdrop's corner is 0x%06x, not "
+	      "0x%06x",
+	      corner, blurred);
 	tap(h, KEY_ESC);
 	pause_ms(h, 500);
 
@@ -306,6 +316,7 @@ main(int argc, char **argv)
 	wl_buffer_destroy(part_buffer);
 	wl_subcompositor_destroy(subcompositor);
 	wl_registry_destroy(registry);
+	harness_window_destroy(late);
 	harness_window_destroy(window);
 	CHECK(harness_stop(h) == 0, "polo did not stop cleanly");
 	return 0;

@@ -53,6 +53,8 @@ namespace Polo.Shell {
             public Backend.PixelBuffer? backdrop;
             public ulong backdrop_ready = 0;
             public double backdrop_zoom = 1.0;
+            public Marco.Rect backdrop_rect;
+            public int backdrop_scale;
             public Outline outline;
             public bool outlined = false;
             public Marco.Rect outlined_rect;
@@ -297,7 +299,32 @@ namespace Polo.Shell {
             screen.labels.add (label);
         }
 
-        private void build () {
+        private int output_scale (Policy.Output output) {
+            var head = desktop.backend_output (output);
+            return head != null ? int.max (head.get_scale (), 1) : 1;
+        }
+
+        private Backend.PixelBuffer? take_backdrop (GLib.GenericArray<Screen>? old, Screen screen) {
+            if (old == null) {
+                return null;
+            }
+            foreach (var previous in old) {
+                var rect = previous.backdrop_rect;
+                if (previous.backdrop == null || previous.output != screen.output ||
+                    previous.backdrop_scale != screen.backdrop_scale || rect.x != screen.output.rect.x ||
+                    rect.y != screen.output.rect.y || rect.width != screen.output.rect.width ||
+                    rect.height != screen.output.rect.height) {
+                    continue;
+                }
+                var backdrop = previous.backdrop;
+                screen.backdrop_zoom = previous.backdrop_zoom;
+                previous.backdrop = null;
+                return backdrop;
+            }
+            return null;
+        }
+
+        private void build (GLib.GenericArray<Screen>? old = null) {
             state.workspaces = grid_layout ();
             int room = label_room ();
             foreach (var output in model.get_outputs ()) {
@@ -306,7 +333,12 @@ namespace Polo.Shell {
                 screen.layout = new Policy.ExpoLayout (output.rect, state.workspaces.cols, state.workspaces.rows, GAP,
                                                        room);
                 screen.outline = new Outline (server);
-                screen.backdrop = make_backdrop (output, out screen.backdrop_zoom);
+                screen.backdrop_rect = output.rect;
+                screen.backdrop_scale = output_scale (output);
+                screen.backdrop = take_backdrop (old, screen);
+                if (screen.backdrop == null) {
+                    screen.backdrop = make_backdrop (output, out screen.backdrop_zoom);
+                }
                 if (screen.backdrop.is_ready ()) {
                     place_backdrop (screen);
                 } else {
@@ -318,6 +350,9 @@ namespace Polo.Shell {
                 }
                 state.screens.add (screen);
                 fill (screen);
+            }
+            if (old != null) {
+                drop_backdrops (old);
             }
             place ();
         }
@@ -371,7 +406,17 @@ namespace Polo.Shell {
             show_outline ();
         }
 
-        private void clear (State state) {
+        private void drop_backdrops (GLib.GenericArray<Screen> screens) {
+            foreach (var screen in screens) {
+                unowned Backend.View? view = screen.backdrop != null ? screen.backdrop.get_view () : null;
+                if (view != null) {
+                    view.move_to_layer (null);
+                }
+                screen.backdrop = null;
+            }
+        }
+
+        private void clear (State state, bool keep_backdrops = false) {
             foreach (var screen in state.screens) {
                 screen.outline.hide ();
                 screen.mirrors.remove_range (0, screen.mirrors.length);
@@ -389,11 +434,9 @@ namespace Polo.Shell {
                     screen.backdrop.disconnect (screen.backdrop_ready);
                     screen.backdrop_ready = 0;
                 }
-                unowned Backend.View? view = screen.backdrop != null ? screen.backdrop.get_view () : null;
-                if (view != null) {
-                    view.move_to_layer (null);
-                }
-                screen.backdrop = null;
+            }
+            if (!keep_backdrops) {
+                drop_backdrops (state.screens);
             }
             state.screens.remove_range (0, state.screens.length);
         }
@@ -402,8 +445,9 @@ namespace Polo.Shell {
             if (state == null || state.drag != null) {
                 return;
             }
-            clear (state);
-            build ();
+            var old = state.screens.copy ((screen) => screen);
+            clear (state, true);
+            build (old);
         }
 
         /* ---- Drawing --------------------------------------------------- */
