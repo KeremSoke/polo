@@ -58,10 +58,12 @@ namespace Polo.Effects {
             double px = dir_x < 0 ? region.x : region.x + 1;
             double py = dir_y < 0 ? region.y : region.y + 1;
             if (dir_x == 0) {
-                px = pointer_x.clamp (region.x + RADIUS, double.max (region.x + RADIUS, region.x + region.width - RADIUS));
+                double left = region.x + RADIUS;
+                px = pointer_x.clamp (left, double.max (left, region.x + region.width - RADIUS));
             }
             if (dir_y == 0) {
-                py = pointer_y.clamp (region.y + RADIUS, double.max (region.y + RADIUS, region.y + region.height - RADIUS));
+                double top = region.y + RADIUS;
+                py = pointer_y.clamp (top, double.max (top, region.y + region.height - RADIUS));
             }
             int width = dir_x == 0 ? 2 * RADIUS : RADIUS;
             int height = dir_y == 0 ? 2 * RADIUS : RADIUS;
