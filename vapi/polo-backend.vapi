@@ -716,6 +716,8 @@ namespace Polo {
             /* Emitted after pointer motion outside a grab. @view is the toplevel
              * or surface under the pointer. */
             public signal void motion (double x, double y, uint time_msec, View? view);
+            public signal void edge_motion (double x, double y, double push_x, double push_y, bool absolute,
+                                            uint buttons);
             public signal void group_changed (uint group);
             public signal void numlock_changed (bool locked);
             public signal void modifiers_changed (Modifiers modifiers);

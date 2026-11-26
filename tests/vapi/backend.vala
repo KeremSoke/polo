@@ -337,6 +337,7 @@ int main () {
         seat.lock_group (seat.get_group ());
         seat.set_numlock (false);
         seat.motion.connect ((x, y, time, view) => {});
+        seat.edge_motion.connect ((x, y, push_x, push_y, absolute, buttons) => {});
         seat.warp_pointer (px, py);
         seat.destroyed.connect (() => {
             seat.set_button_filter (null);

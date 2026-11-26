@@ -249,6 +249,11 @@ polo_backend_seat_get_weston_seat(PoloBackendSeat *seat);
 void
 polo_backend_seat_destroy(PoloBackendSeat *seat);
 
+void
+polo_backend_seat_report_edge_motion(struct weston_pointer *pointer,
+				     struct weston_coord_global intended,
+				     gboolean absolute);
+
 PoloBackendSeat *
 polo_backend_server_lookup_seat(PoloBackendServer *server,
 				struct weston_seat *seat);

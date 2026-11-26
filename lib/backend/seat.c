@@ -93,6 +93,7 @@ enum {
 	SIGNAL_NUMLOCK_CHANGED,
 	SIGNAL_MODIFIERS_CHANGED,
 	SIGNAL_KEYBOARD_FOCUS_LOST,
+	SIGNAL_EDGE_MOTION,
 	N_SIGNALS,
 };
 
@@ -198,16 +199,35 @@ filter_grab_focus(struct weston_pointer_grab *grab)
 	self->default_interface->focus(grab);
 }
 
+void
+polo_backend_seat_report_edge_motion(struct weston_pointer *pointer,
+				     struct weston_coord_global intended,
+				     gboolean absolute)
+{
+	PoloBackendSeat *self = seat_from_pointer(pointer);
+
+	if (!self)
+		return;
+	g_signal_emit(self, signals[SIGNAL_EDGE_MOTION], 0, pointer->pos.c.x,
+		      pointer->pos.c.y, intended.c.x - pointer->pos.c.x,
+		      intended.c.y - pointer->pos.c.y, absolute,
+		      pointer->button_count);
+}
+
 static void
 filter_grab_motion(struct weston_pointer_grab *grab,
 		   const struct weston_pointer_motion_event *event)
 {
 	struct weston_pointer *pointer = grab->pointer;
 	PoloBackendSeat *self = seat_from_pointer(pointer);
+	struct weston_coord_global intended =
+		weston_pointer_motion_to_abs(pointer, event);
 
 	polo_backend_stats_input(&event->base.ts);
 	self->default_interface->motion(grab, event);
 
+	polo_backend_seat_report_edge_motion(
+		pointer, intended, !(event->mask & WESTON_POINTER_MOTION_REL));
 	g_signal_emit(self, signals[SIGNAL_MOTION], 0, pointer->pos.c.x,
 		      pointer->pos.c.y,
 		      (guint)(event->base.ts.tv_sec * 1000 +
@@ -1370,6 +1390,10 @@ polo_backend_seat_class_init(PoloBackendSeatClass *klass)
 		"motion", G_TYPE_FROM_CLASS(klass), G_SIGNAL_RUN_LAST, 0, NULL,
 		NULL, NULL, G_TYPE_NONE, 4, G_TYPE_DOUBLE, G_TYPE_DOUBLE,
 		G_TYPE_UINT, POLO_BACKEND_TYPE_VIEW);
+	signals[SIGNAL_EDGE_MOTION] = g_signal_new(
+		"edge-motion", G_TYPE_FROM_CLASS(klass), G_SIGNAL_RUN_LAST, 0,
+		NULL, NULL, NULL, G_TYPE_NONE, 6, G_TYPE_DOUBLE, G_TYPE_DOUBLE,
+		G_TYPE_DOUBLE, G_TYPE_DOUBLE, G_TYPE_BOOLEAN, G_TYPE_UINT);
 	signals[SIGNAL_GROUP_CHANGED] = g_signal_new(
 		"group-changed", G_TYPE_FROM_CLASS(klass), G_SIGNAL_RUN_LAST, 0,
 		NULL, NULL, NULL, G_TYPE_NONE, 1, G_TYPE_UINT);

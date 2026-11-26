@@ -85,8 +85,14 @@ grab_motion(struct weston_pointer_grab *grab,
 	gboolean relative = (event->mask & WESTON_POINTER_MOTION_REL) != 0;
 	double dx, dy;
 
-	if (!self->lock_relative || !relative)
+	if (!self->lock_relative || !relative) {
+		struct weston_coord_global intended =
+			weston_pointer_motion_to_abs(pointer, event);
+
 		weston_pointer_move(pointer, event);
+		polo_backend_seat_report_edge_motion(pointer, intended,
+						     !relative);
+	}
 	dx = relative ? event->rel.x : pointer->pos.c.x - old_x;
 	dy = relative ? event->rel.y : pointer->pos.c.y - old_y;
 	g_signal_emit(self, signals[SIGNAL_MOTION], 0, pointer->pos.c.x,
