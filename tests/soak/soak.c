@@ -1916,7 +1916,12 @@ hc_screen_set(struct harness *h, const char *id, const char *key,
 static const char *
 hc_random_action(char *buffer, size_t size, const char *spot)
 {
-	switch (rand() % 8) {
+	static const char *const scales[] = {
+		"'scale'", "'scale-all-workspaces'", "'scale-application'",
+		"'scale-application-all-workspaces'"
+	};
+
+	switch (rand() % 10) {
 	case 0:
 	case 1:
 		return "'none'";
@@ -1928,6 +1933,9 @@ hc_random_action(char *buffer, size_t size, const char *spot)
 		return "'show-desktop'";
 	case 5:
 		return "'window-switcher'";
+	case 6:
+	case 7:
+		return scales[rand() % 4];
 	default:
 		snprintf(buffer, size, "'command:hc fuzz-%s'", spot);
 		return buffer;
@@ -2070,6 +2078,39 @@ hc_standard_layout(struct harness *h)
 }
 
 static void
+hc_random_scale(struct harness *h)
+{
+	static const char *const screens[] = { "'summoned'", "'each'",
+					       "'mirrored'" };
+	static const char *const modes[] = { "workspace", "all-workspaces",
+					     "application",
+					     "application-all-workspaces" };
+	static const char *const minimized[] = { "'show'", "'dimmed'",
+						 "'hide'" };
+	char value[200];
+
+	harness_set_setting(h, "org.mate.polo.scale", "screens",
+			    screens[rand() % 3]);
+	harness_set_setting(h, "org.mate.polo.scale", "summoned-windows",
+			    rand() % 2 ? "'this-screen'" : "'every-screen'");
+	snprintf(value, sizeof value, "{'%s': %s}", modes[rand() % 4],
+		 screens[rand() % 3]);
+	harness_set_setting(h, "org.mate.polo.scale", "mode-screens",
+			    rand() % 2 ? value : "@a{ss} {}");
+	harness_set_setting(h, "org.mate.polo.scale", "layout",
+			    rand() % 2 ? "'natural'" : "'grid'");
+	harness_set_setting(h, "org.mate.polo.scale", "all-workspaces-layout",
+			    rand() % 2 ? "'grouped'" : "'mixed'");
+	harness_set_setting(h, "org.mate.polo.scale", "minimized",
+			    minimized[rand() % 3]);
+	harness_set_setting(h, "org.mate.polo.scale", "window-titles",
+			    rand() % 2 ? "true" : "false");
+	snprintf(value, sizeof value, "uint32 %d", 1 + rand() % 300);
+	harness_set_setting(h, "org.mate.polo.scale", "duration-ms", value);
+	trace("  scale settings changed");
+}
+
+static void
 hc_random_settings(struct harness *h)
 {
 	char value[400], ids[4][128];
@@ -2080,6 +2121,7 @@ hc_random_settings(struct harness *h)
 					       "'selected'" };
 
 	hc_settings++;
+	hc_random_scale(h);
 	hc_set(h, "enabled", rand() % 8 ? "true" : "false");
 	for (int i = 0; i < HC_SPOTS; i++)
 		hc_set(h, HC_SPOT_KEYS[i],
